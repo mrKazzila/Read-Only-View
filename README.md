@@ -1,5 +1,8 @@
 # Read Only View
 
+[![CI](https://github.com/mrKazzila/Read-Only-View/actions/workflows/ci.yml/badge.svg)](https://github.com/mrKazzila/Read-Only-View/actions/workflows/ci.yml)
+[![Release Obsidian plugin](https://github.com/mrKazzila/Read-Only-View/actions/workflows/release.yml/badge.svg)](https://github.com/mrKazzila/Read-Only-View/actions/workflows/release.yml)
+
 Read Only View is an Obsidian community plugin that forces selected Markdown files to stay in reading mode (preview).
 
 The plugin is designed for both desktop and mobile (`isDesktopOnly: false`) and uses simple, local rule matching with no extra runtime dependencies.
