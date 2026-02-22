@@ -1,0 +1,20 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"rootDir": ".",
+		"outDir": "build-tests",
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"target": "ES2020",
+		"inlineSourceMap": false,
+		"inlineSources": false,
+		"sourceMap": false,
+		"declaration": false,
+		"types": ["node"],
+		"baseUrl": "."
+	},
+	"include": [
+		"src/matcher.ts",
+		"tests/**/*.ts"
+	]
+}
