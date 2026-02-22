@@ -14,6 +14,11 @@ import {
 	normalizeVaultPath,
 	shouldForceReadOnly,
 } from './matcher';
+import {
+	canRunDisableCommand,
+	canRunEnableCommand,
+	shouldReapplyAfterEnabledChange,
+} from './command-controls';
 
 type RuleDiagnosticsEntry = {
 	lineNumber: number;
@@ -38,12 +43,35 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			id: 'toggle-plugin-enabled',
 			name: 'Toggle plugin enabled',
 			callback: async () => {
-				this.settings.enabled = !this.settings.enabled;
-				await this.saveSettings();
-				this.logDebug('toggle-enabled', { enabled: this.settings.enabled });
-				if (this.settings.enabled) {
-					await this.applyAllOpenMarkdownLeaves('toggle-enabled');
+				await this.setPluginEnabled(!this.settings.enabled, 'command-toggle-enabled');
+			},
+		});
+
+		this.addCommand({
+			id: 'enable-plugin',
+			name: 'Enable read-only mode',
+			checkCallback: (checking: boolean) => {
+				if (!canRunEnableCommand(this.settings.enabled)) {
+					return false;
 				}
+				if (!checking) {
+					void this.setPluginEnabled(true, 'command-enable');
+				}
+				return true;
+			},
+		});
+
+		this.addCommand({
+			id: 'disable-plugin',
+			name: 'Disable read-only mode',
+			checkCallback: (checking: boolean) => {
+				if (!canRunDisableCommand(this.settings.enabled)) {
+					return false;
+				}
+				if (!checking) {
+					void this.setPluginEnabled(false, 'command-disable');
+				}
+				return true;
 			},
 		});
 
@@ -90,6 +118,19 @@ export default class ReadOnlyViewPlugin extends Plugin {
 
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
+	}
+
+	private async setPluginEnabled(enabled: boolean, reason: string): Promise<void> {
+		const previousEnabled = this.settings.enabled;
+		if (previousEnabled === enabled) {
+			return;
+		}
+		this.settings.enabled = enabled;
+		await this.saveSettings();
+		this.logDebug('set-enabled', { enabled: this.settings.enabled, reason });
+		if (shouldReapplyAfterEnabledChange(previousEnabled, enabled)) {
+			await this.applyAllOpenMarkdownLeaves(reason);
+		}
 	}
 
 	async applyAllOpenMarkdownLeaves(reason: string): Promise<void> {
