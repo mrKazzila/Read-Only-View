@@ -52,6 +52,13 @@ Loop protection:
 - Global lock (`enforcing`) + pending reason queue (`pendingReapply`)
 - Per-leaf throttle (`WeakMap<WorkspaceLeaf, number>`) to reduce repeated `setViewState` calls.
 
+Command entry points:
+
+- `Enable read-only mode` (shown only when currently disabled)
+- `Disable read-only mode` (shown only when currently enabled)
+- `Toggle plugin enabled`
+- `Re-apply rules now`
+
 ### C. Matching flow
 
 1. Normalize path (trim, slash normalization, remove leading `./`, collapse `//`).

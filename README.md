@@ -28,6 +28,8 @@ The plugin is designed for both desktop and mobile (`isDesktopOnly: false`) and 
   - matched exclude rules
   - final `READ-ONLY ON/OFF`
 - Commands:
+  - `Enable read-only mode`
+  - `Disable read-only mode`
   - `Toggle plugin enabled`
   - `Re-apply rules now`
 - Debug logging via `console.debug` (optional).
@@ -73,6 +75,9 @@ Literal prefix mode (`useGlobPatterns = false`):
    - `Include rules`
    - `Exclude rules`
 5. Use **Path tester** to validate rules before relying on them.
+6. Quickly control enforcement from the Command Palette:
+   - **Enable read-only mode**
+   - **Disable read-only mode**
 
 Example rules:
 
