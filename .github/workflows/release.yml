@@ -1,0 +1,74 @@
+name: Release Obsidian plugin
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Validate versions (tag == manifest.json == versions.json)
+        shell: bash
+        run: |
+          raw_tag="${GITHUB_REF_NAME}"      # expected: 1.2.3
+          tag="${raw_tag}"
+
+          manifest_version="$(node -p "require('./manifest.json').version")"
+          if [ "$manifest_version" != "$tag" ]; then
+            echo "❌ manifest.json version ($manifest_version) != tag ($tag)"
+            exit 1
+          fi
+
+          # Optional but recommended by obsidian-sample-plugin: versions.json must contain an entry for this plugin version
+          node -e "const tag='${tag}'; const v=require('./versions.json'); if(!v[tag]) { console.error('❌ versions.json has no entry for ' + tag); process.exit(1); }"
+
+          # Ensure build artifacts exist
+          test -f main.js || (echo "❌ main.js not found after build" && exit 1)
+          test -f manifest.json || (echo "❌ manifest.json missing" && exit 1)
+          # styles.css is optional; only require it if you actually ship it
+          if [ -f styles.css ]; then echo "✅ styles.css present"; else echo "ℹ️ styles.css not present, skipping"; fi
+
+      - name: Create GitHub Release (published)
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          files: |
+            main.js
+            manifest.json
+            styles.css
