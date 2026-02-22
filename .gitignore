@@ -23,6 +23,8 @@ data.json
 
 # local just recipes
 just/local.just
+audit.md
+backlog/
 
 
 # build artifacts / caches
