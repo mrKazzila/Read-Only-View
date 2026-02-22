@@ -61,6 +61,11 @@ export function compileGlobToRegex(pattern: string, caseSensitive: boolean): Reg
 		if (char === undefined) {
 			continue;
 		}
+		if (normalizedPattern.startsWith('/**/', index)) {
+			source += '/(?:.*/)?';
+			index += 3;
+			continue;
+		}
 		if (char === '*') {
 			const next = normalizedPattern[index + 1];
 			if (next === '*') {
