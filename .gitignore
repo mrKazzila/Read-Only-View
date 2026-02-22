@@ -23,3 +23,16 @@ data.json
 
 # local just recipes
 just/local.just
+
+
+# build artifacts / caches
+dist/
+build/
+build-tests/
+coverage/
+*.tsbuildinfo
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
