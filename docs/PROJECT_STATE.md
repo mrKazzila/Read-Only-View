@@ -35,6 +35,8 @@ High-level modules:
   - Observer and workspace event coverage for `main.ts`: mutation prefiltering, batched popover/editor enforcement path, leaf lookup cache hit/miss behavior, cache invalidation, unload disconnect, and coalesced event-driven reapply
 - `tests/rules-save-debounce.test.ts`
   - Debounced rules-save coverage for settings textareas: burst collapse, immediate flush, and latest-value persistence
+- `tests/rule-diagnostics.test.ts`
+  - Diagnostics edge-case coverage for empty lines (no synthetic `/` in prefix mode)
 
 Design intent:
 
@@ -104,6 +106,7 @@ Command entry points:
 - Diagnostics list per line:
   - `✅` healthy
   - `⚠️` suspicious (empty lines, wildcard in prefix mode, normalization/folder-hint changes)
+  - empty lines render as `(empty line)` and do not receive synthetic `/` normalization
 - Path tester:
   - include matches
   - exclude matches

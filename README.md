@@ -154,6 +154,7 @@ just check
   - Check `Case sensitive` setting.
   - In prefix mode (`Use glob patterns` off), `*` and `?` are treated literally.
   - Check normalized path form (`\` vs `/`, leading `./`, duplicate `/`) in diagnostics.
+  - Empty diagnostics lines are shown as `(empty line)` and are not converted to `/`.
 - Rule matches too broadly in prefix mode:
   - If you intended a folder, keep a trailing `/` in the rule.
   - Remember: prefix mode uses `startsWith`.

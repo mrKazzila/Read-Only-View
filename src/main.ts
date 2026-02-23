@@ -466,6 +466,9 @@ function stringifyRules(rules: string[]): string {
 
 function normalizeRuleForMode(rule: string, useGlobPatterns: boolean): { normalized: string; changedByFolderHint: boolean } {
 	const normalized = normalizeVaultPath(rule);
+	if (normalized.length === 0) {
+		return { normalized: '', changedByFolderHint: false };
+	}
 	if (useGlobPatterns) {
 		return { normalized, changedByFolderHint: false };
 	}
@@ -480,7 +483,7 @@ function normalizeRuleForMode(rule: string, useGlobPatterns: boolean): { normali
 	};
 }
 
-function buildRuleDiagnostics(rulesText: string, useGlobPatterns: boolean): RuleDiagnosticsEntry[] {
+export function buildRuleDiagnostics(rulesText: string, useGlobPatterns: boolean): RuleDiagnosticsEntry[] {
 	const lines = rulesText.split('\n');
 	return lines.map((line, index) => {
 		const trimmed = line.trim();
