@@ -21,6 +21,14 @@ High-level modules:
   - `shouldForceReadOnly(filePath, settings)`
 - `tests/matcher.test.ts`
   - Node test runner coverage for matcher behavior (glob/prefix/case/normalization/exclude-wins)
+- `tests/helpers/obsidian-mocks.ts`
+  - Factory mocks `workspace/app/leaf/viewState` for orchestration tests from `main.ts`
+- `tests/helpers/dom-mocks.ts`
+  - Replacement for `MutationObserver`, `HTMLElement`, and minimal `document.body` for Node tests
+- `tests/helpers/test-setup.ts`
+  - Reusable test framework setup for future `main.ts` tests
+- `tests/main-test-harness.test.ts`
+  - Framework smoke test: validity of leaf/workspace mocks and DOM/observer replacements
 
 Design intent:
 
