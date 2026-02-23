@@ -134,6 +134,10 @@ Test:
 npm test
 ```
 
+Test suite note:
+
+- includes matcher stress/perf checks for long path and wildcard workloads with conservative runtime budgets to catch obvious regressions without CI flakiness
+
 Lint:
 
 ```bash

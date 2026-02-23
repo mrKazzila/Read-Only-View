@@ -22,6 +22,8 @@ High-level modules:
   - `shouldForceReadOnly(filePath, settings)`
 - `tests/matcher.test.ts`
   - Node test runner coverage for matcher behavior (glob/prefix/case/normalization/exclude-wins)
+- `tests/matcher.stress.test.ts`
+  - Stress/perf coverage for long path + wildcard matcher workloads with conservative runtime budgets (`*`, `**`, `?`)
 - `tests/helpers/obsidian-mocks.ts`
   - Factory mocks `workspace/app/leaf/viewState` for orchestration tests from `main.ts`
 - `tests/helpers/dom-mocks.ts`
