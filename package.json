@@ -26,6 +26,6 @@
 		"jiti": "2.6.1"
 	},
 	"dependencies": {
-		"obsidian": "latest"
+		"obsidian": "1.10.3"
 	}
 }

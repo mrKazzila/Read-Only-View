@@ -105,6 +105,14 @@ Requirements:
 - Node.js 18+
 - npm
 
+Dependency policy:
+
+- `obsidian` is pinned to an exact version in `package.json` (`1.10.3`) to keep local and CI builds reproducible.
+- Update policy:
+  - bump intentionally via `npm install obsidian@<version>`
+  - run full validation (`just lint && just test && just build`)
+  - smoke-check plugin loading in Obsidian desktop and mobile
+
 Install dependencies:
 
 ```bash

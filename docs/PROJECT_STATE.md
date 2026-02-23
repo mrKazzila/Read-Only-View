@@ -139,6 +139,9 @@ Core config:
   - test compile output to `build-tests/`
 - `eslint.config.mts`
   - Obsidian lint preset + repo ignores + test-file overrides
+- Dependency strategy:
+  - `obsidian` is pinned to an exact version (`1.10.3`) in `package.json`
+  - version updates are explicit and validated with full lint/test/build and runtime smoke checks
 
 Generated artifacts (not source of truth):
 
