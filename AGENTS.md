@@ -50,3 +50,9 @@ Run (at minimum):
 3. `just build`
 
 If something cannot be run, document exactly what was not executed and why.
+
+## Related docs
+
+- README.md — user-facing behavior
+- CONTRIBUTING.md — contribution workflow and PR expectations
+- docs/PROJECT_STATE.md — internal system map
