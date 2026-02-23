@@ -15,6 +15,7 @@ export default tseslint.config(
 						'eslint.config.mts',
 						'manifest.json',
 						'tests/*.ts',
+						'tests/helpers/*.ts',
 						'tsconfig.test.json',
 					],
 				},
@@ -25,7 +26,7 @@ export default tseslint.config(
 	},
 	...obsidianmd.configs.recommended,
 	{
-		files: ['tests/*.ts'],
+		files: ['tests/**/*.ts'],
 		rules: {
 			'import/no-nodejs-modules': 'off',
 			'@typescript-eslint/no-floating-promises': 'off',
