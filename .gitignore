@@ -23,7 +23,7 @@ data.json
 
 # local just recipes
 just/local.just
-audit.md
+audit*
 backlog/
 
 
