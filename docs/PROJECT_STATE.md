@@ -13,7 +13,7 @@ High-level modules:
   - Event wiring (`file-open`, `active-leaf-change`, `layout-change`) with event coalescing
   - Orchestration for enforcement service calls
   - Settings tab wiring (without UI-render details)
-  - Best-effort popover handling via `MutationObserver` with prefilter, batched candidate handling, and `containerEl -> leaf` cache
+  - Orchestration for popover observer service calls
 - `src/enforcement.ts`
   - Typed enforcement service (`createEnforcementService`)
   - Enforcement loop, lock/pending queue, and per-leaf preview throttle
@@ -21,6 +21,10 @@ High-level modules:
 - `src/settings-tab.ts`
   - `ForceReadModeSettingTab` UI module (settings controls, rules editor, diagnostics panel, path tester)
   - `DebouncedRuleChangeSaver` for input-save debounce and flush
+- `src/popover-observer.ts`
+  - Typed popover observer service with explicit lifecycle (`start`, `stop`)
+  - Centralized popover/editor selectors and mutation prefiltering
+  - Batched candidate handling and `containerEl -> leaf` cache with explicit invalidation
 - `src/rule-diagnostics.ts`
   - Rule text parsing and diagnostics helpers
   - Path tester matching helpers for include/exclude/result output
@@ -47,7 +51,9 @@ High-level modules:
 - `tests/enforcement.test.ts`
   - Unit coverage for enforcement service contracts: pending queue, throttle behavior, and fallback logging
 - `tests/main.observer.test.ts`
-  - Observer and workspace event coverage for `main.ts`: mutation prefiltering, batched popover/editor enforcement path, leaf lookup cache hit/miss behavior, cache invalidation, unload disconnect, and coalesced event-driven reapply
+  - Integration coverage for `main.ts` observer wiring and workspace event behavior
+- `tests/popover-observer.test.ts`
+  - Unit coverage for observer service lifecycle, prefilter, dispatch, selector contract, and leaf-cache invalidation
 - `tests/rules-save-debounce.test.ts`
   - Debounced rules-save coverage for settings module: burst collapse, immediate flush, and latest-value persistence
 - `tests/rule-diagnostics.test.ts`
@@ -88,6 +94,7 @@ Workspace-event coalescing:
 
 Observer optimization:
 
+- Implemented in `src/popover-observer.ts` with explicit service lifecycle.
 - Mutation batches are prefiltered to skip non-relevant nodes quickly.
 - Candidate nodes are handled in one batch function per mutation callback.
 - Leaf lookup uses `containerEl -> leaf` cache with fallback scan on miss.
@@ -190,7 +197,7 @@ Items where behavior depends on Obsidian internals and is best-effort:
   - See `docs/compatibility-matrix.md` for platform/version/scenario results and pending checks.
 
 - Hover/popover edit prevention coverage is not guaranteed for every internal view implementation.
-  - Verify in: `src/main.ts` (`installMutationObserver`, `handlePotentialPopoverNode`, `findLeafByNode`).
+  - Verify in: `src/popover-observer.ts` (`start`, selector matching, `findLeafByNode`).
 - Whether every embedded note context maps to a real markdown leaf in all app versions.
   - Verify in: runtime behavior + `src/main.ts` enforcement path.
 

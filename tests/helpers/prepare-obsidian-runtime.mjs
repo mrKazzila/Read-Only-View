@@ -65,6 +65,7 @@ const patchedMainSource = mainSource
 	.replace("'./matcher'", "'./matcher.js'")
 	.replace("'./command-controls'", "'./command-controls.js'")
 	.replace("'./enforcement'", "'./enforcement.js'")
+	.replace("'./popover-observer'", "'./popover-observer.js'")
 	.replace("'./settings-tab'", "'./settings-tab.js'");
 await writeFile(mainPath, patchedMainSource, 'utf8');
 

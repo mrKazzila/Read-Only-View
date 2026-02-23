@@ -258,7 +258,6 @@ test('onunload disconnects active mutation observer', () => {
 		plugin.onunload();
 
 		assert.equal(observer.disconnected, true);
-		assert.equal((plugin as unknown as { mutationObserver: MutationObserver | null }).mutationObserver, null);
 	} finally {
 		harness.restore();
 	}
