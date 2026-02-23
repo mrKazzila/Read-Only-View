@@ -18,6 +18,7 @@ function createSettings(overrides: Partial<ForceReadModeSettings>): ForceReadMod
         useGlobPatterns: true,
         caseSensitive: true,
         debug: false,
+        debugVerbosePaths: false,
         includeRules: [],
         excludeRules: [],
         ...overrides,

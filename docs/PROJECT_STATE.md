@@ -37,6 +37,8 @@ High-level modules:
   - Debounced rules-save coverage for settings textareas: burst collapse, immediate flush, and latest-value persistence
 - `tests/rule-diagnostics.test.ts`
   - Diagnostics edge-case and warning-data coverage for inline warnings render
+- `tests/debug-logging.test.ts`
+  - Debug logging privacy coverage for path redaction/verbose mode and fallback error diagnostics
 
 Design intent:
 
@@ -98,6 +100,7 @@ Command entry points:
 ### D. Settings UX flow
 
 - Toggles: `Enabled`, `Use glob patterns`, `Case sensitive`, `Debug logging`
+- `Debug: verbose paths` toggle allows full file paths in debug logs; default keeps paths redacted
 - Rule textareas: include/exclude (one rule per line)
 - Rules-save behavior:
   - save on `input` with 400 ms debounce
@@ -155,6 +158,8 @@ Generated artifacts (not source of truth):
 - Matching is intentionally limited to `.md`; attachments and other extensions are untouched.
 - Prefix mode treats `*` and `?` as literal characters, which can surprise users.
 - Rule diagnostics are advisory; they do not block saving rules.
+- Debug logs use path redaction by default; full path output is opt-in via `Debug: verbose paths`.
+- Fallback from `setViewState(..., { replace: true })` logs error type/message in debug mode.
 
 ## 5) Not Sure / Verify Here
 

@@ -40,6 +40,8 @@ The plugin is designed for both desktop and mobile (`isDesktopOnly: false`) and 
   - `Toggle plugin enabled`
   - `Re-apply rules now`
 - Debug logging via `console.debug` (optional).
+  - file paths are redacted by default
+  - enable `Debug: verbose paths` to include full file paths
 
 ## How It Works
 
@@ -175,3 +177,5 @@ just check
   - Switch tabs or reopen the note to trigger workspace events.
 - Need deeper investigation:
   - Enable `Debug logging` and inspect DevTools console output (`[read-only-view]` prefix).
+  - Keep `Debug: verbose paths` disabled unless full-path diagnostics are required.
+  - Fallback failures include error type/message in debug logs (`ensure-preview-fallback`).

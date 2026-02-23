@@ -3,6 +3,7 @@ export interface ForceReadModeSettings {
 	useGlobPatterns: boolean;
 	caseSensitive: boolean;
 	debug: boolean;
+	debugVerbosePaths: boolean;
 	includeRules: string[];
 	excludeRules: string[];
 }
@@ -12,6 +13,7 @@ export const DEFAULT_SETTINGS: ForceReadModeSettings = {
 	useGlobPatterns: false,
 	caseSensitive: true,
 	debug: false,
+	debugVerbosePaths: false,
 	includeRules: [],
 	excludeRules: [],
 };

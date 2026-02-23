@@ -31,6 +31,29 @@ type RuleDiagnosticsEntry = {
 type RuleSaveState = 'saving' | 'saved' | 'error';
 const RULES_SAVE_DEBOUNCE_MS = 400;
 
+export function formatPathForDebug(path: string, verbosePaths: boolean): string {
+	const normalized = normalizeVaultPath(path);
+	if (verbosePaths) {
+		return normalized;
+	}
+	const parts = normalized.split('/');
+	const basename = parts[parts.length - 1] ?? '';
+	return basename ? `[redacted]/${basename}` : '[redacted]';
+}
+
+function describeError(error: unknown): { errorType: string; errorMessage: string } {
+	if (error instanceof Error) {
+		return {
+			errorType: error.name || 'Error',
+			errorMessage: error.message,
+		};
+	}
+	return {
+		errorType: typeof error,
+		errorMessage: String(error),
+	};
+}
+
 export class DebouncedRuleChangeSaver {
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private lastValue = '';
@@ -320,14 +343,21 @@ export default class ReadOnlyViewPlugin extends Plugin {
 				pushHistory?: boolean | { replace?: boolean }
 			) => Promise<void>;
 			await setState(nextState, { replace: true });
-		} catch {
+		} catch (error) {
+			const errorInfo = describeError(error);
+			this.logDebug('ensure-preview-fallback', {
+				reason,
+				filePath: formatPathForDebug(file.path, this.settings.debugVerbosePaths),
+				errorType: errorInfo.errorType,
+				errorMessage: errorInfo.errorMessage,
+			});
 			await leaf.setViewState(nextState, false);
 		}
 
 		const afterMode = this.getLeafMode(leaf);
 		this.logDebug('ensure-preview', {
 			reason,
-			filePath: file.path,
+			filePath: formatPathForDebug(file.path, this.settings.debugVerbosePaths),
 			beforeMode,
 			afterMode,
 		});
@@ -584,6 +614,19 @@ class ForceReadModeSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.debug)
 					.onChange(async (value) => {
 						this.plugin.settings.debug = value;
+						await this.plugin.saveSettings();
+						this.display();
+					});
+			});
+
+		new Setting(containerEl)
+			.setName('Debug: verbose paths')
+			.setDesc('When enabled, debug logs include full file paths. Keep disabled for safer default redaction.')
+			.addToggle((toggle) => {
+				toggle
+					.setValue(this.plugin.settings.debugVerbosePaths)
+					.onChange(async (value) => {
+						this.plugin.settings.debugVerbosePaths = value;
 						await this.plugin.saveSettings();
 						this.display();
 					});
