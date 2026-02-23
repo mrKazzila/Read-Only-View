@@ -11,6 +11,7 @@ export default tseslint.config(
 			},
 			parserOptions: {
 				projectService: {
+					maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 16,
 					allowDefaultProject: [
 						'eslint.config.mts',
 						'manifest.json',

@@ -33,6 +33,8 @@ High-level modules:
   - Enforcement coverage for `main.ts`: lock, pending queue, per-leaf throttle, `.md` filtering, and fallback `setViewState` call
 - `tests/main.observer.test.ts`
   - Observer and workspace event coverage for `main.ts`: mutation prefiltering, batched popover/editor enforcement path, leaf lookup cache hit/miss behavior, cache invalidation, unload disconnect, and coalesced event-driven reapply
+- `tests/rules-save-debounce.test.ts`
+  - Debounced rules-save coverage for settings textareas: burst collapse, immediate flush, and latest-value persistence
 
 Design intent:
 
@@ -95,6 +97,10 @@ Command entry points:
 
 - Toggles: `Enabled`, `Use glob patterns`, `Case sensitive`, `Debug logging`
 - Rule textareas: include/exclude (one rule per line)
+- Rules-save behavior:
+  - save on `input` with 400 ms debounce
+  - flush on `blur` and `change`
+  - status text: `Saving...`, `Saved.`, `Save failed.`
 - Diagnostics list per line:
   - `✅` healthy
   - `⚠️` suspicious (empty lines, wildcard in prefix mode, normalization/folder-hint changes)

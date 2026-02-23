@@ -28,6 +28,67 @@ type RuleDiagnosticsEntry = {
 	warnings: string[];
 };
 
+type RuleSaveState = 'saving' | 'saved' | 'error';
+const RULES_SAVE_DEBOUNCE_MS = 400;
+
+export class DebouncedRuleChangeSaver {
+	private timer: ReturnType<typeof setTimeout> | null = null;
+	private lastValue = '';
+	private running = false;
+	private pendingRun = false;
+
+	constructor(
+		private readonly delayMs: number,
+		private readonly commit: (value: string) => Promise<void>,
+		private readonly onStateChange: (state: RuleSaveState) => void,
+	) {}
+
+	schedule(value: string): void {
+		this.lastValue = value;
+		this.onStateChange('saving');
+		if (this.timer) {
+			clearTimeout(this.timer);
+		}
+		this.timer = setTimeout(() => {
+			this.timer = null;
+			void this.runCommit();
+		}, this.delayMs);
+	}
+
+	async flush(value?: string): Promise<void> {
+		if (value !== undefined) {
+			this.lastValue = value;
+		}
+		if (this.timer) {
+			clearTimeout(this.timer);
+			this.timer = null;
+		}
+		this.onStateChange('saving');
+		await this.runCommit();
+	}
+
+	private async runCommit(): Promise<void> {
+		if (this.running) {
+			this.pendingRun = true;
+			return;
+		}
+
+		this.running = true;
+		try {
+			await this.commit(this.lastValue);
+			this.onStateChange('saved');
+		} catch {
+			this.onStateChange('error');
+		} finally {
+			this.running = false;
+			if (this.pendingRun) {
+				this.pendingRun = false;
+				await this.runCommit();
+			}
+		}
+	}
+}
+
 export default class ReadOnlyViewPlugin extends Plugin {
 	settings: ForceReadModeSettings = { ...DEFAULT_SETTINGS };
 	private static readonly WORKSPACE_EVENT_COALESCE_MS = 150;
@@ -561,6 +622,28 @@ class ForceReadModeSettingTab extends PluginSettingTab {
 		textAreaEl.placeholder ='Examples:\nproject_a/**\n**/README.md\nfolder/subfolder/';
 		textAreaEl.rows = 6;
 		textAreaEl.addClass('read-only-view-full-width');
+		const saveStatusEl = sectionEl.createEl('p', {
+			cls: 'setting-item-description',
+			text: 'Saved.',
+		});
+
+		const setSaveState = (state: RuleSaveState) => {
+			if (state === 'saving') {
+				saveStatusEl.setText('Saving...');
+				return;
+			}
+			if (state === 'error') {
+				saveStatusEl.setText('Save failed.');
+				return;
+			}
+			saveStatusEl.setText('Saved.');
+		};
+
+		const saver = new DebouncedRuleChangeSaver(
+			RULES_SAVE_DEBOUNCE_MS,
+			onChange,
+			setSaveState,
+		);
 
 		const diagnosticsEl = sectionEl.createDiv({ cls: 'read-only-view-rule-diagnostics' });
 		new Setting(diagnosticsEl).setName('Rule diagnostics').setHeading();
@@ -583,11 +666,17 @@ class ForceReadModeSettingTab extends PluginSettingTab {
 
 		textAreaEl.addEventListener('input', () => {
 			currentText = textAreaEl.value;
+			saver.schedule(currentText);
 			renderDiagnostics();
 		});
 		textAreaEl.addEventListener('change', () => {
 			currentText = textAreaEl.value;
-			void onChange(currentText);
+			void saver.flush(currentText);
+			renderDiagnostics();
+		});
+		textAreaEl.addEventListener('blur', () => {
+			currentText = textAreaEl.value;
+			void saver.flush(currentText);
 			renderDiagnostics();
 		});
 	}

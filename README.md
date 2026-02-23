@@ -23,6 +23,10 @@ The plugin is designed for both desktop and mobile (`isDesktopOnly: false`) and 
 - Rule diagnostics in settings:
   - `✅` valid rule
   - `⚠️` suspicious/non-effective rule
+- Rules editor save behavior:
+  - saves on typing with debounce (~400 ms)
+  - flushes pending save on `blur` / `change`
+  - shows text status (`Saving...`, `Saved.`, `Save failed.`)
 - Built-in path tester in settings:
   - matched include rules
   - matched exclude rules
@@ -74,6 +78,7 @@ Literal prefix mode (`useGlobPatterns = false`):
    - `Debug logging`
    - `Include rules`
    - `Exclude rules`
+   - while editing rules, wait for `Saved.` status before closing settings if you need explicit confirmation
 5. Use **Path tester** to validate rules before relying on them.
 6. Quickly control enforcement from the Command Palette:
    - **Enable read-only mode**
