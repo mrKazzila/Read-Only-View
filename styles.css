@@ -11,6 +11,22 @@ If your plugin does not need CSS, delete this file.
 	width: 100%;
 }
 
+.read-only-view-rule-section {
+	margin-bottom: 1rem;
+}
+
+.read-only-view-rule-section textarea {
+	box-sizing: border-box;
+	min-height: 8rem;
+	resize: vertical;
+}
+
+.read-only-view-rule-diagnostics {
+	max-height: 16rem;
+	overflow: auto;
+	padding-right: 0.25rem;
+}
+
 .read-only-view-diagnostics-list {
 	margin: 0;
 	padding-left: 1.25rem;
@@ -37,4 +53,55 @@ If your plugin does not need CSS, delete this file.
 	color: var(--text-muted);
 	line-height: 1.4;
 	word-break: break-word;
+}
+
+.read-only-view-path-tester {
+	overflow: hidden;
+}
+
+.read-only-view-path-tester input,
+.read-only-view-path-tester-result {
+	box-sizing: border-box;
+	max-width: 100%;
+}
+
+.read-only-view-path-tester-result {
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
+@media (max-width: 900px) {
+	.read-only-view-rule-section textarea {
+		min-height: 9rem;
+	}
+
+	.read-only-view-rule-diagnostics {
+		max-height: 12rem;
+	}
+
+	.read-only-view-diagnostics-list {
+		padding-left: 1rem;
+	}
+}
+
+@media (max-width: 600px) {
+	.read-only-view-rule-section {
+		margin-bottom: 0.75rem;
+	}
+
+	.read-only-view-rule-section textarea {
+		min-height: 10rem;
+		font-size: 16px;
+		line-height: 1.35;
+	}
+
+	.read-only-view-rule-diagnostics {
+		max-height: 10rem;
+	}
+
+	.read-only-view-diagnostics-summary,
+	.read-only-view-diagnostics-warning,
+	.read-only-view-path-tester-result {
+		font-size: 0.95rem;
+	}
 }

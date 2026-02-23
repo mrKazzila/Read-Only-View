@@ -24,6 +24,7 @@ The plugin is designed for both desktop and mobile (`isDesktopOnly: false`) and 
   - `✅` valid rule
   - `⚠️` suspicious/non-effective rule
   - warnings are shown inline under each rule (no hover required)
+  - diagnostics area uses local scroll with capped height on small screens
 - Rules editor save behavior:
   - saves on typing with debounce (~400 ms)
   - flushes pending save on `blur` / `change`
@@ -32,6 +33,7 @@ The plugin is designed for both desktop and mobile (`isDesktopOnly: false`) and 
   - matched include rules
   - matched exclude rules
   - final `READ-ONLY ON/OFF`
+  - long values wrap safely on narrow/mobile layouts
 - Commands:
   - `Enable read-only mode`
   - `Disable read-only mode`

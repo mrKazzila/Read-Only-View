@@ -108,10 +108,12 @@ Command entry points:
   - `⚠️` suspicious (empty lines, wildcard in prefix mode, normalization/folder-hint changes)
   - empty lines render as `(empty line)` and do not receive synthetic `/` normalization
   - warning details are rendered inline in nested semantic lists (`ul/li`) and announced via `aria-live`
+  - diagnostics panel is capped with local scroll for mobile/tablet readability
 - Path tester:
   - include matches
   - exclude matches
   - final `READ-ONLY ON/OFF`
+  - long strings wrap to avoid horizontal overflow on narrow screens
 
 ## 3) Important Files and Config
 
