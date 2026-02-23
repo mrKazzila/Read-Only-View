@@ -36,7 +36,7 @@ The plugin is designed for both desktop and mobile (`isDesktopOnly: false`) and 
 
 ## How It Works
 
-1. On workspace events (`file-open`, `active-leaf-change`, `layout-change`), the plugin scans open Markdown leaves.
+1. On workspace events (`file-open`, `active-leaf-change`, `layout-change`), the plugin coalesces bursts into one re-apply pass (150 ms window) before scanning open Markdown leaves.
 2. For each Markdown file, it evaluates `shouldForceReadOnly(file.path, settings)`.
 3. If the file should be protected, the plugin forces the leaf view mode to `preview`.
 4. If a user or UI action tries to switch back to edit mode, the plugin re-applies preview mode.

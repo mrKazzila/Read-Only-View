@@ -30,11 +30,14 @@ type RuleDiagnosticsEntry = {
 
 export default class ReadOnlyViewPlugin extends Plugin {
 	settings: ForceReadModeSettings = { ...DEFAULT_SETTINGS };
+	private static readonly WORKSPACE_EVENT_COALESCE_MS = 150;
 
 	private enforcing = false;
 	private pendingReapply: string | null = null;
 	private lastForcedAt = new WeakMap<WorkspaceLeaf, number>();
 	private mutationObserver: MutationObserver | null = null;
+	private workspaceEventTimer: ReturnType<typeof setTimeout> | null = null;
+	private workspaceEventReasons = new Set<string>();
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -83,14 +86,14 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			},
 		});
 
-		this.registerEvent(this.app.workspace.on('file-open', async () => {
-			await this.applyAllOpenMarkdownLeaves('file-open');
+		this.registerEvent(this.app.workspace.on('file-open', () => {
+			this.scheduleWorkspaceEventReapply('file-open');
 		}));
-		this.registerEvent(this.app.workspace.on('active-leaf-change', async () => {
-			await this.applyAllOpenMarkdownLeaves('active-leaf-change');
+		this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
+			this.scheduleWorkspaceEventReapply('active-leaf-change');
 		}));
-		this.registerEvent(this.app.workspace.on('layout-change', async () => {
-			await this.applyAllOpenMarkdownLeaves('layout-change');
+		this.registerEvent(this.app.workspace.on('layout-change', () => {
+			this.scheduleWorkspaceEventReapply('layout-change');
 		}));
 
 		this.installMutationObserver();
@@ -100,6 +103,12 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	}
 
 	onunload(): void {
+		if (this.workspaceEventTimer) {
+			clearTimeout(this.workspaceEventTimer);
+			this.workspaceEventTimer = null;
+		}
+		this.workspaceEventReasons.clear();
+
 		if (this.mutationObserver) {
 			this.mutationObserver.disconnect();
 			this.mutationObserver = null;
@@ -156,6 +165,20 @@ export default class ReadOnlyViewPlugin extends Plugin {
 				await this.applyAllOpenMarkdownLeaves(`pending:${nextReason}`);
 			}
 		}
+	}
+
+	private scheduleWorkspaceEventReapply(reason: string): void {
+		this.workspaceEventReasons.add(reason);
+		if (this.workspaceEventTimer) {
+			return;
+		}
+
+		this.workspaceEventTimer = setTimeout(() => {
+			const reasons = Array.from(this.workspaceEventReasons);
+			this.workspaceEventReasons.clear();
+			this.workspaceEventTimer = null;
+			void this.applyAllOpenMarkdownLeaves(`workspace-events:${reasons.join(',')}`);
+		}, ReadOnlyViewPlugin.WORKSPACE_EVENT_COALESCE_MS);
 	}
 
 	private async applyReadOnlyForLeaf(leaf: WorkspaceLeaf, reason: string): Promise<void> {

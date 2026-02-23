@@ -10,7 +10,7 @@ High-level modules:
 
 - `src/main.ts`
   - Plugin lifecycle (`onload`, `onunload`)
-  - Event wiring (`file-open`, `active-leaf-change`, `layout-change`)
+  - Event wiring (`file-open`, `active-leaf-change`, `layout-change`) with event coalescing
   - Enforcement loop over open markdown leaves
   - Best-effort popover handling via `MutationObserver`
   - Settings tab UI, diagnostics UI, and path tester UI
@@ -32,7 +32,7 @@ High-level modules:
 - `tests/main.enforcement.test.ts`
   - Enforcement coverage for `main.ts`: lock, pending queue, per-leaf throttle, `.md` filtering, and fallback `setViewState` call
 - `tests/main.observer.test.ts`
-  - Observer and workspace event coverage for `main.ts`: mutation filtering, popover/editor enforcement path, unload disconnect, and event-driven reapply
+  - Observer and workspace event coverage for `main.ts`: mutation filtering, popover/editor enforcement path, unload disconnect, and coalesced event-driven reapply
 
 Design intent:
 
@@ -58,6 +58,12 @@ Design intent:
    - ignore non-`.md`
    - evaluate `shouldForceReadOnly(file.path, settings)`
 4. If match: call `ensurePreview(leaf, reason)`.
+
+Workspace-event coalescing:
+
+- `file-open`, `active-leaf-change`, and `layout-change` are combined in a 150 ms window.
+- One coalesced run executes with reason format `workspace-events:<joined reasons>`.
+- Manual command `Re-apply rules now` still runs immediately.
 
 Loop protection:
 
