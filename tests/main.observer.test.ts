@@ -37,6 +37,38 @@ function createObserverPlugin() {
 	};
 }
 
+function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) => Promise<void>): Promise<void> {
+	const originalSetTimeout = globalThis.setTimeout;
+	const originalClearTimeout = globalThis.clearTimeout;
+
+	let nextId = 1;
+	const queue = new Map<number, () => void>();
+
+	globalThis.setTimeout = ((handler: TimerHandler) => {
+		const callbackHandler = typeof handler === 'function' ? handler : () => undefined;
+		const id = nextId++;
+		queue.set(id, callbackHandler as () => void);
+		return id as unknown as ReturnType<typeof setTimeout>;
+	}) as typeof setTimeout;
+
+	globalThis.clearTimeout = ((timeoutId: ReturnType<typeof setTimeout>) => {
+		queue.delete(Number(timeoutId));
+	}) as typeof clearTimeout;
+
+	const flushAll = async () => {
+		for (const [id, callbackHandler] of Array.from(queue.entries())) {
+			queue.delete(id);
+			callbackHandler();
+			await Promise.resolve();
+		}
+	};
+
+	return callback({ flushAll }).finally(() => {
+		globalThis.setTimeout = originalSetTimeout;
+		globalThis.clearTimeout = originalClearTimeout;
+	});
+}
+
 test('observer ignores added nodes without relevant classes', async () => {
 	const { leaf, harness, plugin } = createObserverPlugin();
 
@@ -119,7 +151,7 @@ test('onunload disconnects active mutation observer', () => {
 	}
 });
 
-test('workspace events trigger reapply for file-open, active-leaf-change, and layout-change', async () => {
+test('workspace event burst is coalesced into one reapply pass', async () => {
 	const { harness, plugin } = createObserverPlugin();
 	const reapplyReasons: string[] = [];
 
@@ -128,20 +160,69 @@ test('workspace events trigger reapply for file-open, active-leaf-change, and la
 		reapplyReasons.push(reason);
 	};
 	plugin.registerEvent = () => undefined;
+	(plugin as unknown as { addCommand: (command: unknown) => unknown }).addCommand = () => ({});
 
 	try {
-		await plugin.onload();
-		assert.ok(reapplyReasons.includes('onload'));
+		await withFakeTimeouts(async ({ flushAll }) => {
+			await plugin.onload();
+			assert.deepEqual(reapplyReasons, ['onload']);
 
-		harness.workspace.trigger('file-open');
-		harness.workspace.trigger('active-leaf-change');
-		harness.workspace.trigger('layout-change');
-		await Promise.resolve();
-		await Promise.resolve();
+			harness.workspace.trigger('file-open');
+			harness.workspace.trigger('active-leaf-change');
+			harness.workspace.trigger('layout-change');
+			await Promise.resolve();
 
-		assert.ok(reapplyReasons.includes('file-open'));
-		assert.ok(reapplyReasons.includes('active-leaf-change'));
-		assert.ok(reapplyReasons.includes('layout-change'));
+			assert.deepEqual(reapplyReasons, ['onload']);
+
+			await flushAll();
+			assert.equal(reapplyReasons.length, 2);
+			assert.ok(reapplyReasons[1]?.startsWith('workspace-events:'));
+			assert.ok(reapplyReasons[1]?.includes('file-open'));
+			assert.ok(reapplyReasons[1]?.includes('active-leaf-change'));
+			assert.ok(reapplyReasons[1]?.includes('layout-change'));
+		});
+	} finally {
+		harness.restore();
+	}
+});
+
+test('re-apply command remains immediate and bypasses workspace event scheduler', async () => {
+	const { harness, plugin } = createObserverPlugin();
+	const reapplyReasons: string[] = [];
+	const commands = new Map<string, () => Promise<void>>();
+
+	plugin.loadSettings = async () => undefined;
+	plugin.applyAllOpenMarkdownLeaves = async (reason: string) => {
+		reapplyReasons.push(reason);
+	};
+	plugin.registerEvent = () => undefined;
+	(plugin as unknown as {
+		addCommand: (command: { id: string; callback?: () => Promise<void> }) => unknown;
+	}).addCommand = (command) => {
+		if (command.callback) {
+			commands.set(command.id, command.callback);
+		}
+		return {};
+	};
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			await plugin.onload();
+			assert.ok(commands.has('re-apply-rules-now'));
+
+			harness.workspace.trigger('file-open');
+			await Promise.resolve();
+			assert.deepEqual(reapplyReasons, ['onload']);
+
+			const reapplyCommand = commands.get('re-apply-rules-now');
+			assert.ok(reapplyCommand);
+			await reapplyCommand();
+			assert.deepEqual(reapplyReasons, ['onload', 'command-reapply']);
+
+			await flushAll();
+			assert.equal(reapplyReasons.length, 3);
+			assert.ok(reapplyReasons[2]?.startsWith('workspace-events:'));
+		});
 	} finally {
 		harness.restore();
 	}
