@@ -16,7 +16,8 @@ High-level modules:
   - Settings tab UI, diagnostics UI, and path tester UI
 - `src/matcher.ts`
   - `normalizeVaultPath(path)`
-  - `compileGlobToRegex(pattern, caseSensitive)` with cache
+  - `compileGlobToRegex(pattern, caseSensitive)` with bounded FIFO cache (`cap=512`)
+  - `clearGlobRegexCache()` service API for explicit cache invalidation (used in tests/tooling)
   - `matchPath(filePath, pattern, options)`
   - `shouldForceReadOnly(filePath, settings)`
 - `tests/matcher.test.ts`
@@ -94,6 +95,7 @@ Command entry points:
 
 1. Normalize path (trim, slash normalization, remove leading `./`, collapse `//`).
 2. If `useGlobPatterns=true`: anchored regex (`^...$`) using internal glob conversion.
+   - Compiled regex entries are cached with fixed FIFO cap (`512`) to bound memory for highly unique rule sets.
 3. If `useGlobPatterns=false`: literal prefix mode with optional folder slash hint.
 4. Include must match, then exclude must *not* match.
 

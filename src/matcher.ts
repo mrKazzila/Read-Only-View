@@ -23,7 +23,30 @@ export interface MatchPathOptions {
 	caseSensitive: boolean;
 }
 
+export const GLOB_REGEX_CACHE_CAP = 512;
 const globRegexCache = new Map<string, RegExp>();
+
+export function clearGlobRegexCache(): void {
+	globRegexCache.clear();
+}
+
+export function getGlobRegexCacheSize(): number {
+	return globRegexCache.size;
+}
+
+function setGlobRegexCache(cacheKey: string, compiled: RegExp): void {
+	if (globRegexCache.has(cacheKey)) {
+		globRegexCache.set(cacheKey, compiled);
+		return;
+	}
+	if (globRegexCache.size >= GLOB_REGEX_CACHE_CAP) {
+		const oldestEntry = globRegexCache.keys().next();
+		if (!oldestEntry.done) {
+			globRegexCache.delete(oldestEntry.value);
+		}
+	}
+	globRegexCache.set(cacheKey, compiled);
+}
 
 export function normalizeVaultPath(path: string): string {
 	let normalized = path.trim();
@@ -87,7 +110,7 @@ export function compileGlobToRegex(pattern: string, caseSensitive: boolean): Reg
 	source += '$';
 
 	const compiled = new RegExp(source);
-	globRegexCache.set(cacheKey, compiled);
+	setGlobRegexCache(cacheKey, compiled);
 	return compiled;
 }
 

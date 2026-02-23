@@ -2,7 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+    GLOB_REGEX_CACHE_CAP,
+    clearGlobRegexCache,
     compileGlobToRegex,
+    getGlobRegexCacheSize,
     matchPath,
     normalizeVaultPath,
     shouldForceReadOnly,
@@ -104,6 +107,7 @@ test('F) exclude wins over include in shouldForceReadOnly', () => {
 });
 
 test('G) compileGlobToRegex is anchored and cached by key', () => {
+	clearGlobRegexCache();
 	const regex1 = compileGlobToRegex('docs/*.md', true);
 	const regex2 = compileGlobToRegex('docs/*.md', true);
 	const regex3 = compileGlobToRegex('docs/*.md', false);
@@ -114,6 +118,32 @@ test('G) compileGlobToRegex is anchored and cached by key', () => {
 	assert.equal(regex1.test('prefix/docs/file.md'), false);
 	assert.equal(regex1.test('docs/file.md/suffix'), false);
 	assert.equal(regex1.test('docs/file.md'), true);
+});
+
+test('N) compileGlobToRegex reuses cache entry on hit', () => {
+	clearGlobRegexCache();
+
+	const regex1 = compileGlobToRegex('cache/hit/*.md', true);
+	const regex2 = compileGlobToRegex('cache/hit/*.md', true);
+
+	assert.equal(regex1, regex2);
+	assert.equal(getGlobRegexCacheSize(), 1);
+});
+
+test('O) glob regex cache has fixed cap and evicts oldest entries (FIFO)', () => {
+	clearGlobRegexCache();
+
+	const oldest = compileGlobToRegex('cache/0/**/*.md', true);
+	const retained = compileGlobToRegex('cache/1/**/*.md', true);
+
+	for (let i = 2; i <= GLOB_REGEX_CACHE_CAP; i++) {
+		compileGlobToRegex(`cache/${i}/**/*.md`, true);
+	}
+
+	assert.equal(getGlobRegexCacheSize(), GLOB_REGEX_CACHE_CAP);
+	assert.equal(compileGlobToRegex('cache/1/**/*.md', true), retained);
+	assert.notEqual(compileGlobToRegex('cache/0/**/*.md', true), oldest);
+	assert.equal(getGlobRegexCacheSize(), GLOB_REGEX_CACHE_CAP);
 });
 
 test('H) glob token semantics for segment crossing', () => {

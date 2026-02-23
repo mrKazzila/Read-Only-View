@@ -62,6 +62,7 @@ Glob semantics (`useGlobPatterns = true`):
 - `*` matches within one path segment (`[^/]*`)
 - `**` matches across segments (`.*`)
 - `?` matches one non-`/` character (`[^/]`)
+- compiled glob regexes are cached with a fixed FIFO cap (`512` entries) to prevent unbounded memory growth with many unique rules
 
 Literal prefix mode (`useGlobPatterns = false`):
 
