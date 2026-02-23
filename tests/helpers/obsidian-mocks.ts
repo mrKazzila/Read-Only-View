@@ -1,3 +1,5 @@
+import { MarkdownView } from 'obsidian';
+
 export type MockViewMode = 'preview' | 'source';
 
 export type MockSetViewStateArg = boolean | { replace?: boolean };
@@ -22,6 +24,8 @@ type MockVaultFile = {
 type CreateMockLeafOptions = {
 	mode?: MockViewMode;
 	filePath?: string;
+	isMarkdownView?: boolean;
+	throwOnReplaceCall?: boolean;
 };
 
 function createContainerElement(): HTMLElement {
@@ -54,6 +58,8 @@ export type MockWorkspaceLeaf = {
 export function createMockWorkspaceLeaf(options: CreateMockLeafOptions = {}): MockWorkspaceLeaf {
 	let mode = options.mode ?? 'source';
 	let filePath = options.filePath;
+	const isMarkdownView = options.isMarkdownView ?? true;
+	let throwOnReplaceCall = options.throwOnReplaceCall ?? false;
 	const setViewStateCalls: MockSetViewStateCall[] = [];
 	const containerEl = createContainerElement();
 
@@ -67,19 +73,34 @@ export function createMockWorkspaceLeaf(options: CreateMockLeafOptions = {}): Mo
 		};
 	};
 
-	const leaf: MockWorkspaceLeaf = {
-		view: {
-			get file() {
-				return getFile();
-			},
-			getMode: () => mode,
-			containerEl,
+	const markdownView = Object.create(MarkdownView.prototype) as MockWorkspaceLeaf['view'];
+	Object.defineProperty(markdownView, 'file', {
+		get() {
+			return getFile();
 		},
+		enumerable: true,
+		configurable: true,
+	});
+	markdownView.getMode = () => mode;
+	markdownView.containerEl = containerEl;
+
+	const nonMarkdownView: MockWorkspaceLeaf['view'] = {
+		file: null,
+		getMode: () => mode,
+		containerEl,
+	};
+
+	const leaf: MockWorkspaceLeaf = {
+		view: isMarkdownView ? markdownView : nonMarkdownView,
 		getViewState: () => ({
 			type: 'markdown',
 			state: { mode },
 		}),
 		setViewState: async (state, arg) => {
+			if (throwOnReplaceCall && typeof arg === 'object' && arg?.replace) {
+				throwOnReplaceCall = false;
+				throw new Error('mock setViewState replace failure');
+			}
 			setViewStateCalls.push({ state, arg });
 			mode = state.state.mode;
 		},

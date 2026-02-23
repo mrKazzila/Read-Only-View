@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Last updated: 2026-02-22
+Last updated: 2026-02-23
 
 This document is a living system map for the `read-only-view` Obsidian plugin.
 
@@ -29,6 +29,8 @@ High-level modules:
   - Reusable test framework setup for future `main.ts` tests
 - `tests/main-test-harness.test.ts`
   - Framework smoke test: validity of leaf/workspace mocks and DOM/observer replacements
+- `tests/main.enforcement.test.ts`
+  - Enforcement coverage for `main.ts`: lock, pending queue, per-leaf throttle, `.md` filtering, and fallback `setViewState` call
 
 Design intent:
 

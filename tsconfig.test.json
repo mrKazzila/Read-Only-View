@@ -3,8 +3,8 @@
 	"compilerOptions": {
 		"rootDir": ".",
 		"outDir": "build-tests",
-		"module": "NodeNext",
-		"moduleResolution": "NodeNext",
+		"module": "ESNext",
+		"moduleResolution": "node",
 		"target": "ES2020",
 		"inlineSourceMap": false,
 		"inlineSources": false,
@@ -16,6 +16,7 @@
 	"include": [
 		"src/matcher.ts",
 		"src/command-controls.ts",
+		"src/main.ts",
 		"tests/**/*.ts"
 	]
 }
