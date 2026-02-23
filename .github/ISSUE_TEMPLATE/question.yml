@@ -1,0 +1,36 @@
+name: Question / Help
+description: Ask a question about configuration or expected behavior
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask anything about configuration, rule matching, or expected behavior.
+        If something "doesn't work", please include rules + an example file path.
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      placeholder: "How do I make only files under /templates read-only, but exclude /templates/drafts?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context (optional)
+      description: Include settings/rules and an example file.path if relevant (you may redact paths).
+      placeholder: |
+        Enabled: true
+        Use glob patterns: true
+        Case sensitive: false
+
+        Include:
+        - templates/**
+
+        Exclude:
+        - templates/drafts/**
+        
+        Example file.path: templates/foo.md

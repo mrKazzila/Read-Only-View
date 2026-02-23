@@ -1,0 +1,117 @@
+name: Bug report
+description: Report a problem with Read Only View
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug.
+        Please include minimal, reproducible details. Avoid sharing sensitive paths if possible.
+
+  - type: input
+    id: plugin_version
+    attributes:
+      label: Plugin version
+      description: The plugin version (from Obsidian → Community plugins or manifest.json).
+      placeholder: "e.g., 0.3.1"
+    validations:
+      required: true
+
+  - type: input
+    id: obsidian_version
+    attributes:
+      label: Obsidian version
+      placeholder: "e.g., 1.5.12"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Desktop (macOS)
+        - Desktop (Windows)
+        - Desktop (Linux)
+        - Mobile (iOS)
+        - Mobile (Android)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: A clear, concise description of the bug.
+      placeholder: "When I open X.md, it switches to edit mode even though it should be forced to preview."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      placeholder: "The file should remain in reading mode (preview) and block switching to Source/Live Preview."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps that reproduce the bug reliably.
+      placeholder: |
+        1. Enable plugin
+        2. Set include rules to ...
+        3. Open file path ...
+        4. Attempt to switch to ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: rules
+    attributes:
+      label: Rules and settings
+      description: Include your relevant settings (you can redact private paths).
+      placeholder: |
+        Enabled: true
+        Use glob patterns: true/false
+        Case sensitive: true/false
+
+        Include:
+        - ...
+
+        Exclude:
+        - ...
+    validations:
+      required: true
+
+  - type: input
+    id: file_path
+    attributes:
+      label: Example file.path
+      description: The exact Obsidian file path (as shown by the Path tester). You may redact parts.
+      placeholder: "e.g., project_a/README.md"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console logs (optional)
+      description: Paste relevant logs. If you enabled debug logging, include lines with [read-only-view]. Redact sensitive paths if needed.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I verified the issue using the built-in Path tester.
+          required: false
+        - label: I checked that exclude rules are not overriding include rules.
+          required: false
+        - label: I searched existing issues to avoid duplicates.
+          required: false
