@@ -12,12 +12,18 @@ High-level modules:
   - Plugin lifecycle (`onload`, `onunload`)
   - Event wiring (`file-open`, `active-leaf-change`, `layout-change`) with event coalescing
   - Orchestration for enforcement service calls
+  - Settings tab wiring (without UI-render details)
   - Best-effort popover handling via `MutationObserver` with prefilter, batched candidate handling, and `containerEl -> leaf` cache
-  - Settings tab UI, diagnostics UI, and path tester UI
 - `src/enforcement.ts`
   - Typed enforcement service (`createEnforcementService`)
   - Enforcement loop, lock/pending queue, and per-leaf preview throttle
   - Leaf-level preview forcing with fallback logging
+- `src/settings-tab.ts`
+  - `ForceReadModeSettingTab` UI module (settings controls, rules editor, diagnostics panel, path tester)
+  - `DebouncedRuleChangeSaver` for input-save debounce and flush
+- `src/rule-diagnostics.ts`
+  - Rule text parsing and diagnostics helpers
+  - Path tester matching helpers for include/exclude/result output
 - `src/matcher.ts`
   - `normalizeVaultPath(path)`
   - `compileGlobToRegex(pattern, caseSensitive)` with bounded FIFO cache (`cap=512`)
@@ -43,9 +49,9 @@ High-level modules:
 - `tests/main.observer.test.ts`
   - Observer and workspace event coverage for `main.ts`: mutation prefiltering, batched popover/editor enforcement path, leaf lookup cache hit/miss behavior, cache invalidation, unload disconnect, and coalesced event-driven reapply
 - `tests/rules-save-debounce.test.ts`
-  - Debounced rules-save coverage for settings textareas: burst collapse, immediate flush, and latest-value persistence
+  - Debounced rules-save coverage for settings module: burst collapse, immediate flush, and latest-value persistence
 - `tests/rule-diagnostics.test.ts`
-  - Diagnostics edge-case and warning-data coverage for inline warnings render
+  - Diagnostics and path tester helper coverage for inline warnings and include/exclude/result computation
 - `tests/debug-logging.test.ts`
   - Debug logging privacy coverage for path redaction/verbose mode and fallback error diagnostics
 
@@ -108,6 +114,11 @@ Command entry points:
 4. Include must match, then exclude must *not* match.
 
 ### D. Settings UX flow
+
+UI module split:
+
+- `src/settings-tab.ts` owns rendering and handlers for settings UI sections.
+- `src/rule-diagnostics.ts` provides pure helpers used by settings UI (rule diagnostics + path tester computations).
 
 - Toggles: `Enabled`, `Use glob patterns`, `Case sensitive`, `Debug logging`
 - `Debug: verbose paths` toggle allows full file paths in debug logs; default keeps paths redacted
