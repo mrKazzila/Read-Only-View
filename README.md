@@ -179,3 +179,9 @@ just check
   - Enable `Debug logging` and inspect DevTools console output (`[read-only-view]` prefix).
   - Keep `Debug: verbose paths` disabled unless full-path diagnostics are required.
   - Fallback failures include error type/message in debug logs (`ensure-preview-fallback`).
+
+## Compatibility Matrix
+
+Manual cross-platform/version compatibility checks are tracked in:
+
+- `docs/compatibility-matrix.md`

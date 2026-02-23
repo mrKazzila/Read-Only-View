@@ -165,6 +165,9 @@ Generated artifacts (not source of truth):
 
 Items where behavior depends on Obsidian internals and is best-effort:
 
+- Manual compatibility tracking matrix:
+  - See `docs/compatibility-matrix.md` for platform/version/scenario results and pending checks.
+
 - Hover/popover edit prevention coverage is not guaranteed for every internal view implementation.
   - Verify in: `src/main.ts` (`installMutationObserver`, `handlePotentialPopoverNode`, `findLeafByNode`).
 - Whether every embedded note context maps to a real markdown leaf in all app versions.
