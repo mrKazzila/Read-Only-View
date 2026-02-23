@@ -27,7 +27,9 @@ High-level modules:
 - `src/popover-observer.ts`
   - Typed popover observer service with explicit lifecycle (`start`, `stop`)
   - Centralized popover/editor selectors and mutation prefiltering
+  - Popover candidate scope limited to `.hover-popover` and `.popover`
   - Batched candidate handling and `containerEl -> leaf` cache with explicit invalidation
+  - Per-batch leaf deduplication to avoid repeated preview forcing for one leaf
 - `src/rule-diagnostics.ts`
   - Rule text parsing and diagnostics helpers
   - Path tester matching helpers for include/exclude/result output

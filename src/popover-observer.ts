@@ -6,7 +6,7 @@ export type PopoverObserverSelectors = {
 };
 
 export const DEFAULT_POPOVER_OBSERVER_SELECTORS: PopoverObserverSelectors = {
-	popoverCandidate: '.hover-popover, .popover, .workspace-leaf, .markdown-source-view, .cm-editor',
+	popoverCandidate: '.hover-popover, .popover',
 	editorCandidate: '.markdown-source-view, .cm-editor',
 };
 
@@ -121,38 +121,44 @@ class DefaultPopoverObserverService implements PopoverObserverService {
 	}
 
 	private async handlePotentialPopoverBatch(nodes: HTMLElement[]): Promise<void> {
+		const processedLeaves = new Set<WorkspaceLeaf>();
 		for (const node of nodes) {
-			await this.handlePotentialPopoverNode(node);
+			const leaf = this.findMatchingLeaf(node);
+			if (!leaf || processedLeaves.has(leaf)) {
+				continue;
+			}
+			processedLeaves.add(leaf);
+			await this.dependencies.ensurePreview(leaf, 'mutation-observer');
 		}
 	}
 
-	private async handlePotentialPopoverNode(node: HTMLElement): Promise<void> {
+	private findMatchingLeaf(node: HTMLElement): WorkspaceLeaf | null {
 		const hasEditor =
 			node.matches(this.selectors.editorCandidate) ||
 			!!node.querySelector(this.selectors.editorCandidate);
 		if (!hasEditor) {
-			return;
+			return null;
 		}
 
 		const leaf = this.findLeafByNode(node);
 		if (!leaf) {
-			return;
+			return null;
 		}
 
 		if (!(leaf.view instanceof MarkdownView)) {
-			return;
+			return null;
 		}
 
 		const file = leaf.view.file;
 		if (!file || file.extension !== 'md') {
-			return;
+			return null;
 		}
 
 		if (!this.dependencies.shouldForceReadOnlyPath(file.path)) {
-			return;
+			return null;
 		}
 
-		await this.dependencies.ensurePreview(leaf, 'mutation-observer');
+		return leaf;
 	}
 }
 

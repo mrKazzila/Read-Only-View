@@ -50,6 +50,7 @@ The plugin is designed for both desktop and mobile (`isDesktopOnly: false`) and 
 2. For each Markdown file, it evaluates `shouldForceReadOnly(file.path, settings)`.
 3. If the file should be protected, the plugin forces the leaf view mode to `preview`.
 4. If a user or UI action tries to switch back to edit mode, the plugin re-applies preview mode.
+5. A mutation observer watches popover containers (`.hover-popover`, `.popover`) and re-applies protection only when an editor node appears there.
 
 Matching rules:
 

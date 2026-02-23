@@ -83,6 +83,45 @@ test('observer service dispatches matching popover/editor node to enforcement ca
 	}
 });
 
+test('observer service de-duplicates enforcement per leaf within a single mutation batch', async () => {
+	const harness = createMainTestHarness();
+	const leaf = harness.leaves[0];
+	assert.ok(leaf);
+	leaf.setFilePath('docs/file.md');
+	leaf.setMode('source');
+
+	let ensurePreviewCalls = 0;
+	const service = createPopoverObserverService({
+		isEnabled: () => true,
+		getMarkdownLeaves: () => [leaf as never],
+		shouldForceReadOnlyPath: (path) => path.startsWith('docs/'),
+		ensurePreview: async () => {
+			ensurePreviewCalls += 1;
+		},
+	});
+
+	try {
+		service.start();
+		const observer = MockMutationObserver.instances[0];
+		assert.ok(observer);
+
+		const container = leaf.view.containerEl as unknown as MockHTMLElement;
+		const firstPopover = new MockHTMLElement(['.popover']);
+		firstPopover.appendChild(new MockHTMLElement(['.cm-editor']));
+		const secondPopover = new MockHTMLElement(['.hover-popover']);
+		secondPopover.appendChild(new MockHTMLElement(['.markdown-source-view']));
+		container.appendChild(firstPopover);
+		container.appendChild(secondPopover);
+
+		observer.trigger([{ addedNodes: [firstPopover, secondPopover] }]);
+		await Promise.resolve();
+
+		assert.equal(ensurePreviewCalls, 1);
+	} finally {
+		harness.restore();
+	}
+});
+
 test('observer service findLeafByNode uses cache and invalidation', () => {
 	const harness = createMainTestHarness();
 	const leaf = harness.leaves[0];
@@ -118,7 +157,7 @@ test('observer service findLeafByNode uses cache and invalidation', () => {
 test('observer service centralizes selector contract', () => {
 	assert.equal(
 		DEFAULT_POPOVER_OBSERVER_SELECTORS.popoverCandidate,
-		'.hover-popover, .popover, .workspace-leaf, .markdown-source-view, .cm-editor',
+		'.hover-popover, .popover',
 	);
 	assert.equal(
 		DEFAULT_POPOVER_OBSERVER_SELECTORS.editorCandidate,
