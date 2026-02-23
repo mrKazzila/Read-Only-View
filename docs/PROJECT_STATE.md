@@ -31,6 +31,8 @@ High-level modules:
   - Framework smoke test: validity of leaf/workspace mocks and DOM/observer replacements
 - `tests/main.enforcement.test.ts`
   - Enforcement coverage for `main.ts`: lock, pending queue, per-leaf throttle, `.md` filtering, and fallback `setViewState` call
+- `tests/main.observer.test.ts`
+  - Observer and workspace event coverage for `main.ts`: mutation filtering, popover/editor enforcement path, unload disconnect, and event-driven reapply
 
 Design intent:
 
