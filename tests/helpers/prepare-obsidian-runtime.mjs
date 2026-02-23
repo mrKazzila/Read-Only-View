@@ -63,5 +63,12 @@ const mainPath = path.join(scriptDir, '..', '..', 'build-tests', 'src', 'main.js
 const mainSource = await readFile(mainPath, 'utf8');
 const patchedMainSource = mainSource
 	.replace("'./matcher'", "'./matcher.js'")
-	.replace("'./command-controls'", "'./command-controls.js'");
+	.replace("'./command-controls'", "'./command-controls.js'")
+	.replace("'./enforcement'", "'./enforcement.js'");
 await writeFile(mainPath, patchedMainSource, 'utf8');
+
+const enforcementPath = path.join(scriptDir, '..', '..', 'build-tests', 'src', 'enforcement.js');
+const enforcementSource = await readFile(enforcementPath, 'utf8');
+const patchedEnforcementSource = enforcementSource
+	.replace("'./matcher'", "'./matcher.js'");
+await writeFile(enforcementPath, patchedEnforcementSource, 'utf8');

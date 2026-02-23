@@ -11,9 +11,13 @@ High-level modules:
 - `src/main.ts`
   - Plugin lifecycle (`onload`, `onunload`)
   - Event wiring (`file-open`, `active-leaf-change`, `layout-change`) with event coalescing
-  - Enforcement loop over open markdown leaves
+  - Orchestration for enforcement service calls
   - Best-effort popover handling via `MutationObserver` with prefilter, batched candidate handling, and `containerEl -> leaf` cache
   - Settings tab UI, diagnostics UI, and path tester UI
+- `src/enforcement.ts`
+  - Typed enforcement service (`createEnforcementService`)
+  - Enforcement loop, lock/pending queue, and per-leaf preview throttle
+  - Leaf-level preview forcing with fallback logging
 - `src/matcher.ts`
   - `normalizeVaultPath(path)`
   - `compileGlobToRegex(pattern, caseSensitive)` with bounded FIFO cache (`cap=512`)
@@ -33,7 +37,9 @@ High-level modules:
 - `tests/main-test-harness.test.ts`
   - Framework smoke test: validity of leaf/workspace mocks and DOM/observer replacements
 - `tests/main.enforcement.test.ts`
-  - Enforcement coverage for `main.ts`: lock, pending queue, per-leaf throttle, `.md` filtering, and fallback `setViewState` call
+  - Integration coverage for `main.ts` orchestration over enforcement paths
+- `tests/enforcement.test.ts`
+  - Unit coverage for enforcement service contracts: pending queue, throttle behavior, and fallback logging
 - `tests/main.observer.test.ts`
   - Observer and workspace event coverage for `main.ts`: mutation prefiltering, batched popover/editor enforcement path, leaf lookup cache hit/miss behavior, cache invalidation, unload disconnect, and coalesced event-driven reapply
 - `tests/rules-save-debounce.test.ts`

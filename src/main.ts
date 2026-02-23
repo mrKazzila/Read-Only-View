@@ -5,7 +5,6 @@ import {
 	PluginSettingTab,
 	Setting,
 	WorkspaceLeaf,
-	type ViewState,
 } from 'obsidian';
 import {
 	DEFAULT_SETTINGS,
@@ -19,6 +18,7 @@ import {
 	canRunEnableCommand,
 	shouldReapplyAfterEnabledChange,
 } from './command-controls';
+import { createEnforcementService, type EnforcementService } from './enforcement';
 
 type RuleDiagnosticsEntry = {
 	lineNumber: number;
@@ -39,19 +39,6 @@ export function formatPathForDebug(path: string, verbosePaths: boolean): string 
 	const parts = normalized.split('/');
 	const basename = parts[parts.length - 1] ?? '';
 	return basename ? `[redacted]/${basename}` : '[redacted]';
-}
-
-function describeError(error: unknown): { errorType: string; errorMessage: string } {
-	if (error instanceof Error) {
-		return {
-			errorType: error.name || 'Error',
-			errorMessage: error.message,
-		};
-	}
-	return {
-		errorType: typeof error,
-		errorMessage: String(error),
-	};
 }
 
 export class DebouncedRuleChangeSaver {
@@ -116,9 +103,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	settings: ForceReadModeSettings = { ...DEFAULT_SETTINGS };
 	private static readonly WORKSPACE_EVENT_COALESCE_MS = 150;
 
-	private enforcing = false;
-	private pendingReapply: string | null = null;
-	private lastForcedAt = new WeakMap<WorkspaceLeaf, number>();
+	private enforcementService: EnforcementService | null = null;
 	private mutationObserver: MutationObserver | null = null;
 	private leafByContainer = new WeakMap<HTMLElement, WorkspaceLeaf>();
 	private workspaceEventTimer: ReturnType<typeof setTimeout> | null = null;
@@ -195,6 +180,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		}
 		this.workspaceEventReasons.clear();
 		this.invalidateLeafContainerCache();
+		this.enforcementService = null;
 
 		if (this.mutationObserver) {
 			this.mutationObserver.disconnect();
@@ -229,29 +215,20 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		}
 	}
 
-	async applyAllOpenMarkdownLeaves(reason: string): Promise<void> {
-		if (!this.settings.enabled) {
-			return;
+	private getEnforcementService(): EnforcementService {
+		if (!this.enforcementService) {
+			this.enforcementService = createEnforcementService({
+				getSettings: () => this.settings,
+				getMarkdownLeaves: () => this.app.workspace.getLeavesOfType('markdown'),
+				logDebug: (message, payload) => this.logDebug(message, payload),
+				formatPathForDebug,
+			});
 		}
-		if (this.enforcing) {
-			this.pendingReapply = reason;
-			return;
-		}
+		return this.enforcementService;
+	}
 
-		this.enforcing = true;
-		try {
-			const leaves = this.app.workspace.getLeavesOfType('markdown');
-			for (const leaf of leaves) {
-				await this.applyReadOnlyForLeaf(leaf, reason);
-			}
-		} finally {
-			this.enforcing = false;
-			if (this.pendingReapply) {
-				const nextReason = this.pendingReapply;
-				this.pendingReapply = null;
-				await this.applyAllOpenMarkdownLeaves(`pending:${nextReason}`);
-			}
-		}
+	async applyAllOpenMarkdownLeaves(reason: string): Promise<void> {
+		await this.getEnforcementService().applyAllOpenMarkdownLeaves(reason);
 	}
 
 	private scheduleWorkspaceEventReapply(reason: string): void {
@@ -270,97 +247,6 @@ export default class ReadOnlyViewPlugin extends Plugin {
 
 	private invalidateLeafContainerCache(): void {
 		this.leafByContainer = new WeakMap<HTMLElement, WorkspaceLeaf>();
-	}
-
-	private async applyReadOnlyForLeaf(leaf: WorkspaceLeaf, reason: string): Promise<void> {
-		if (!(leaf.view instanceof MarkdownView)) {
-			return;
-		}
-
-		const file = leaf.view.file;
-		if (!file) {
-			return;
-		}
-		if (file.extension !== 'md') {
-			return;
-		}
-
-		if (!shouldForceReadOnly(file.path, this.settings)) {
-			return;
-		}
-
-		await this.ensurePreview(leaf, reason);
-	}
-
-	private getLeafMode(leaf: WorkspaceLeaf): string | null {
-		if (!(leaf.view instanceof MarkdownView)) {
-			return null;
-		}
-		if (typeof leaf.view.getMode === 'function') {
-			return leaf.view.getMode();
-		}
-		const stateMode = (leaf.getViewState().state as { mode?: string } | undefined)?.mode;
-		return stateMode ?? null;
-	}
-
-	private async ensurePreview(leaf: WorkspaceLeaf, reason: string): Promise<void> {
-		if (!(leaf.view instanceof MarkdownView)) {
-			return;
-		}
-		const file = leaf.view.file;
-		if (!file) {
-			return;
-		}
-
-		const beforeMode = this.getLeafMode(leaf);
-		if (beforeMode === 'preview') {
-			return;
-		}
-
-		const now = Date.now();
-		const last = this.lastForcedAt.get(leaf) ?? 0;
-		if (now - last < 120) {
-			return;
-		}
-
-		const currentState = leaf.getViewState();
-		if (currentState.type !== 'markdown') {
-			return;
-		}
-
-		const nextState: ViewState = {
-			...currentState,
-			state: {
-				...currentState.state,
-				mode: 'preview',
-			},
-		};
-
-		this.lastForcedAt.set(leaf, now);
-		try {
-			const setState = leaf.setViewState.bind(leaf) as (
-				state: ViewState,
-				pushHistory?: boolean | { replace?: boolean }
-			) => Promise<void>;
-			await setState(nextState, { replace: true });
-		} catch (error) {
-			const errorInfo = describeError(error);
-			this.logDebug('ensure-preview-fallback', {
-				reason,
-				filePath: formatPathForDebug(file.path, this.settings.debugVerbosePaths),
-				errorType: errorInfo.errorType,
-				errorMessage: errorInfo.errorMessage,
-			});
-			await leaf.setViewState(nextState, false);
-		}
-
-		const afterMode = this.getLeafMode(leaf);
-		this.logDebug('ensure-preview', {
-			reason,
-			filePath: formatPathForDebug(file.path, this.settings.debugVerbosePaths),
-			beforeMode,
-			afterMode,
-		});
 	}
 
 	private installMutationObserver(): void {
@@ -444,7 +330,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			return;
 		}
 
-		await this.ensurePreview(leaf, 'mutation-observer');
+		await this.getEnforcementService().ensurePreview(leaf, 'mutation-observer');
 	}
 
 	private findLeafByNode(node: HTMLElement): WorkspaceLeaf | null {
