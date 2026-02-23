@@ -39,6 +39,7 @@ The plugin is designed for both desktop and mobile (`isDesktopOnly: false`) and 
   - `Disable read-only mode`
   - `Toggle plugin enabled`
   - `Re-apply rules now`
+  - `Enable read-only mode` is available only when the plugin is disabled; `Disable read-only mode` is available only when enabled
 - Debug logging via `console.debug` (optional).
   - file paths are redacted by default
   - enable `Debug: verbose paths` to include full file paths
@@ -137,6 +138,7 @@ npm test
 Test suite note:
 
 - includes matcher stress/perf checks for long path and wildcard workloads with conservative runtime budgets to catch obvious regressions without CI flakiness
+- includes `main.ts` orchestration tests for enforcement flow, observer wiring, command visibility rules, and debug-path redaction behavior
 
 Lint:
 
@@ -158,6 +160,7 @@ just build
 just test
 just lint
 just check
+just clean
 ```
 
 ## Troubleshooting

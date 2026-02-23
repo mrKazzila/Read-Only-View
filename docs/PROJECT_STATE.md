@@ -14,6 +14,9 @@ High-level modules:
   - Orchestration for enforcement service calls
   - Settings tab wiring (without UI-render details)
   - Orchestration for popover observer service calls
+- `src/command-controls.ts`
+  - Command availability guards (`canRunEnableCommand`, `canRunDisableCommand`)
+  - Re-apply decision helper for enabled-state transitions (`shouldReapplyAfterEnabledChange`)
 - `src/enforcement.ts`
   - Typed enforcement service (`createEnforcementService`)
   - Enforcement loop, lock/pending queue, and per-leaf preview throttle
@@ -38,12 +41,16 @@ High-level modules:
   - Node test runner coverage for matcher behavior (glob/prefix/case/normalization/exclude-wins)
 - `tests/matcher.stress.test.ts`
   - Stress/perf coverage for long path + wildcard matcher workloads with conservative runtime budgets (`*`, `**`, `?`)
+- `tests/command-controls.test.ts`
+  - Unit coverage for command visibility and enabled-change re-apply decisions
 - `tests/helpers/obsidian-mocks.ts`
   - Factory mocks `workspace/app/leaf/viewState` for orchestration tests from `main.ts`
 - `tests/helpers/dom-mocks.ts`
   - Replacement for `MutationObserver`, `HTMLElement`, and minimal `document.body` for Node tests
 - `tests/helpers/test-setup.ts`
   - Reusable test framework setup for future `main.ts` tests
+- `tests/helpers/prepare-obsidian-runtime.mjs`
+  - Test-runtime bootstrap that prepares an `obsidian` module stub and patches build-time relative imports
 - `tests/main-test-harness.test.ts`
   - Framework smoke test: validity of leaf/workspace mocks and DOM/observer replacements
 - `tests/main.enforcement.test.ts`
@@ -111,6 +118,7 @@ Command entry points:
 - `Disable read-only mode` (shown only when currently enabled)
 - `Toggle plugin enabled`
 - `Re-apply rules now`
+- Command visibility and enable/disable transition rules are centralized in `src/command-controls.ts`.
 
 ### C. Matching flow
 
@@ -154,6 +162,7 @@ Build/test/lint commands are sourced from:
   - `install`, `dev`, `build`, `test`, `lint`, `check`, `clean`
 - `package.json`
   - `npm run dev|build|test|lint`
+  - `npm test` flow: compile tests -> prepare test runtime (`tests/helpers/prepare-obsidian-runtime.mjs`) -> run `node --test build-tests/**/*.test.js`
 
 Core config:
 
