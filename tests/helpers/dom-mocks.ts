@@ -33,10 +33,12 @@ function restoreGlobalValue(name: string, descriptor: GlobalValueDescriptor): vo
 export class MockHTMLElement {
 	private readonly selectors: Set<string>;
 	private readonly children: MockHTMLElement[];
+	parentElement: MockHTMLElement | null;
 
 	constructor(selectors: string[] = []) {
 		this.selectors = new Set(selectors);
 		this.children = [];
+		this.parentElement = null;
 	}
 
 	addClassSelector(selector: string): void {
@@ -44,6 +46,7 @@ export class MockHTMLElement {
 	}
 
 	appendChild(child: MockHTMLElement): void {
+		child.parentElement = this;
 		this.children.push(child);
 	}
 

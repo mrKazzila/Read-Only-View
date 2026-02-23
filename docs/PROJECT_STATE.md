@@ -12,7 +12,7 @@ High-level modules:
   - Plugin lifecycle (`onload`, `onunload`)
   - Event wiring (`file-open`, `active-leaf-change`, `layout-change`) with event coalescing
   - Enforcement loop over open markdown leaves
-  - Best-effort popover handling via `MutationObserver`
+  - Best-effort popover handling via `MutationObserver` with prefilter, batched candidate handling, and `containerEl -> leaf` cache
   - Settings tab UI, diagnostics UI, and path tester UI
 - `src/matcher.ts`
   - `normalizeVaultPath(path)`
@@ -32,7 +32,7 @@ High-level modules:
 - `tests/main.enforcement.test.ts`
   - Enforcement coverage for `main.ts`: lock, pending queue, per-leaf throttle, `.md` filtering, and fallback `setViewState` call
 - `tests/main.observer.test.ts`
-  - Observer and workspace event coverage for `main.ts`: mutation filtering, popover/editor enforcement path, unload disconnect, and coalesced event-driven reapply
+  - Observer and workspace event coverage for `main.ts`: mutation prefiltering, batched popover/editor enforcement path, leaf lookup cache hit/miss behavior, cache invalidation, unload disconnect, and coalesced event-driven reapply
 
 Design intent:
 
@@ -64,6 +64,13 @@ Workspace-event coalescing:
 - `file-open`, `active-leaf-change`, and `layout-change` are combined in a 150 ms window.
 - One coalesced run executes with reason format `workspace-events:<joined reasons>`.
 - Manual command `Re-apply rules now` still runs immediately.
+
+Observer optimization:
+
+- Mutation batches are prefiltered to skip non-relevant nodes quickly.
+- Candidate nodes are handled in one batch function per mutation callback.
+- Leaf lookup uses `containerEl -> leaf` cache with fallback scan on miss.
+- Leaf lookup cache is invalidated on `layout-change` and `onunload`.
 
 Loop protection:
 

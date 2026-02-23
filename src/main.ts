@@ -36,6 +36,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	private pendingReapply: string | null = null;
 	private lastForcedAt = new WeakMap<WorkspaceLeaf, number>();
 	private mutationObserver: MutationObserver | null = null;
+	private leafByContainer = new WeakMap<HTMLElement, WorkspaceLeaf>();
 	private workspaceEventTimer: ReturnType<typeof setTimeout> | null = null;
 	private workspaceEventReasons = new Set<string>();
 
@@ -93,6 +94,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			this.scheduleWorkspaceEventReapply('active-leaf-change');
 		}));
 		this.registerEvent(this.app.workspace.on('layout-change', () => {
+			this.invalidateLeafContainerCache();
 			this.scheduleWorkspaceEventReapply('layout-change');
 		}));
 
@@ -108,6 +110,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			this.workspaceEventTimer = null;
 		}
 		this.workspaceEventReasons.clear();
+		this.invalidateLeafContainerCache();
 
 		if (this.mutationObserver) {
 			this.mutationObserver.disconnect();
@@ -179,6 +182,10 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			this.workspaceEventTimer = null;
 			void this.applyAllOpenMarkdownLeaves(`workspace-events:${reasons.join(',')}`);
 		}, ReadOnlyViewPlugin.WORKSPACE_EVENT_COALESCE_MS);
+	}
+
+	private invalidateLeafContainerCache(): void {
+		this.leafByContainer = new WeakMap<HTMLElement, WorkspaceLeaf>();
 	}
 
 	private async applyReadOnlyForLeaf(leaf: WorkspaceLeaf, reason: string): Promise<void> {
@@ -274,18 +281,11 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			if (!this.settings.enabled) {
 				return;
 			}
-			for (const mutation of mutations) {
-				for (let index = 0; index < mutation.addedNodes.length; index++) {
-					const node = mutation.addedNodes[index];
-					if (!(node instanceof HTMLElement)) {
-						continue;
-					}
-					if (!this.isPotentialPopoverNode(node)) {
-						continue;
-					}
-					void this.handlePotentialPopoverNode(node);
-				}
+			const candidateNodes = this.collectPopoverCandidates(mutations);
+			if (candidateNodes.length === 0) {
+				return;
 			}
+			void this.handlePotentialPopoverBatch(candidateNodes);
 		});
 
 		this.mutationObserver.observe(document.body, {
@@ -299,6 +299,32 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			return true;
 		}
 		return !!node.querySelector('.hover-popover, .popover, .workspace-leaf, .markdown-source-view, .cm-editor');
+	}
+
+	private collectPopoverCandidates(mutations: MutationRecord[]): HTMLElement[] {
+		const candidates: HTMLElement[] = [];
+		for (const mutation of mutations) {
+			if (mutation.addedNodes.length === 0) {
+				continue;
+			}
+			for (let index = 0; index < mutation.addedNodes.length; index++) {
+				const node = mutation.addedNodes[index];
+				if (!(node instanceof HTMLElement)) {
+					continue;
+				}
+				if (!this.isPotentialPopoverNode(node)) {
+					continue;
+				}
+				candidates.push(node);
+			}
+		}
+		return candidates;
+	}
+
+	private async handlePotentialPopoverBatch(nodes: HTMLElement[]): Promise<void> {
+		for (const node of nodes) {
+			await this.handlePotentialPopoverNode(node);
+		}
 	}
 
 	private async handlePotentialPopoverNode(node: HTMLElement): Promise<void> {
@@ -331,6 +357,15 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	}
 
 	private findLeafByNode(node: HTMLElement): WorkspaceLeaf | null {
+		let current: HTMLElement | null = node;
+		while (current) {
+			const cachedLeaf = this.leafByContainer.get(current);
+			if (cachedLeaf) {
+				return cachedLeaf;
+			}
+			current = current.parentElement;
+		}
+
 		const leaves = this.app.workspace.getLeavesOfType('markdown');
 		for (const leaf of leaves) {
 			if (!(leaf.view instanceof MarkdownView)) {
@@ -338,6 +373,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			}
 			const container = leaf.view.containerEl;
 			if (container && (container === node || container.contains(node))) {
+				this.leafByContainer.set(container, leaf);
 				return leaf;
 			}
 		}

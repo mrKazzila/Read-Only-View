@@ -12,6 +12,12 @@ type PatchablePlugin = ReadOnlyViewPlugin & {
 	registerEvent: (unsubscribe: () => void) => void;
 };
 
+type ObserverInternals = {
+	installMutationObserver: () => void;
+	findLeafByNode: (node: HTMLElement) => unknown;
+	invalidateLeafContainerCache: () => void;
+};
+
 function createObserverPlugin() {
 	const harness = createMainTestHarness();
 	const leaf = harness.leaves[0];
@@ -128,6 +134,113 @@ test('observer callback does not enforce when plugin is disabled', async () => {
 		await Promise.resolve();
 
 		assert.equal(leaf.setViewStateCalls.length, 0);
+	} finally {
+		harness.restore();
+	}
+});
+
+test('observer prefilter skips batches with no relevant candidate nodes', async () => {
+	const { harness, plugin } = createObserverPlugin();
+
+	try {
+		(plugin as unknown as ObserverInternals).installMutationObserver();
+		const observer = MockMutationObserver.instances[0];
+		assert.ok(observer);
+
+		observer.trigger([{ addedNodes: [new MockHTMLElement(), { foo: 'bar' }] }]);
+		await Promise.resolve();
+
+		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 0);
+	} finally {
+		harness.restore();
+	}
+});
+
+test('findLeafByNode uses cache hit and falls back to scan on cache miss', () => {
+	const { harness, leaf, plugin } = createObserverPlugin();
+	const internals = plugin as unknown as ObserverInternals;
+	const nestedNode = new MockHTMLElement(['.cm-editor']);
+	const container = leaf.view.containerEl as unknown as MockHTMLElement;
+	container.appendChild(nestedNode);
+
+	try {
+		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 0);
+		const first = internals.findLeafByNode(nestedNode as unknown as HTMLElement);
+		assert.ok(first);
+		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 1);
+
+		const second = internals.findLeafByNode(nestedNode as unknown as HTMLElement);
+		assert.ok(second);
+		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 1);
+
+		internals.invalidateLeafContainerCache();
+		const third = internals.findLeafByNode(nestedNode as unknown as HTMLElement);
+		assert.ok(third);
+		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 2);
+	} finally {
+		harness.restore();
+	}
+});
+
+test('findLeafByNode does not produce false-positive match for unrelated nodes', () => {
+	const { harness, plugin } = createObserverPlugin();
+	const internals = plugin as unknown as ObserverInternals;
+	const unrelatedNode = new MockHTMLElement(['.cm-editor']);
+
+	try {
+		const found = internals.findLeafByNode(unrelatedNode as unknown as HTMLElement);
+		assert.equal(found, null);
+		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 1);
+	} finally {
+		harness.restore();
+	}
+});
+
+test('layout-change invalidates leaf container cache', async () => {
+	const { harness, leaf, plugin } = createObserverPlugin();
+	const internals = plugin as unknown as ObserverInternals;
+	const nestedNode = new MockHTMLElement(['.cm-editor']);
+	const container = leaf.view.containerEl as unknown as MockHTMLElement;
+	container.appendChild(nestedNode);
+
+	plugin.loadSettings = async () => undefined;
+	plugin.applyAllOpenMarkdownLeaves = async () => undefined;
+	plugin.registerEvent = () => undefined;
+	(plugin as unknown as { addCommand: (command: unknown) => unknown }).addCommand = () => ({});
+
+	try {
+		await withFakeTimeouts(async () => {
+			await plugin.onload();
+			internals.findLeafByNode(nestedNode as unknown as HTMLElement);
+			internals.findLeafByNode(nestedNode as unknown as HTMLElement);
+			assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 1);
+
+			harness.workspace.trigger('layout-change');
+			await Promise.resolve();
+
+			internals.findLeafByNode(nestedNode as unknown as HTMLElement);
+			assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 2);
+		});
+	} finally {
+		harness.restore();
+	}
+});
+
+test('onunload invalidates leaf container cache', () => {
+	const { harness, leaf, plugin } = createObserverPlugin();
+	const internals = plugin as unknown as ObserverInternals;
+	const nestedNode = new MockHTMLElement(['.cm-editor']);
+	const container = leaf.view.containerEl as unknown as MockHTMLElement;
+	container.appendChild(nestedNode);
+
+	try {
+		internals.findLeafByNode(nestedNode as unknown as HTMLElement);
+		internals.findLeafByNode(nestedNode as unknown as HTMLElement);
+		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 1);
+
+		plugin.onunload();
+		internals.findLeafByNode(nestedNode as unknown as HTMLElement);
+		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 2);
 	} finally {
 		harness.restore();
 	}
