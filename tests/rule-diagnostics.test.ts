@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildRuleDiagnostics } from '../src/main.js';
+import { buildPathTesterResult, buildRuleDiagnostics } from '../src/rule-diagnostics.js';
+import { DEFAULT_SETTINGS } from '../src/matcher.js';
 
 test('empty diagnostic line stays empty in prefix mode and keeps empty-line warning', () => {
 	const diagnostics = buildRuleDiagnostics('', false);
@@ -47,4 +48,25 @@ test('diagnostics provide empty warnings for healthy rules', () => {
 	assert.equal(diagnostics.length, 1);
 	assert.equal(diagnostics[0]?.isOk, true);
 	assert.deepEqual(diagnostics[0]?.warnings, []);
+});
+
+test('path tester helper returns include/exclude matches and final read-only state', () => {
+	const settings = {
+		...DEFAULT_SETTINGS,
+		enabled: true,
+		useGlobPatterns: true,
+		caseSensitive: true,
+		includeRules: ['docs/**'],
+		excludeRules: ['docs/private/**'],
+	};
+
+	const included = buildPathTesterResult('docs/guide.md', settings);
+	assert.deepEqual(included.includeMatches, ['docs/**']);
+	assert.deepEqual(included.excludeMatches, []);
+	assert.equal(included.finalReadOnly, true);
+
+	const excluded = buildPathTesterResult('docs/private/secrets.md', settings);
+	assert.deepEqual(excluded.includeMatches, ['docs/**']);
+	assert.deepEqual(excluded.excludeMatches, ['docs/private/**']);
+	assert.equal(excluded.finalReadOnly, false);
 });

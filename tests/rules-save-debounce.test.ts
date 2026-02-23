@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { DebouncedRuleChangeSaver } from '../src/main.js';
+import { DebouncedRuleChangeSaver } from '../src/settings-tab.js';
 
 function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) => Promise<void>): Promise<void> {
 	const originalSetTimeout = globalThis.setTimeout;

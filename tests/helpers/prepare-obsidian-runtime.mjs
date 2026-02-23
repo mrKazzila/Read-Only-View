@@ -64,7 +64,8 @@ const mainSource = await readFile(mainPath, 'utf8');
 const patchedMainSource = mainSource
 	.replace("'./matcher'", "'./matcher.js'")
 	.replace("'./command-controls'", "'./command-controls.js'")
-	.replace("'./enforcement'", "'./enforcement.js'");
+	.replace("'./enforcement'", "'./enforcement.js'")
+	.replace("'./settings-tab'", "'./settings-tab.js'");
 await writeFile(mainPath, patchedMainSource, 'utf8');
 
 const enforcementPath = path.join(scriptDir, '..', '..', 'build-tests', 'src', 'enforcement.js');
@@ -72,3 +73,16 @@ const enforcementSource = await readFile(enforcementPath, 'utf8');
 const patchedEnforcementSource = enforcementSource
 	.replace("'./matcher'", "'./matcher.js'");
 await writeFile(enforcementPath, patchedEnforcementSource, 'utf8');
+
+const settingsTabPath = path.join(scriptDir, '..', '..', 'build-tests', 'src', 'settings-tab.js');
+const settingsTabSource = await readFile(settingsTabPath, 'utf8');
+const patchedSettingsTabSource = settingsTabSource
+	.replace("'./matcher'", "'./matcher.js'")
+	.replace("'./rule-diagnostics'", "'./rule-diagnostics.js'");
+await writeFile(settingsTabPath, patchedSettingsTabSource, 'utf8');
+
+const ruleDiagnosticsPath = path.join(scriptDir, '..', '..', 'build-tests', 'src', 'rule-diagnostics.js');
+const ruleDiagnosticsSource = await readFile(ruleDiagnosticsPath, 'utf8');
+const patchedRuleDiagnosticsSource = ruleDiagnosticsSource
+	.replace("'./matcher'", "'./matcher.js'");
+await writeFile(ruleDiagnosticsPath, patchedRuleDiagnosticsSource, 'utf8');
