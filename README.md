@@ -23,6 +23,7 @@ The plugin is designed for both desktop and mobile (`isDesktopOnly: false`) and 
 - Rule diagnostics in settings:
   - `✅` valid rule
   - `⚠️` suspicious/non-effective rule
+  - warnings are shown inline under each rule (no hover required)
 - Rules editor save behavior:
   - saves on typing with debounce (~400 ms)
   - flushes pending save on `blur` / `change`
@@ -155,6 +156,7 @@ just check
   - In prefix mode (`Use glob patterns` off), `*` and `?` are treated literally.
   - Check normalized path form (`\` vs `/`, leading `./`, duplicate `/`) in diagnostics.
   - Empty diagnostics lines are shown as `(empty line)` and are not converted to `/`.
+  - Warning details are rendered inline (touch-friendly), not only in hover tooltips.
 - Rule matches too broadly in prefix mode:
   - If you intended a folder, keep a trailing `/` in the rule.
   - Remember: prefix mode uses `startsWith`.

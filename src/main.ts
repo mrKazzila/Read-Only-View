@@ -650,17 +650,30 @@ class ForceReadModeSettingTab extends PluginSettingTab {
 
 		const diagnosticsEl = sectionEl.createDiv({ cls: 'read-only-view-rule-diagnostics' });
 		new Setting(diagnosticsEl).setName('Rule diagnostics').setHeading();
+		diagnosticsEl.setAttr('aria-live', 'polite');
 
 		const renderDiagnostics = () => {
 			const entries = buildRuleDiagnostics(currentText, this.plugin.settings.useGlobPatterns);
 			diagnosticsEl.querySelectorAll('ul').forEach((el) => el.remove());
-			const listEl = diagnosticsEl.createEl('ul');
+			const listEl = diagnosticsEl.createEl('ul', { cls: 'read-only-view-diagnostics-list' });
 			for (const entry of entries) {
 				const bullet = entry.isOk ? '✅' : '⚠️';
 				const summary = `${bullet} [${entry.lineNumber}] ${entry.normalized || '(empty line)'}`;
-				const itemEl = listEl.createEl('li', { text: summary });
+				const itemEl = listEl.createEl('li', {
+					cls: entry.isOk ? 'read-only-view-diagnostics-item-ok' : 'read-only-view-diagnostics-item-warning',
+				});
+				itemEl.createEl('div', {
+					text: summary,
+					cls: 'read-only-view-diagnostics-summary',
+				});
 				if (entry.warnings.length > 0) {
-					itemEl.setAttr('title', entry.warnings.join(' '));
+					const warningsListEl = itemEl.createEl('ul', { cls: 'read-only-view-diagnostics-warnings' });
+					for (const warning of entry.warnings) {
+						warningsListEl.createEl('li', {
+							text: warning,
+							cls: 'read-only-view-diagnostics-warning',
+						});
+					}
 				}
 			}
 		};

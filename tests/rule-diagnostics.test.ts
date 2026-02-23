@@ -30,3 +30,21 @@ test('non-empty prefix diagnostics keep existing normalization behavior', () => 
 		true,
 	);
 });
+
+test('diagnostics provide inline-renderable warning data for suspicious prefix rules', () => {
+	const diagnostics = buildRuleDiagnostics('*', false);
+	assert.equal(diagnostics.length, 1);
+	assert.equal(diagnostics[0]?.isOk, false);
+	assert.equal(diagnostics[0]?.warnings.length, 1);
+	assert.equal(
+		diagnostics[0]?.warnings[0],
+		'Contains wildcard in prefix mode. It is treated as a literal character.',
+	);
+});
+
+test('diagnostics provide empty warnings for healthy rules', () => {
+	const diagnostics = buildRuleDiagnostics('docs/**', true);
+	assert.equal(diagnostics.length, 1);
+	assert.equal(diagnostics[0]?.isOk, true);
+	assert.deepEqual(diagnostics[0]?.warnings, []);
+});

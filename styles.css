@@ -10,3 +10,31 @@ If your plugin does not need CSS, delete this file.
 .read-only-view-full-width {
 	width: 100%;
 }
+
+.read-only-view-diagnostics-list {
+	margin: 0;
+	padding-left: 1.25rem;
+}
+
+.read-only-view-diagnostics-item-ok {
+	color: var(--text-normal);
+}
+
+.read-only-view-diagnostics-item-warning {
+	color: var(--text-warning);
+}
+
+.read-only-view-diagnostics-summary {
+	line-height: 1.4;
+}
+
+.read-only-view-diagnostics-warnings {
+	margin: 0.25rem 0 0.5rem;
+	padding-left: 1rem;
+}
+
+.read-only-view-diagnostics-warning {
+	color: var(--text-muted);
+	line-height: 1.4;
+	word-break: break-word;
+}

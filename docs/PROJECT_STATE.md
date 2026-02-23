@@ -36,7 +36,7 @@ High-level modules:
 - `tests/rules-save-debounce.test.ts`
   - Debounced rules-save coverage for settings textareas: burst collapse, immediate flush, and latest-value persistence
 - `tests/rule-diagnostics.test.ts`
-  - Diagnostics edge-case coverage for empty lines (no synthetic `/` in prefix mode)
+  - Diagnostics edge-case and warning-data coverage for inline warnings render
 
 Design intent:
 
@@ -107,6 +107,7 @@ Command entry points:
   - `✅` healthy
   - `⚠️` suspicious (empty lines, wildcard in prefix mode, normalization/folder-hint changes)
   - empty lines render as `(empty line)` and do not receive synthetic `/` normalization
+  - warning details are rendered inline in nested semantic lists (`ul/li`) and announced via `aria-live`
 - Path tester:
   - include matches
   - exclude matches
