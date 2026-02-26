@@ -298,6 +298,92 @@ test('workspace event burst is coalesced into one reapply pass', async () => {
 	}
 });
 
+test('active-leaf-change uses targeted leaf reapply and skips full-scan reapply', async () => {
+	const { harness, leaf, plugin } = createObserverPlugin();
+	const reapplyReasons: string[] = [];
+
+	plugin.loadSettings = async () => undefined;
+	plugin.applyAllOpenMarkdownLeaves = async (reason: string) => {
+		reapplyReasons.push(reason);
+	};
+	plugin.registerEvent = () => undefined;
+	(plugin as unknown as { addCommand: (command: unknown) => unknown }).addCommand = () => ({});
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			await plugin.onload();
+			assert.deepEqual(reapplyReasons, ['onload']);
+
+			harness.workspace.trigger('active-leaf-change', leaf);
+			await Promise.resolve();
+			await flushAll();
+
+			assert.deepEqual(reapplyReasons, ['onload']);
+		});
+	} finally {
+		harness.restore();
+	}
+});
+
+test('active-leaf-change + file-open uses targeted leaf reapply and skips full-scan reapply', async () => {
+	const { harness, leaf, plugin } = createObserverPlugin();
+	const reapplyReasons: string[] = [];
+
+	plugin.loadSettings = async () => undefined;
+	plugin.applyAllOpenMarkdownLeaves = async (reason: string) => {
+		reapplyReasons.push(reason);
+	};
+	plugin.registerEvent = () => undefined;
+	(plugin as unknown as { addCommand: (command: unknown) => unknown }).addCommand = () => ({});
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			await plugin.onload();
+			assert.deepEqual(reapplyReasons, ['onload']);
+
+			harness.workspace.trigger('active-leaf-change', leaf);
+			harness.workspace.trigger('file-open');
+			await Promise.resolve();
+			await flushAll();
+
+			assert.deepEqual(reapplyReasons, ['onload']);
+		});
+	} finally {
+		harness.restore();
+	}
+});
+
+test('layout-change in burst keeps full-scan reapply', async () => {
+	const { harness, leaf, plugin } = createObserverPlugin();
+	const reapplyReasons: string[] = [];
+
+	plugin.loadSettings = async () => undefined;
+	plugin.applyAllOpenMarkdownLeaves = async (reason: string) => {
+		reapplyReasons.push(reason);
+	};
+	plugin.registerEvent = () => undefined;
+	(plugin as unknown as { addCommand: (command: unknown) => unknown }).addCommand = () => ({});
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			await plugin.onload();
+			assert.deepEqual(reapplyReasons, ['onload']);
+
+			harness.workspace.trigger('active-leaf-change', leaf);
+			harness.workspace.trigger('file-open');
+			harness.workspace.trigger('layout-change');
+			await Promise.resolve();
+			await flushAll();
+
+			assert.equal(reapplyReasons.length, 2);
+			assert.ok(reapplyReasons[1]?.startsWith('workspace-events:'));
+			assert.ok(reapplyReasons[1]?.includes('layout-change'));
+		});
+	} finally {
+		harness.restore();
+	}
+});
+
 test('re-apply command remains immediate and bypasses workspace event scheduler', async () => {
 	const { harness, plugin } = createObserverPlugin();
 	const reapplyReasons: string[] = [];

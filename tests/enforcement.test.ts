@@ -115,3 +115,33 @@ test('service contract: fallback logging keeps redacted path format', async () =
 	assert.equal(typeof fallbackLog.payload?.errorType, 'string');
 	assert.equal(typeof fallbackLog.payload?.errorMessage, 'string');
 });
+
+test('service contract: preview check uses view state mode without forcing getMode call', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'preview' });
+	leaf.view.getMode = () => {
+		throw new Error('getMode should not be called for preview state check');
+	};
+
+	const setup = createService({ leaves: [leaf] });
+	await setup.service.applyAllOpenMarkdownLeaves('mode-check');
+
+	assert.equal(leaf.setViewStateCalls.length, 0);
+});
+
+test('service contract: layout-change reason uses extended per-leaf throttle', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
+	const nowValues = [1000, 1300, 1701];
+	let nowIndex = 0;
+	const setup = createService({
+		leaves: [leaf],
+		now: () => nowValues[Math.min(nowIndex++, nowValues.length - 1)] ?? 0,
+	});
+
+	await setup.service.applyAllOpenMarkdownLeaves('workspace-events:layout-change');
+	leaf.setMode('source');
+	await setup.service.applyAllOpenMarkdownLeaves('workspace-events:layout-change');
+	leaf.setMode('source');
+	await setup.service.applyAllOpenMarkdownLeaves('workspace-events:layout-change');
+
+	assert.equal(leaf.setViewStateCalls.length, 2);
+});
