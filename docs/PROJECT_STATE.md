@@ -106,6 +106,7 @@ Workspace-event coalescing:
 
 - `file-open`, `active-leaf-change`, and `layout-change` are combined in a 150 ms window.
 - One coalesced run executes with reason format `workspace-events:<joined reasons>`.
+- Optimization: when a coalesced batch contains only `active-leaf-change` and/or `file-open`, enforcement is applied only to the affected leaf instead of scanning all markdown leaves.
 - Manual command `Re-apply rules now` still runs immediately.
 
 Observer optimization:
@@ -120,6 +121,7 @@ Loop protection:
 
 - Global lock (`enforcing`) + pending reason queue (`pendingReapply`)
 - Per-leaf throttle (`WeakMap<WorkspaceLeaf, number>`) to reduce repeated `setViewState` calls.
+- Layout-change bursts use an extended per-leaf throttle window to reduce repeated reflow-prone mode flips during heavy UI relayouts.
 
 Command entry points:
 

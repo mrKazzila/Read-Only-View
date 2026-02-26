@@ -311,6 +311,7 @@ See repository [Releases](../../releases).
 <summary>How enforcement works</summary>
 
 1. On workspace events (`file-open`, `active-leaf-change`, `layout-change`), the plugin coalesces bursts into one re-apply pass (150 ms window) before scanning open Markdown leaves.
+   - If the burst contains only `active-leaf-change` and/or `file-open`, the plugin applies enforcement only to the changed leaf to reduce unnecessary full-vault UI work.
 2. For each Markdown file, it evaluates `shouldForceReadOnly(file.path, settings)`.
 3. If the file should be protected, the plugin forces the leaf view mode to `preview`.
 4. If a user or UI action tries to switch back to edit mode, the plugin re-applies preview mode.
