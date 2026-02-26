@@ -27,6 +27,38 @@ export interface SettingsTabPlugin {
 	applyAllOpenMarkdownLeaves: (reason: string) => Promise<void>;
 }
 
+export type RuleLimitsUiState = {
+	summaryText: string;
+	volumeWarningMessage: string | null;
+	hardCapWarningMessage: string | null;
+	ignoredIncludeLineIndexes: number[];
+	ignoredExcludeLineIndexes: number[];
+};
+
+export function computeRuleLimitsUiState(includeRulesText: string, excludeRulesText: string): RuleLimitsUiState {
+	const effectiveRules = buildEffectiveRules(
+		includeRulesText.split('\n'),
+		excludeRulesText.split('\n'),
+	);
+	const ignoredSuffix = effectiveRules.counts.totalIgnored > 0
+		? ` (+${effectiveRules.counts.totalIgnored} ignored)`
+		: '';
+	const summaryText =
+		`Include: ${effectiveRules.counts.includeUsed} rules · Exclude: ${effectiveRules.counts.excludeUsed} rules · Total: ${effectiveRules.counts.totalUsed}${ignoredSuffix}`;
+	const volumeWarningMessage = getRuleVolumeWarningMessage(effectiveRules.warningLevel);
+	const hardCapWarningMessage = effectiveRules.hardCapExceeded
+		? 'Too many rules. Extra lines are ignored.'
+		: null;
+
+	return {
+		summaryText,
+		volumeWarningMessage,
+		hardCapWarningMessage,
+		ignoredIncludeLineIndexes: effectiveRules.ignoredIncludeLineIndexes,
+		ignoredExcludeLineIndexes: effectiveRules.ignoredExcludeLineIndexes,
+	};
+}
+
 export class DebouncedRuleChangeSaver {
 	private timer: ReturnType<typeof setTimeout> | null = null;
 	private lastValue = '';
@@ -244,36 +276,26 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 		);
 
 		const renderRuleLimitsState = () => {
-			const effectiveRules = buildEffectiveRules(
-				includeRulesText.split('\n'),
-				excludeRulesText.split('\n'),
-			);
-			const ignoredSuffix = effectiveRules.counts.totalIgnored > 0
-				? ` (+${effectiveRules.counts.totalIgnored} ignored)`
-				: '';
-			rulesSummaryEl.setText(
-				`Include: ${effectiveRules.counts.includeUsed} rules · Exclude: ${effectiveRules.counts.excludeUsed} rules · Total: ${effectiveRules.counts.totalUsed}${ignoredSuffix}`,
-			);
-
-			const warningMessage = getRuleVolumeWarningMessage(effectiveRules.warningLevel);
+			const uiState = computeRuleLimitsUiState(includeRulesText, excludeRulesText);
+			rulesSummaryEl.setText(uiState.summaryText);
 			ruleWarningEl.empty();
-			if (warningMessage) {
-				ruleWarningEl.setText(warningMessage);
+			if (uiState.volumeWarningMessage) {
+				ruleWarningEl.setText(uiState.volumeWarningMessage);
 				ruleWarningEl.addClass('is-visible');
 			} else {
 				ruleWarningEl.removeClass('is-visible');
 			}
 
 			hardCapWarningEl.empty();
-			if (effectiveRules.hardCapExceeded) {
-				hardCapWarningEl.setText('Too many rules. Extra lines are ignored.');
+			if (uiState.hardCapWarningMessage) {
+				hardCapWarningEl.setText(uiState.hardCapWarningMessage);
 				hardCapWarningEl.addClass('is-visible');
 			} else {
 				hardCapWarningEl.removeClass('is-visible');
 			}
 
-			includeEditor.setIgnoredLineIndexes(effectiveRules.ignoredIncludeLineIndexes);
-			excludeEditor.setIgnoredLineIndexes(effectiveRules.ignoredExcludeLineIndexes);
+			includeEditor.setIgnoredLineIndexes(uiState.ignoredIncludeLineIndexes);
+			excludeEditor.setIgnoredLineIndexes(uiState.ignoredExcludeLineIndexes);
 		};
 
 		renderRuleLimitsState();
