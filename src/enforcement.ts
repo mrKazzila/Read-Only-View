@@ -16,6 +16,20 @@ export interface EnforcementService {
 }
 
 const LEAF_FORCE_PREVIEW_THROTTLE_MS = 120;
+const LAYOUT_CHANGE_FORCE_PREVIEW_THROTTLE_MS = 700;
+
+function waitForNextFrame(): Promise<void> {
+	if (typeof requestAnimationFrame === 'function') {
+		return new Promise((resolve) => {
+			requestAnimationFrame(() => resolve());
+		});
+	}
+	return Promise.resolve();
+}
+
+function isLayoutChangeReason(reason: string): boolean {
+	return reason.includes('workspace-events:layout-change');
+}
 
 function describeError(error: unknown): { errorType: string; errorMessage: string } {
 	if (error instanceof Error) {
@@ -78,6 +92,9 @@ class DefaultEnforcementService implements EnforcementService {
 		if (file.extension !== 'md') {
 			return;
 		}
+		if (this.getLeafMode(leaf) === 'preview') {
+			return;
+		}
 
 		const settings = this.dependencies.getSettings();
 		if (!shouldForceReadOnly(file.path, settings)) {
@@ -91,11 +108,14 @@ class DefaultEnforcementService implements EnforcementService {
 		if (!(leaf.view instanceof MarkdownView)) {
 			return null;
 		}
+		const stateMode = (leaf.getViewState().state as { mode?: string } | undefined)?.mode;
+		if (stateMode) {
+			return stateMode;
+		}
 		if (typeof leaf.view.getMode === 'function') {
 			return leaf.view.getMode();
 		}
-		const stateMode = (leaf.getViewState().state as { mode?: string } | undefined)?.mode;
-		return stateMode ?? null;
+		return null;
 	}
 
 	async ensurePreview(leaf: WorkspaceLeaf, reason: string): Promise<void> {
@@ -106,20 +126,41 @@ class DefaultEnforcementService implements EnforcementService {
 		if (!file) {
 			return;
 		}
+		const settings = this.dependencies.getSettings();
+		const filePath = this.dependencies.formatPathForDebug(file.path, settings.debugVerbosePaths);
 
 		const beforeMode = this.getLeafMode(leaf);
 		if (beforeMode === 'preview') {
+			this.dependencies.logDebug('ensure-preview-skip', {
+				reason,
+				filePath,
+				skipReason: 'already-preview',
+			});
 			return;
 		}
 
 		const now = this.now();
 		const last = this.lastForcedAt.get(leaf) ?? 0;
-		if (now - last < LEAF_FORCE_PREVIEW_THROTTLE_MS) {
+		const throttleMs = isLayoutChangeReason(reason)
+			? LAYOUT_CHANGE_FORCE_PREVIEW_THROTTLE_MS
+			: LEAF_FORCE_PREVIEW_THROTTLE_MS;
+		if (now - last < throttleMs) {
+			this.dependencies.logDebug('ensure-preview-skip', {
+				reason,
+				filePath,
+				skipReason: 'throttled',
+				throttleMs,
+			});
 			return;
 		}
 
 		const currentState = leaf.getViewState();
 		if (currentState.type !== 'markdown') {
+			this.dependencies.logDebug('ensure-preview-skip', {
+				reason,
+				filePath,
+				skipReason: 'non-markdown-state',
+			});
 			return;
 		}
 
@@ -131,8 +172,29 @@ class DefaultEnforcementService implements EnforcementService {
 			},
 		};
 
-		const settings = this.dependencies.getSettings();
 		this.lastForcedAt.set(leaf, now);
+		// Defer the actual mode write to the next frame to avoid forcing it
+		// in the middle of CodeMirror measurement/layout work.
+		await waitForNextFrame();
+
+		const refreshedState = leaf.getViewState();
+		if (refreshedState.type !== 'markdown') {
+			this.dependencies.logDebug('ensure-preview-skip', {
+				reason,
+				filePath,
+				skipReason: 'non-markdown-state-after-frame',
+			});
+			return;
+		}
+		if ((refreshedState.state as { mode?: string } | undefined)?.mode === 'preview') {
+			this.dependencies.logDebug('ensure-preview-skip', {
+				reason,
+				filePath,
+				skipReason: 'already-preview-after-frame',
+			});
+			return;
+		}
+
 		try {
 			const setState = leaf.setViewState.bind(leaf) as (
 				state: ViewState,
@@ -143,17 +205,17 @@ class DefaultEnforcementService implements EnforcementService {
 			const errorInfo = describeError(error);
 			this.dependencies.logDebug('ensure-preview-fallback', {
 				reason,
-				filePath: this.dependencies.formatPathForDebug(file.path, settings.debugVerbosePaths),
+				filePath,
 				errorType: errorInfo.errorType,
 				errorMessage: errorInfo.errorMessage,
 			});
 			await leaf.setViewState(nextState, false);
 		}
 
-		const afterMode = this.getLeafMode(leaf);
+		const afterMode = (leaf.getViewState().state as { mode?: string } | undefined)?.mode ?? this.getLeafMode(leaf);
 		this.dependencies.logDebug('ensure-preview', {
 			reason,
-			filePath: this.dependencies.formatPathForDebug(file.path, settings.debugVerbosePaths),
+			filePath,
 			beforeMode,
 			afterMode,
 		});

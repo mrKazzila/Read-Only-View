@@ -1,5 +1,6 @@
 import {
 	Plugin,
+	MarkdownView,
 	WorkspaceLeaf,
 } from 'obsidian';
 import {
@@ -30,11 +31,13 @@ export function formatPathForDebug(path: string, verbosePaths: boolean): string 
 export default class ReadOnlyViewPlugin extends Plugin {
 	settings: ForceReadModeSettings = { ...DEFAULT_SETTINGS };
 	private static readonly WORKSPACE_EVENT_COALESCE_MS = 150;
+	private static readonly TARGETED_WORKSPACE_REASONS = new Set(['active-leaf-change', 'file-open']);
 
 	private enforcementService: EnforcementService | null = null;
 	private popoverObserverService: PopoverObserverService | null = null;
 	private workspaceEventTimer: ReturnType<typeof setTimeout> | null = null;
 	private workspaceEventReasons = new Set<string>();
+	private workspaceEventLeaves = new Set<WorkspaceLeaf>();
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
@@ -86,8 +89,8 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		this.registerEvent(this.app.workspace.on('file-open', () => {
 			this.scheduleWorkspaceEventReapply('file-open');
 		}));
-		this.registerEvent(this.app.workspace.on('active-leaf-change', () => {
-			this.scheduleWorkspaceEventReapply('active-leaf-change');
+		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf: WorkspaceLeaf | null) => {
+			this.scheduleWorkspaceEventReapply('active-leaf-change', leaf ?? null);
 		}));
 		this.registerEvent(this.app.workspace.on('layout-change', () => {
 			this.invalidateLeafContainerCache();
@@ -106,6 +109,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			this.workspaceEventTimer = null;
 		}
 		this.workspaceEventReasons.clear();
+		this.workspaceEventLeaves.clear();
 		this.invalidateLeafContainerCache();
 		this.enforcementService = null;
 		if (this.popoverObserverService) {
@@ -169,18 +173,61 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		await this.getEnforcementService().applyAllOpenMarkdownLeaves(reason);
 	}
 
-	private scheduleWorkspaceEventReapply(reason: string): void {
+	private isTargetedWorkspaceEventBurst(reasons: string[]): boolean {
+		if (reasons.length === 0) {
+			return false;
+		}
+		return reasons.every((reason) => ReadOnlyViewPlugin.TARGETED_WORKSPACE_REASONS.has(reason));
+	}
+
+	private scheduleWorkspaceEventReapply(reason: string, leaf: WorkspaceLeaf | null = null): void {
 		this.workspaceEventReasons.add(reason);
+		if (leaf) {
+			this.workspaceEventLeaves.add(leaf);
+		}
 		if (this.workspaceEventTimer) {
 			return;
 		}
 
 		this.workspaceEventTimer = setTimeout(() => {
 			const reasons = Array.from(this.workspaceEventReasons);
+			const leaves = Array.from(this.workspaceEventLeaves);
 			this.workspaceEventReasons.clear();
+			this.workspaceEventLeaves.clear();
 			this.workspaceEventTimer = null;
-			void this.applyAllOpenMarkdownLeaves(`workspace-events:${reasons.join(',')}`);
+			void this.applyWorkspaceEventBurst(reasons, leaves);
 		}, ReadOnlyViewPlugin.WORKSPACE_EVENT_COALESCE_MS);
+	}
+
+	private async applyWorkspaceEventBurst(reasons: string[], leaves: WorkspaceLeaf[]): Promise<void> {
+		const reasonText = `workspace-events:${reasons.join(',')}`;
+		this.logDebug('workspace-reapply-plan', {
+			reason: reasonText,
+			sourceReasons: reasons,
+			leafCount: leaves.length,
+			strategy: this.isTargetedWorkspaceEventBurst(reasons) ? 'targeted' : 'full',
+		});
+		if (!this.isTargetedWorkspaceEventBurst(reasons)) {
+			await this.applyAllOpenMarkdownLeaves(reasonText);
+			return;
+		}
+
+		if (leaves.length === 0) {
+			await this.applyAllOpenMarkdownLeaves(reasonText);
+			return;
+		}
+
+		for (const leaf of leaves) {
+			const filePath = leaf.view instanceof MarkdownView && leaf.view.file
+				? formatPathForDebug(leaf.view.file.path, this.settings.debugVerbosePaths)
+				: null;
+			this.logDebug('workspace-reapply-target', {
+				reason: reasonText,
+				source: 'active-leaf-change',
+				filePath,
+			});
+			await this.getEnforcementService().applyReadOnlyForLeaf(leaf, `${reasonText}:targeted-leaf`);
+		}
 	}
 
 	private invalidateLeafContainerCache(): void {
