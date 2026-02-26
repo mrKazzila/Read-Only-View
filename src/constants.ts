@@ -1,0 +1,6 @@
+export const RULE_WARNING_SOFT_THRESHOLD = 50;
+export const RULE_WARNING_STRONG_THRESHOLD = 150;
+
+export const RULE_LIMIT_INCLUDE_MAX = 200;
+export const RULE_LIMIT_EXCLUDE_MAX = 300;
+export const RULE_LIMIT_TOTAL_MAX = 400;

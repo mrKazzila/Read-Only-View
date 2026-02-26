@@ -1,4 +1,5 @@
 import { matchPath, normalizeVaultPath, shouldForceReadOnly, type ForceReadModeSettings } from './matcher';
+import { buildEffectiveRules, type RuleVolumeWarningLevel } from './rule-limits';
 
 export type RuleDiagnosticsEntry = {
 	lineNumber: number;
@@ -6,6 +7,7 @@ export type RuleDiagnosticsEntry = {
 	normalized: string;
 	isOk: boolean;
 	warnings: string[];
+	ignoredByRuleLimit: boolean;
 };
 
 export function splitRulesFromText(value: string): string[] {
@@ -39,12 +41,21 @@ function normalizeRuleForMode(rule: string, useGlobPatterns: boolean): { normali
 }
 
 export function buildRuleDiagnostics(rulesText: string, useGlobPatterns: boolean): RuleDiagnosticsEntry[] {
+	return buildRuleDiagnosticsWithIgnoredLines(rulesText, useGlobPatterns, new Set<number>());
+}
+
+export function buildRuleDiagnosticsWithIgnoredLines(
+	rulesText: string,
+	useGlobPatterns: boolean,
+	ignoredLineIndexes: ReadonlySet<number>,
+): RuleDiagnosticsEntry[] {
 	const lines = rulesText.split('\n');
 	return lines.map((line, index) => {
 		const trimmed = line.trim();
 		const normalizedBase = normalizeVaultPath(line);
 		const normalizedInfo = normalizeRuleForMode(line, useGlobPatterns);
 		const warnings: string[] = [];
+		const ignoredByRuleLimit = ignoredLineIndexes.has(index);
 
 		if (trimmed.length === 0) {
 			warnings.push('Empty or whitespace-only line.');
@@ -58,6 +69,9 @@ export function buildRuleDiagnostics(rulesText: string, useGlobPatterns: boolean
 		if (normalizedInfo.changedByFolderHint) {
 			warnings.push(`Prefix mode folder hint applied: "${normalizedInfo.normalized}".`);
 		}
+		if (ignoredByRuleLimit) {
+			warnings.push('Ignored due to rule limit.');
+		}
 
 		return {
 			lineNumber: index + 1,
@@ -65,6 +79,7 @@ export function buildRuleDiagnostics(rulesText: string, useGlobPatterns: boolean
 			normalized: normalizedInfo.normalized,
 			isOk: warnings.length === 0,
 			warnings,
+			ignoredByRuleLimit,
 		};
 	});
 }
@@ -80,18 +95,29 @@ export function buildPathTesterResult(filePathInput: string, settings: ForceRead
 	finalReadOnly: boolean;
 } {
 	const testPath = normalizeVaultPath(filePathInput);
+	const effectiveRules = buildEffectiveRules(settings.includeRules, settings.excludeRules);
 	const includeMatches = matchRules(
 		testPath,
-		settings.includeRules,
+		effectiveRules.effectiveIncludeRules,
 		settings.useGlobPatterns,
 		settings.caseSensitive,
 	);
 	const excludeMatches = matchRules(
 		testPath,
-		settings.excludeRules,
+		effectiveRules.effectiveExcludeRules,
 		settings.useGlobPatterns,
 		settings.caseSensitive,
 	);
 	const finalReadOnly = shouldForceReadOnly(testPath, settings);
 	return { testPath, includeMatches, excludeMatches, finalReadOnly };
+}
+
+export function getRuleVolumeWarningMessage(warningLevel: RuleVolumeWarningLevel): string | null {
+	if (warningLevel === 'strong') {
+		return 'Very many rules. This may slow down Obsidian, especially on mobile. Consider merging rules and using **.';
+	}
+	if (warningLevel === 'soft') {
+		return 'Many rules. Consider merging rules and using ** to simplify.';
+	}
+	return null;
 }

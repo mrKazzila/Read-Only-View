@@ -1,3 +1,6 @@
+import { normalizeVaultPath } from './path-utils';
+import { buildEffectiveRules } from './rule-limits';
+
 export interface ForceReadModeSettings {
 	enabled: boolean;
 	useGlobPatterns: boolean;
@@ -48,13 +51,7 @@ function setGlobRegexCache(cacheKey: string, compiled: RegExp): void {
 	globRegexCache.set(cacheKey, compiled);
 }
 
-export function normalizeVaultPath(path: string): string {
-	let normalized = path.trim();
-	normalized = normalized.replace(/\\/g, '/');
-	normalized = normalized.replace(/^(\.\/)+/, '');
-	normalized = normalized.replace(/\/+/g, '/');
-	return normalized;
-}
+export { normalizeVaultPath };
 
 function escapeRegexLiteral(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -143,12 +140,13 @@ export function shouldForceReadOnly(filePath: string, settings: ForceReadModeSet
 		useGlobPatterns: settings.useGlobPatterns,
 		caseSensitive: settings.caseSensitive,
 	};
+	const effectiveRules = buildEffectiveRules(settings.includeRules, settings.excludeRules);
 
-	const hasIncludeMatch = settings.includeRules.some((rule) => matchPath(normalizedFilePath, rule, options));
+	const hasIncludeMatch = effectiveRules.effectiveIncludeRules.some((rule) => matchPath(normalizedFilePath, rule, options));
 	if (!hasIncludeMatch) {
 		return false;
 	}
 
-	const hasExcludeMatch = settings.excludeRules.some((rule) => matchPath(normalizedFilePath, rule, options));
+	const hasExcludeMatch = effectiveRules.effectiveExcludeRules.some((rule) => matchPath(normalizedFilePath, rule, options));
 	return !hasExcludeMatch;
 }

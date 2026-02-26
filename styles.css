@@ -15,6 +15,31 @@ If your plugin does not need CSS, delete this file.
 	margin-bottom: 1rem;
 }
 
+.read-only-view-rules-summary {
+	margin: 0.25rem 0 0.5rem;
+	color: var(--text-muted);
+	font-size: 0.9rem;
+	line-height: 1.3;
+	overflow-wrap: anywhere;
+}
+
+.read-only-view-rule-warning-banner {
+	display: none;
+	margin: 0.25rem 0 0.5rem;
+	padding: 0.4rem 0.5rem;
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+	background: var(--background-secondary);
+	color: var(--text-warning);
+	font-size: 0.88rem;
+	line-height: 1.3;
+	overflow-wrap: anywhere;
+}
+
+.read-only-view-rule-warning-banner.is-visible {
+	display: block;
+}
+
 .read-only-view-rule-section textarea {
 	box-sizing: border-box;
 	min-height: 8rem;
@@ -40,8 +65,27 @@ If your plugin does not need CSS, delete this file.
 	color: var(--text-warning);
 }
 
+.read-only-view-diagnostics-item-ignored {
+	background: var(--background-secondary);
+	border-radius: 6px;
+	padding: 0.2rem 0.35rem;
+}
+
 .read-only-view-diagnostics-summary {
 	line-height: 1.4;
+	overflow-wrap: anywhere;
+}
+
+.read-only-view-diagnostics-ignored-pill {
+	display: inline-block;
+	margin-left: 0.3rem;
+	padding: 0.05rem 0.35rem;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 999px;
+	font-size: 0.75rem;
+	line-height: 1.2;
+	color: var(--text-muted);
+	background: var(--background-primary-alt);
 }
 
 .read-only-view-diagnostics-warnings {
@@ -75,6 +119,11 @@ If your plugin does not need CSS, delete this file.
 		min-height: 9rem;
 	}
 
+	.read-only-view-rules-summary,
+	.read-only-view-rule-warning-banner {
+		font-size: 0.86rem;
+	}
+
 	.read-only-view-rule-diagnostics {
 		max-height: 12rem;
 	}
@@ -101,7 +150,9 @@ If your plugin does not need CSS, delete this file.
 
 	.read-only-view-diagnostics-summary,
 	.read-only-view-diagnostics-warning,
-	.read-only-view-path-tester-result {
+	.read-only-view-path-tester-result,
+	.read-only-view-rules-summary,
+	.read-only-view-rule-warning-banner {
 		font-size: 0.95rem;
 	}
 }
