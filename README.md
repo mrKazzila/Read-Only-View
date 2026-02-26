@@ -51,6 +51,17 @@ If you need explicit confirmation, wait for `Saved.` before closing settings.
 
 ![DEMO](/docs/images/read-only-view-obsidian-plugin-demo.gif)
 
+Rule volume safeguards:
+
+- soft warning when include or exclude has more than `50` effective rules
+- strong warning when include or exclude has more than `150` effective rules
+- hard caps:
+  - include max: `200`
+  - exclude max: `300`
+  - total max: `400`
+- when hard caps are exceeded, save still succeeds, but extra lines are ignored and marked in diagnostics (`Ignored due to rule limit.`)
+- rules counter in settings shows effective used rules: `Include: X · Exclude: Y · Total: Z` with `(+N ignored)` when applicable
+
 ### Rule examples
 
 Common scenarios:
@@ -127,6 +138,10 @@ Use the Command Palette:
   - Prevent switching matched files to Source mode or Live Preview.
 - Matching:
   - Include and exclude rule lists (`exclude` has priority when both match).
+  - Rule limit policy:
+    - include list is capped first (`200`)
+    - exclude list is capped second (`300`)
+    - if combined total still exceeds `400`, tail of exclude is trimmed first (include keeps priority)
   - Two modes:
     - Glob mode (`*`, `**`, `?`)
     - Literal prefix mode (compatibility mode)
@@ -186,6 +201,9 @@ Use the Command Palette:
 - Changes in rules do not appear immediately:
   - Run command **Re-apply rules now**.
   - Switch tabs or reopen the note to trigger workspace events.
+- You see `Too many rules. Extra lines are ignored.`:
+  - Reduce rule count, merge similar paths, and prefer `**` in glob mode for broader coverage.
+  - Check diagnostics entries marked `Ignored due to rule limit.` to see which lines are not used.
 
 <details>
 <summary>Advanced troubleshooting</summary>
