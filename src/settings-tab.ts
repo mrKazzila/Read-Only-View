@@ -2,11 +2,13 @@ import { App, PluginSettingTab, Setting } from 'obsidian';
 import { normalizeVaultPath } from './matcher';
 import {
 	buildPathTesterResult,
-	buildRuleDiagnostics,
+	buildRuleDiagnosticsWithIgnoredLines,
+	getRuleVolumeWarningMessage,
 	splitRulesFromText,
 	stringifyRules,
 	type RuleDiagnosticsEntry,
 } from './rule-diagnostics';
+import { buildEffectiveRules } from './rule-limits';
 
 type RuleSaveState = 'saving' | 'saved' | 'error';
 const RULES_SAVE_DEBOUNCE_MS = 400;
@@ -23,6 +25,38 @@ export interface SettingsTabPlugin {
 	};
 	saveSettings: () => Promise<void>;
 	applyAllOpenMarkdownLeaves: (reason: string) => Promise<void>;
+}
+
+export type RuleLimitsUiState = {
+	summaryText: string;
+	volumeWarningMessage: string | null;
+	hardCapWarningMessage: string | null;
+	ignoredIncludeLineIndexes: number[];
+	ignoredExcludeLineIndexes: number[];
+};
+
+export function computeRuleLimitsUiState(includeRulesText: string, excludeRulesText: string): RuleLimitsUiState {
+	const effectiveRules = buildEffectiveRules(
+		includeRulesText.split('\n'),
+		excludeRulesText.split('\n'),
+	);
+	const ignoredSuffix = effectiveRules.counts.totalIgnored > 0
+		? ` (+${effectiveRules.counts.totalIgnored} ignored)`
+		: '';
+	const summaryText =
+		`Include: ${effectiveRules.counts.includeUsed} rules · Exclude: ${effectiveRules.counts.excludeUsed} rules · Total: ${effectiveRules.counts.totalUsed}${ignoredSuffix}`;
+	const volumeWarningMessage = getRuleVolumeWarningMessage(effectiveRules.warningLevel);
+	const hardCapWarningMessage = effectiveRules.hardCapExceeded
+		? 'Too many rules. Extra lines are ignored.'
+		: null;
+
+	return {
+		summaryText,
+		volumeWarningMessage,
+		hardCapWarningMessage,
+		ignoredIncludeLineIndexes: effectiveRules.ignoredIncludeLineIndexes,
+		ignoredExcludeLineIndexes: effectiveRules.ignoredExcludeLineIndexes,
+	};
 }
 
 export class DebouncedRuleChangeSaver {
@@ -93,12 +127,21 @@ function renderDiagnosticsList(
 		const bullet = entry.isOk ? '✅' : '⚠️';
 		const summary = `${bullet} [${entry.lineNumber}] ${entry.normalized || '(empty line)'}`;
 		const itemEl = listEl.createEl('li', {
-			cls: entry.isOk ? 'read-only-view-diagnostics-item-ok' : 'read-only-view-diagnostics-item-warning',
+			cls: [
+				entry.isOk ? 'read-only-view-diagnostics-item-ok' : 'read-only-view-diagnostics-item-warning',
+				entry.ignoredByRuleLimit ? 'read-only-view-diagnostics-item-ignored' : '',
+			].filter(Boolean).join(' '),
 		});
-		itemEl.createEl('div', {
+		const summaryEl = itemEl.createEl('div', {
 			text: summary,
 			cls: 'read-only-view-diagnostics-summary',
 		});
+		if (entry.ignoredByRuleLimit) {
+			summaryEl.createEl('span', {
+				text: ' Ignored',
+				cls: 'read-only-view-diagnostics-ignored-pill',
+			});
+		}
 		if (entry.warnings.length > 0) {
 			const warningsListEl = itemEl.createEl('ul', { cls: 'read-only-view-diagnostics-warnings' });
 			for (const warning of entry.warnings) {
@@ -195,17 +238,67 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 					});
 			});
 
-		this.renderRulesEditor('Include rules', 'One rule per line. These files become read-only if not excluded.', this.plugin.settings.includeRules, async (value) => {
+		const rulesSummaryEl = containerEl.createDiv({ cls: 'read-only-view-rules-summary' });
+		const ruleWarningEl = containerEl.createDiv({ cls: 'read-only-view-rule-warning-banner' });
+		const hardCapWarningEl = containerEl.createDiv({ cls: 'read-only-view-rule-warning-banner' });
+
+		let includeRulesText = stringifyRules(this.plugin.settings.includeRules);
+		let excludeRulesText = stringifyRules(this.plugin.settings.excludeRules);
+
+		const includeEditor = this.renderRulesEditor(
+			'Include rules',
+			'One rule per line. These files become read-only if not excluded.',
+			this.plugin.settings.includeRules,
+			async (value) => {
 			this.plugin.settings.includeRules = splitRulesFromText(value);
 			await this.plugin.saveSettings();
 			await this.plugin.applyAllOpenMarkdownLeaves('settings-include-rules');
-		});
+			},
+			(value) => {
+				includeRulesText = value;
+				renderRuleLimitsState();
+			},
+		);
 
-		this.renderRulesEditor('Exclude rules', 'One rule per line. Exclude wins when include and exclude both match.', this.plugin.settings.excludeRules, async (value) => {
+		const excludeEditor = this.renderRulesEditor(
+			'Exclude rules',
+			'One rule per line. Exclude wins when include and exclude both match.',
+			this.plugin.settings.excludeRules,
+			async (value) => {
 			this.plugin.settings.excludeRules = splitRulesFromText(value);
 			await this.plugin.saveSettings();
 			await this.plugin.applyAllOpenMarkdownLeaves('settings-exclude-rules');
-		});
+			},
+			(value) => {
+				excludeRulesText = value;
+				renderRuleLimitsState();
+			},
+		);
+
+		const renderRuleLimitsState = () => {
+			const uiState = computeRuleLimitsUiState(includeRulesText, excludeRulesText);
+			rulesSummaryEl.setText(uiState.summaryText);
+			ruleWarningEl.empty();
+			if (uiState.volumeWarningMessage) {
+				ruleWarningEl.setText(uiState.volumeWarningMessage);
+				ruleWarningEl.addClass('is-visible');
+			} else {
+				ruleWarningEl.removeClass('is-visible');
+			}
+
+			hardCapWarningEl.empty();
+			if (uiState.hardCapWarningMessage) {
+				hardCapWarningEl.setText(uiState.hardCapWarningMessage);
+				hardCapWarningEl.addClass('is-visible');
+			} else {
+				hardCapWarningEl.removeClass('is-visible');
+			}
+
+			includeEditor.setIgnoredLineIndexes(uiState.ignoredIncludeLineIndexes);
+			excludeEditor.setIgnoredLineIndexes(uiState.ignoredExcludeLineIndexes);
+		};
+
+		renderRuleLimitsState();
 
 		this.renderPathTester();
 	}
@@ -215,9 +308,11 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 		description: string,
 		rules: string[],
 		onChange: (value: string) => Promise<void>,
-	): void {
+		onTextInput?: (value: string) => void,
+	): { setIgnoredLineIndexes: (lineIndexes: number[]) => void } {
 		const initialText = stringifyRules(rules);
 		let currentText = initialText;
+		let ignoredLineIndexes = new Set<number>();
 
 		const sectionEl = this.containerEl.createDiv({ cls: 'read-only-view-rule-section' });
 		new Setting(sectionEl).setName(title).setHeading();
@@ -259,7 +354,11 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 		diagnosticsEl.setAttr('aria-live', 'polite');
 
 		const renderDiagnostics = () => {
-			const entries = buildRuleDiagnostics(currentText, this.plugin.settings.useGlobPatterns);
+			const entries = buildRuleDiagnosticsWithIgnoredLines(
+				currentText,
+				this.plugin.settings.useGlobPatterns,
+				ignoredLineIndexes,
+			);
 			renderDiagnosticsList(diagnosticsEl, entries);
 		};
 
@@ -267,19 +366,29 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 
 		textAreaEl.addEventListener('input', () => {
 			currentText = textAreaEl.value;
+			onTextInput?.(currentText);
 			saver.schedule(currentText);
 			renderDiagnostics();
 		});
 		textAreaEl.addEventListener('change', () => {
 			currentText = textAreaEl.value;
+			onTextInput?.(currentText);
 			void saver.flush(currentText);
 			renderDiagnostics();
 		});
 		textAreaEl.addEventListener('blur', () => {
 			currentText = textAreaEl.value;
+			onTextInput?.(currentText);
 			void saver.flush(currentText);
 			renderDiagnostics();
 		});
+
+		return {
+			setIgnoredLineIndexes: (lineIndexes: number[]) => {
+				ignoredLineIndexes = new Set<number>(lineIndexes);
+				renderDiagnostics();
+			},
+		};
 	}
 
 	private renderPathTester(): void {

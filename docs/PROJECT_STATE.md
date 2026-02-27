@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Last updated: 2026-02-23
+Last updated: 2026-02-26
 
 This document is a living system map for the `read-only-view` Obsidian plugin.
 
@@ -24,6 +24,11 @@ High-level modules:
 - `src/settings-tab.ts`
   - `ForceReadModeSettingTab` UI module (settings controls, rules editor, diagnostics panel, path tester)
   - `DebouncedRuleChangeSaver` for input-save debounce and flush
+- `src/constants.ts`
+  - Rule volume thresholds and hard limits (`50/150`, `200/300/400`)
+- `src/rule-limits.ts`
+  - Single source of truth for effective include/exclude rules after cleanup + caps
+  - Line-level ignored index tracking for settings diagnostics/UI
 - `src/popover-observer.ts`
   - Typed popover observer service with explicit lifecycle (`start`, `stop`)
   - Centralized popover/editor selectors and mutation prefiltering
@@ -67,6 +72,8 @@ High-level modules:
   - Debounced rules-save coverage for settings module: burst collapse, immediate flush, and latest-value persistence
 - `tests/rule-diagnostics.test.ts`
   - Diagnostics and path tester helper coverage for inline warnings and include/exclude/result computation
+- `tests/rule-limits.test.ts`
+  - Rule cap/warning coverage and matching behavior with ignored tail rules
 - `tests/debug-logging.test.ts`
   - Debug logging privacy coverage for path redaction/verbose mode and fallback error diagnostics
 
@@ -99,6 +106,7 @@ Workspace-event coalescing:
 
 - `file-open`, `active-leaf-change`, and `layout-change` are combined in a 150 ms window.
 - One coalesced run executes with reason format `workspace-events:<joined reasons>`.
+- Optimization: when a coalesced batch contains only `active-leaf-change` and/or `file-open`, enforcement is applied only to the affected leaf instead of scanning all markdown leaves.
 - Manual command `Re-apply rules now` still runs immediately.
 
 Observer optimization:
@@ -113,6 +121,7 @@ Loop protection:
 
 - Global lock (`enforcing`) + pending reason queue (`pendingReapply`)
 - Per-leaf throttle (`WeakMap<WorkspaceLeaf, number>`) to reduce repeated `setViewState` calls.
+- Layout-change bursts use an extended per-leaf throttle window to reduce repeated reflow-prone mode flips during heavy UI relayouts.
 
 Command entry points:
 
@@ -128,7 +137,11 @@ Command entry points:
 2. If `useGlobPatterns=true`: anchored regex (`^...$`) using internal glob conversion.
    - Compiled regex entries are cached with fixed FIFO cap (`512`) to bound memory for highly unique rule sets.
 3. If `useGlobPatterns=false`: literal prefix mode with optional folder slash hint.
-4. Include must match, then exclude must *not* match.
+4. Build effective rule sets from settings using hard-cap policy:
+   - include is capped first (`200`)
+   - exclude is capped second (`300`)
+   - if total still exceeds `400`, exclude tail is trimmed first (include priority)
+5. Include must match, then exclude must *not* match.
 
 ### D. Settings UX flow
 
@@ -140,6 +153,12 @@ UI module split:
 - Toggles: `Enabled`, `Use glob patterns`, `Case sensitive`, `Debug logging`
 - `Debug: verbose paths` toggle allows full file paths in debug logs; default keeps paths redacted
 - Rule textareas: include/exclude (one rule per line)
+- Rule usage summary:
+  - `Include: X rules · Exclude: Y rules · Total: Z` (`+N ignored` when capped)
+- Rule volume warnings (inline banner, no toast):
+  - soft warning when include or exclude has more than `50` effective rules
+  - strong warning when include or exclude has more than `150` effective rules
+  - hard-cap warning `Too many rules. Extra lines are ignored.` when caps are exceeded
 - Rules-save behavior:
   - save on `input` with 400 ms debounce
   - flush on `blur` and `change`
@@ -147,6 +166,7 @@ UI module split:
 - Diagnostics list per line:
   - `✅` healthy
   - `⚠️` suspicious (empty lines, wildcard in prefix mode, normalization/folder-hint changes)
+  - ignored line marker (`Ignored`) and inline warning (`Ignored due to rule limit.`) for rules truncated by caps
   - empty lines render as `(empty line)` and do not receive synthetic `/` normalization
   - warning details are rendered inline in nested semantic lists (`ul/li`) and announced via `aria-live`
   - diagnostics panel is capped with local scroll for mobile/tablet readability

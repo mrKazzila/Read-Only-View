@@ -70,3 +70,20 @@ test('path tester helper returns include/exclude matches and final read-only sta
 	assert.deepEqual(excluded.excludeMatches, ['docs/private/**']);
 	assert.equal(excluded.finalReadOnly, false);
 });
+
+test('path tester uses effective rules and does not match ignored tail rules', () => {
+	const includeRules = Array.from({ length: 200 }, (_, index) => `notes/${index}.md`);
+	includeRules.push('notes/ignored.md');
+	const settings = {
+		...DEFAULT_SETTINGS,
+		enabled: true,
+		useGlobPatterns: true,
+		caseSensitive: true,
+		includeRules,
+		excludeRules: [],
+	};
+
+	const result = buildPathTesterResult('notes/ignored.md', settings);
+	assert.deepEqual(result.includeMatches, []);
+	assert.equal(result.finalReadOnly, false);
+});
