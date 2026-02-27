@@ -1,7 +1,7 @@
 {
 	"id": "read-only-view",
 	"name": "Read Only View",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"minAppVersion": "0.15.0",
 	"description": "Forces notes to open in read-only preview mode. Lock your files to prevent accidental edits with this simple editor lock tool.",
 	"author": "mrKazzila - Ilya Kazakov",
