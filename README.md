@@ -24,6 +24,29 @@ If it does not apply immediately, run command **Re-apply rules now** from the Co
 
 - Not in Community Store yet.
 
+### Standard BRAT Installation Instructions
+
+#### Step 1: Install BRAT
+1. In Obsidian, go to **Settings → Community plugins** and turn off **Safe mode** (if enabled)
+2. Click **Browse** and search for `BRAT`
+3. Install **Obsidian42 - BRAT** and **enable** it 
+
+#### Step 2: Add your plugin via BRAT
+1. Open the **Command Palette** (`Ctrl/Cmd + P`)
+2. Run the command: **`BRAT: Add a beta plugin for testing`** 
+3. In the modal that appears, paste your plugin's GitHub repository URL:
+   ```
+   https://github.com/mrKazzila/Read-Only-View
+   ```
+4. Click **Add Plugin** – BRAT will show a confirmation message when installation completes 
+
+#### Step 3: Enable your plugin
+1. Go back to **Settings → Community plugins**
+2. Click the **refresh icon** (or restart Obsidian) to see newly installed plugins 
+3. Find **Read Only View** in the list and **enable it**
+
+> **Note:** Beta plugins may have unpredictable behavior. If something breaks, go to BRAT settings and click the **✗** next to the plugin to remove it .
+
 ### Manual installation
 
 1. Download or build plugin files.
