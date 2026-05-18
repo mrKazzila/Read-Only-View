@@ -20,6 +20,11 @@ Manual QA checklist for the next plugin release.
 ## Keyboard and focus
 
 - Tab through all interactive controls in the settings tab on desktop.
+- Tab to each settings toggle and press `Space`.
+- If `Space` toggles the focused setting, record pass.
+- If `Space` scrolls the settings pane instead, inspect `document.activeElement` immediately in DevTools.
+- Record which element owned focus when the unexpected scroll happened.
+- Treat this as a plugin bug only if the focused element is the toggle control and `Space` still fails to activate it.
 - Confirm the focused control is always visible and uses Obsidian focus styling.
 - Confirm textarea and path tester input remain operable without a mouse.
 

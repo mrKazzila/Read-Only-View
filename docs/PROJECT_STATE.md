@@ -151,6 +151,7 @@ UI module split:
 - `src/rule-diagnostics.ts` provides pure helpers used by settings UI (rule diagnostics + path tester computations).
 
 - Toggles: `Enabled`, `Use glob patterns`, `Case sensitive`, `Debug logging`
+- Settings toggles are rendered with standard Obsidian `Setting.addToggle()` controls; there are no plugin-owned toggle keyboard handlers.
 - `Debug: verbose paths` toggle allows full file paths in debug logs; default keeps paths redacted
 - Rule textareas: include/exclude (one rule per line)
 - Rule usage summary:
@@ -175,6 +176,9 @@ UI module split:
   - exclude matches
   - final `READ-ONLY ON/OFF`
   - long strings wrap to avoid horizontal overflow on narrow screens
+- Keyboard QA note:
+  - if pressing `Space` scrolls the settings pane during toggle testing, inspect `document.activeElement` before treating it as a toggle bug
+  - only classify it as a plugin defect when the focused element is the toggle control and keyboard activation still fails
 
 ## 3) Important Files and Config
 
