@@ -1,7 +1,10 @@
+import { fileURLToPath } from 'node:url';
 import tseslint from 'typescript-eslint';
 import obsidianmd from 'eslint-plugin-obsidianmd';
 import globals from 'globals';
 import { globalIgnores } from 'eslint/config';
+
+const tsconfigRootDir = fileURLToPath(new URL('.', import.meta.url));
 
 export default tseslint.config(
 	{
@@ -22,7 +25,7 @@ export default tseslint.config(
 						'tsconfig.test.json',
 					],
 				},
-				tsconfigRootDir: import.meta.dirname,
+				tsconfigRootDir,
 				extraFileExtensions: ['.json'],
 			},
 		},

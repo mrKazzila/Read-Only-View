@@ -4,14 +4,13 @@
 		"rootDir": ".",
 		"outDir": "build-tests",
 		"module": "ESNext",
-		"moduleResolution": "node",
+		"moduleResolution": "bundler",
 		"target": "ES2020",
 		"inlineSourceMap": false,
 		"inlineSources": false,
 		"sourceMap": false,
 		"declaration": false,
-		"types": ["node"],
-		"baseUrl": "."
+		"types": ["node"]
 	},
 	"include": [
 		"src/matcher.ts",
