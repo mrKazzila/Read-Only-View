@@ -60,7 +60,7 @@ export function computeRuleLimitsUiState(includeRulesText: string, excludeRulesT
 }
 
 export class DebouncedRuleChangeSaver {
-	private timer: ReturnType<typeof setTimeout> | null = null;
+	private timer: ReturnType<Window['setTimeout']> | null = null;
 	private lastValue = '';
 	private running = false;
 	private pendingRun = false;
@@ -75,9 +75,9 @@ export class DebouncedRuleChangeSaver {
 		this.lastValue = value;
 		this.onStateChange('saving');
 		if (this.timer) {
-			clearTimeout(this.timer);
+			activeWindow.clearTimeout(this.timer);
 		}
-		this.timer = setTimeout(() => {
+		this.timer = activeWindow.setTimeout(() => {
 			this.timer = null;
 			void this.runCommit();
 		}, this.delayMs);
@@ -88,7 +88,7 @@ export class DebouncedRuleChangeSaver {
 			this.lastValue = value;
 		}
 		if (this.timer) {
-			clearTimeout(this.timer);
+			activeWindow.clearTimeout(this.timer);
 			this.timer = null;
 		}
 		this.onStateChange('saving');
@@ -132,12 +132,12 @@ function renderDiagnosticsList(
 				entry.ignoredByRuleLimit ? 'read-only-view-diagnostics-item-ignored' : '',
 			].filter(Boolean).join(' '),
 		});
-		const summaryEl = itemEl.createEl('div', {
+		const summaryEl = itemEl.createDiv({
 			text: summary,
 			cls: 'read-only-view-diagnostics-summary',
 		});
 		if (entry.ignoredByRuleLimit) {
-			summaryEl.createEl('span', {
+			summaryEl.createSpan({
 				text: ' Ignored',
 				cls: 'read-only-view-diagnostics-ignored-pill',
 			});
@@ -417,13 +417,13 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 				return;
 			}
 
-			resultEl.createEl('div', {
+			resultEl.createDiv({
 				text: `Matched include: ${includeMatches.length > 0 ? includeMatches.join(', ') : 'none'}`,
 			});
-			resultEl.createEl('div', {
+			resultEl.createDiv({
 				text: `Matched exclude: ${excludeMatches.length > 0 ? excludeMatches.join(', ') : 'none'}`,
 			});
-			resultEl.createEl('div', {
+			resultEl.createDiv({
 				text: `Result: ${finalReadOnly ? 'READ-ONLY ON' : 'READ-ONLY OFF'}`,
 			});
 		};

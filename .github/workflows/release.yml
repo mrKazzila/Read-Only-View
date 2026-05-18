@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -58,6 +60,25 @@ jobs:
           test -f manifest.json || (echo "❌ manifest.json missing" && exit 1)
           # styles.css is optional; only require it if you actually ship it
           if [ -f styles.css ]; then echo "✅ styles.css present"; else echo "ℹ️ styles.css not present, skipping"; fi
+
+      - name: Collect attestation subjects
+        id: attestation-subjects
+        shell: bash
+        run: |
+          {
+            echo 'subjects<<EOF'
+            echo 'main.js'
+            echo 'manifest.json'
+            if [ -f styles.css ]; then
+              echo 'styles.css'
+            fi
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Generate artifact attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: ${{ steps.attestation-subjects.outputs.subjects }}
 
       - name: Create GitHub Release (published)
         uses: softprops/action-gh-release@v2

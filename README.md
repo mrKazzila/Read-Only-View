@@ -9,7 +9,13 @@ Privacy: No network requests, rules evaluated locally.
 
 ## Quick Start
 
-1. Install the plugin (manual installation steps below).
+1. Install the plugin from Obsidian Community Plugins:
+   - **Settings**
+   - **Community plugins**
+   - **Browse**
+   - Search: `Read Only View`
+   - **Install**
+   - **Enable**
 2. In Obsidian, open **Settings → Community plugins** and enable **Read Only View**.
 3. Open **Settings → Read Only View**.
 4. Make sure `Enabled` is on, then add an include rule such as:
@@ -22,9 +28,17 @@ If it does not apply immediately, run command **Re-apply rules now** from the Co
 
 ### Community Plugins
 
-- Not in Community Store yet.
+Recommended for normal use:
 
-### Standard BRAT Installation Instructions
+1. Open **Settings → Community plugins**.
+2. Click **Browse**.
+3. Search for `Read Only View`.
+4. Click **Install**.
+5. Click **Enable**.
+
+### BRAT (beta/dev testing)
+
+Use this only if you want to test unreleased changes or a beta build instead of the Community Plugins version.
 
 #### Step 1: Install BRAT
 1. In Obsidian, go to **Settings → Community plugins** and turn off **Safe mode** (if enabled)
@@ -45,9 +59,11 @@ If it does not apply immediately, run command **Re-apply rules now** from the Co
 2. Click the **refresh icon** (or restart Obsidian) to see newly installed plugins 
 3. Find **Read Only View** in the list and **enable it**
 
-> **Note:** Beta plugins may have unpredictable behavior. If something breaks, go to BRAT settings and click the **✗** next to the plugin to remove it .
+> **Note:** Beta plugins may have unpredictable behavior. If something breaks, go to BRAT settings and click the **✗** next to the plugin to remove it.
 
 ### Manual installation
+
+Use this only as a fallback for local/dev/manual installs.
 
 1. Download or build plugin files.
 2. Copy files into your vault:
@@ -148,7 +164,7 @@ Use the Command Palette:
 
 - `Enable read-only mode`
 - `Disable read-only mode`
-- `Toggle plugin enabled`
+- `Toggle read-only mode`
 - `Re-apply rules now`
 
 `Enable read-only mode` is available only when the plugin is disabled.  
@@ -191,7 +207,7 @@ Use the Command Palette:
 - Commands:
   - `Enable read-only mode`
   - `Disable read-only mode`
-  - `Toggle plugin enabled`
+  - `Toggle read-only mode`
   - `Re-apply rules now`
   - `Enable read-only mode` is available only when the plugin is disabled; `Disable read-only mode` is available only when enabled
 - Debug:

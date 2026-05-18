@@ -138,8 +138,13 @@ export type InstalledDomMocks = {
 
 export function installDomMocks(): InstalledDomMocks {
 	const previousDocument = setGlobalValue('document', { body: new MockHTMLElement() });
+	const previousActiveDocument = setGlobalValue(
+		'activeDocument',
+		(globalThis as unknown as { document: unknown }).document,
+	);
 	const previousHTMLElement = setGlobalValue('HTMLElement', MockHTMLElement);
 	const previousMutationObserver = setGlobalValue('MutationObserver', MockMutationObserver);
+	const previousActiveWindow = setGlobalValue('activeWindow', globalThis);
 	const documentBody = (
 		(globalThis as unknown as { document: { body: MockHTMLElement } }).document.body
 	);
@@ -148,8 +153,10 @@ export function installDomMocks(): InstalledDomMocks {
 		documentBody,
 		restore: () => {
 			restoreGlobalValue('document', previousDocument);
+			restoreGlobalValue('activeDocument', previousActiveDocument);
 			restoreGlobalValue('HTMLElement', previousHTMLElement);
 			restoreGlobalValue('MutationObserver', previousMutationObserver);
+			restoreGlobalValue('activeWindow', previousActiveWindow);
 			MockMutationObserver.reset();
 		},
 	};

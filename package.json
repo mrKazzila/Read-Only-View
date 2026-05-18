@@ -1,6 +1,6 @@
 {
 	"name": "read-only-view",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"description": "Forces notes to open in read-only preview mode. Lock your files to prevent accidental edits with this simple editor lock tool.",
 	"main": "main.js",
 	"type": "module",
@@ -23,9 +23,7 @@
 		"typescript": "^5.8.3",
 		"typescript-eslint": "8.35.1",
 		"@eslint/js": "9.30.1",
-		"jiti": "2.6.1"
-	},
-	"dependencies": {
+		"jiti": "2.6.1",
 		"obsidian": "1.10.3"
 	}
 }

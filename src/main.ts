@@ -35,7 +35,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 
 	private enforcementService: EnforcementService | null = null;
 	private popoverObserverService: PopoverObserverService | null = null;
-	private workspaceEventTimer: ReturnType<typeof setTimeout> | null = null;
+	private workspaceEventTimer: ReturnType<Window['setTimeout']> | null = null;
 	private workspaceEventReasons = new Set<string>();
 	private workspaceEventLeaves = new Set<WorkspaceLeaf>();
 
@@ -44,7 +44,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'toggle-plugin-enabled',
-			name: 'Toggle plugin enabled',
+			name: 'Toggle read-only mode',
 			callback: async () => {
 				await this.setPluginEnabled(!this.settings.enabled, 'command-toggle-enabled');
 			},
@@ -105,7 +105,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 
 	onunload(): void {
 		if (this.workspaceEventTimer) {
-			clearTimeout(this.workspaceEventTimer);
+			activeWindow.clearTimeout(this.workspaceEventTimer);
 			this.workspaceEventTimer = null;
 		}
 		this.workspaceEventReasons.clear();
@@ -189,7 +189,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			return;
 		}
 
-		this.workspaceEventTimer = setTimeout(() => {
+		this.workspaceEventTimer = activeWindow.setTimeout(() => {
 			const reasons = Array.from(this.workspaceEventReasons);
 			const leaves = Array.from(this.workspaceEventLeaves);
 			this.workspaceEventReasons.clear();
