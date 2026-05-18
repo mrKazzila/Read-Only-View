@@ -151,6 +151,7 @@ UI module split:
 - `src/rule-diagnostics.ts` provides pure helpers used by settings UI (rule diagnostics + path tester computations).
 
 - Toggles: `Enabled`, `Use glob patterns`, `Case sensitive`, `Debug logging`
+- Settings toggles are rendered with standard Obsidian `Setting.addToggle()` controls; there are no plugin-owned toggle keyboard handlers.
 - `Debug: verbose paths` toggle allows full file paths in debug logs; default keeps paths redacted
 - Rule textareas: include/exclude (one rule per line)
 - Rule usage summary:
@@ -175,6 +176,9 @@ UI module split:
   - exclude matches
   - final `READ-ONLY ON/OFF`
   - long strings wrap to avoid horizontal overflow on narrow screens
+- Keyboard QA note:
+  - if pressing `Space` scrolls the settings pane during toggle testing, inspect `document.activeElement` before treating it as a toggle bug
+  - only classify it as a plugin defect when the focused element is the toggle control and keyboard activation still fails
 
 ## 3) Important Files and Config
 
@@ -191,6 +195,7 @@ Core config:
 - `manifest.json`
   - `id: read-only-view`
   - `isDesktopOnly: false`
+  - `minAppVersion: 1.10.3`
 - `esbuild.config.mjs`
   - entry: `src/main.ts`
   - output: `main.js`
@@ -203,6 +208,7 @@ Core config:
   - Obsidian lint preset + repo ignores + test-file overrides
 - Dependency strategy:
   - `obsidian` is pinned to an exact version (`1.10.3`) in `package.json`
+  - `minAppVersion` is aligned to the only explicitly pinned and manually tracked compatibility baseline (`1.10.3`)
   - version updates are explicit and validated with full lint/test/build and runtime smoke checks
 
 Generated artifacts (not source of truth):
@@ -226,6 +232,8 @@ Items where behavior depends on Obsidian internals and is best-effort:
 
 - Manual compatibility tracking matrix:
   - See `docs/compatibility-matrix.md` for platform/version/scenario results and pending checks.
+- Release QA checklist:
+  - See `docs/RELEASE_QA.md` for the concise pre-release desktop/mobile/accessibility pass.
 
 - Hover/popover edit prevention coverage is not guaranteed for every internal view implementation.
   - Verify in: `src/popover-observer.ts` (`start`, selector matching, `findLeafByNode`).
