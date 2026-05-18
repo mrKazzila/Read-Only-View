@@ -28,6 +28,18 @@ function waitForNextFrame(): Promise<void> {
 	return Promise.resolve();
 }
 
+function getTimerWindow(): Pick<Window, 'setTimeout'> {
+	if (typeof activeWindow === 'object' && activeWindow) {
+		return activeWindow;
+	}
+	if (typeof window === 'object' && window) {
+		return window;
+	}
+	return {
+		setTimeout,
+	};
+}
+
 function isLayoutChangeReason(reason: string): boolean {
 	return reason.includes('workspace-events:layout-change');
 }
@@ -49,6 +61,7 @@ class DefaultEnforcementService implements EnforcementService {
 	private enforcing = false;
 	private pendingReapply: string | null = null;
 	private lastForcedAt = new WeakMap<WorkspaceLeaf, number>();
+	private pendingLayoutRetry = new WeakMap<WorkspaceLeaf, ReturnType<Window['setTimeout']>>();
 	private readonly now: () => number;
 
 	constructor(private readonly dependencies: EnforcementDependencies) {
@@ -142,16 +155,22 @@ class DefaultEnforcementService implements EnforcementService {
 
 		const now = this.now();
 		const last = this.lastForcedAt.get(leaf) ?? 0;
-		const throttleMs = isLayoutChangeReason(reason)
+		const layoutChangeReason = isLayoutChangeReason(reason);
+		const throttleMs = layoutChangeReason
 			? LAYOUT_CHANGE_FORCE_PREVIEW_THROTTLE_MS
 			: LEAF_FORCE_PREVIEW_THROTTLE_MS;
 		if (now - last < throttleMs) {
+			const remainingMs = throttleMs - (now - last);
 			this.dependencies.logDebug('ensure-preview-skip', {
 				reason,
 				filePath,
 				skipReason: 'throttled',
 				throttleMs,
+				remainingMs,
 			});
+			if (layoutChangeReason) {
+				this.scheduleLayoutRetry(leaf, reason, remainingMs);
+			}
 			return;
 		}
 
@@ -220,6 +239,18 @@ class DefaultEnforcementService implements EnforcementService {
 			beforeMode,
 			afterMode,
 		});
+	}
+
+	private scheduleLayoutRetry(leaf: WorkspaceLeaf, reason: string, delayMs: number): void {
+		if (this.pendingLayoutRetry.has(leaf)) {
+			return;
+		}
+		const timerWindow = getTimerWindow();
+		const timer = timerWindow.setTimeout(() => {
+			this.pendingLayoutRetry.delete(leaf);
+			void this.applyReadOnlyForLeaf(leaf, `deferred:${reason}`);
+		}, Math.max(delayMs, 0));
+		this.pendingLayoutRetry.set(leaf, timer);
 	}
 }
 
