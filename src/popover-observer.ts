@@ -37,7 +37,7 @@ class DefaultPopoverObserverService implements PopoverObserverService {
 		if (this.mutationObserver) {
 			return;
 		}
-		if (typeof document === 'undefined' || !document.body) {
+		if (!activeDocument.body) {
 			return;
 		}
 
@@ -52,7 +52,7 @@ class DefaultPopoverObserverService implements PopoverObserverService {
 			void this.handlePotentialPopoverBatch(candidateNodes);
 		});
 
-		this.mutationObserver.observe(document.body, {
+		this.mutationObserver.observe(activeDocument.body, {
 			childList: true,
 			subtree: true,
 		});

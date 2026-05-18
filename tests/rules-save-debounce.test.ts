@@ -6,6 +6,7 @@ import { DebouncedRuleChangeSaver } from '../src/settings-tab.js';
 function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) => Promise<void>): Promise<void> {
 	const originalSetTimeout = globalThis.setTimeout;
 	const originalClearTimeout = globalThis.clearTimeout;
+	const originalActiveWindow = (globalThis as Record<string, unknown>).activeWindow;
 
 	let nextId = 1;
 	const queue = new Map<number, () => void>();
@@ -20,6 +21,7 @@ function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) =
 	globalThis.clearTimeout = ((timeoutId: ReturnType<typeof setTimeout>) => {
 		queue.delete(Number(timeoutId));
 	}) as typeof clearTimeout;
+	(globalThis as Record<string, unknown>).activeWindow = globalThis;
 
 	const flushAll = async () => {
 		for (const [id, callbackHandler] of Array.from(queue.entries())) {
@@ -32,6 +34,7 @@ function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) =
 	return callback({ flushAll }).finally(() => {
 		globalThis.setTimeout = originalSetTimeout;
 		globalThis.clearTimeout = originalClearTimeout;
+		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
 	});
 }
 
