@@ -13,9 +13,7 @@
 		"types": ["node"]
 	},
 	"include": [
-		"src/matcher.ts",
-		"src/command-controls.ts",
-		"src/main.ts",
+		"src/**/*.ts",
 		"tests/**/*.ts"
 	]
 }

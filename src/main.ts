@@ -4,97 +4,46 @@ import {
 	WorkspaceLeaf,
 } from 'obsidian';
 import {
-	DEFAULT_SETTINGS,
-	type ForceReadModeSettings,
-	normalizeVaultPath,
 	shouldForceReadOnly,
 } from './matcher';
-import {
-	canRunDisableCommand,
-	canRunEnableCommand,
-	shouldReapplyAfterEnabledChange,
-} from './command-controls';
+import { shouldReapplyAfterEnabledChange } from './command-controls';
+import { formatPathForDebug } from './debug-log';
 import { createEnforcementService, type EnforcementService } from './enforcement';
 import { createPopoverObserverService, type PopoverObserverService } from './popover-observer';
+import { DEFAULT_SETTINGS, mergeLoadedSettings } from './plugin-settings';
+import { registerPluginCommands } from './plugin-commands';
 import { ForceReadModeSettingTab } from './settings-tab';
+import type { ForceReadModeSettings } from './plugin-types';
+import { WorkspaceEventController } from './workspace-events';
 
-export function formatPathForDebug(path: string, verbosePaths: boolean): string {
-	const normalized = normalizeVaultPath(path);
-	if (verbosePaths) {
-		return normalized;
-	}
-	const parts = normalized.split('/');
-	const basename = parts[parts.length - 1] ?? '';
-	return basename ? `[redacted]/${basename}` : '[redacted]';
-}
+export { formatPathForDebug } from './debug-log';
 
 export default class ReadOnlyViewPlugin extends Plugin {
 	settings: ForceReadModeSettings = { ...DEFAULT_SETTINGS };
-	private static readonly WORKSPACE_EVENT_COALESCE_MS = 150;
-	private static readonly TARGETED_WORKSPACE_REASONS = new Set(['active-leaf-change', 'file-open']);
 
 	private enforcementService: EnforcementService | null = null;
 	private popoverObserverService: PopoverObserverService | null = null;
-	private workspaceEventTimer: ReturnType<Window['setTimeout']> | null = null;
-	private workspaceEventReasons = new Set<string>();
-	private workspaceEventLeaves = new Set<WorkspaceLeaf>();
+	private workspaceEventController: WorkspaceEventController | null = null;
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
 
-		this.addCommand({
-			id: 'toggle-plugin-enabled',
-			name: 'Toggle read-only mode',
-			callback: async () => {
-				await this.setPluginEnabled(!this.settings.enabled, 'command-toggle-enabled');
-			},
-		});
-
-		this.addCommand({
-			id: 'enable-plugin',
-			name: 'Enable read-only mode',
-			checkCallback: (checking: boolean) => {
-				if (!canRunEnableCommand(this.settings.enabled)) {
-					return false;
-				}
-				if (!checking) {
-					void this.setPluginEnabled(true, 'command-enable');
-				}
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: 'disable-plugin',
-			name: 'Disable read-only mode',
-			checkCallback: (checking: boolean) => {
-				if (!canRunDisableCommand(this.settings.enabled)) {
-					return false;
-				}
-				if (!checking) {
-					void this.setPluginEnabled(false, 'command-disable');
-				}
-				return true;
-			},
-		});
-
-		this.addCommand({
-			id: 're-apply-rules-now',
-			name: 'Re-apply rules now',
-			callback: async () => {
-				await this.applyAllOpenMarkdownLeaves('command-reapply');
-			},
+		registerPluginCommands({
+			addCommand: this.addCommand.bind(this),
+			isEnabled: () => this.settings.enabled,
+			setPluginEnabled: (enabled, reason) => this.setPluginEnabled(enabled, reason),
+			applyAllOpenMarkdownLeaves: (reason) => this.applyAllOpenMarkdownLeaves(reason),
 		});
 
 		this.registerEvent(this.app.workspace.on('file-open', () => {
-			this.scheduleWorkspaceEventReapply('file-open');
+			this.getWorkspaceEventController().schedule('file-open');
 		}));
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf: WorkspaceLeaf | null) => {
-			this.scheduleWorkspaceEventReapply('active-leaf-change', leaf ?? null);
+			this.getWorkspaceEventController().schedule('active-leaf-change', leaf ?? null);
 		}));
 		this.registerEvent(this.app.workspace.on('layout-change', () => {
 			this.invalidateLeafContainerCache();
-			this.scheduleWorkspaceEventReapply('layout-change');
+			this.getWorkspaceEventController().schedule('layout-change');
 		}));
 
 		this.installMutationObserver();
@@ -104,12 +53,10 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	}
 
 	onunload(): void {
-		if (this.workspaceEventTimer) {
-			activeWindow.clearTimeout(this.workspaceEventTimer);
-			this.workspaceEventTimer = null;
+		if (this.workspaceEventController) {
+			this.workspaceEventController.stop();
+			this.workspaceEventController = null;
 		}
-		this.workspaceEventReasons.clear();
-		this.workspaceEventLeaves.clear();
 		this.invalidateLeafContainerCache();
 		this.enforcementService = null;
 		if (this.popoverObserverService) {
@@ -120,12 +67,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 
 	async loadSettings(): Promise<void> {
 		const loaded = await this.loadData() as Partial<ForceReadModeSettings> | null;
-		this.settings = {
-			...DEFAULT_SETTINGS,
-			...loaded,
-			includeRules: loaded?.includeRules ?? DEFAULT_SETTINGS.includeRules,
-			excludeRules: loaded?.excludeRules ?? DEFAULT_SETTINGS.excludeRules,
-		};
+		this.settings = mergeLoadedSettings(loaded);
 	}
 
 	async saveSettings(): Promise<void> {
@@ -169,65 +111,22 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		return this.popoverObserverService;
 	}
 
+	private getWorkspaceEventController(): WorkspaceEventController {
+		if (!this.workspaceEventController) {
+			this.workspaceEventController = new WorkspaceEventController({
+				logDebug: (message, payload) => this.logDebug(message, payload),
+				applyAllOpenMarkdownLeaves: (reason) => this.applyAllOpenMarkdownLeaves(reason),
+				applyReadOnlyForLeaf: (leaf, reason) => this.getEnforcementService().applyReadOnlyForLeaf(leaf, reason),
+				formatLeafPathForDebug: (leaf) => leaf.view instanceof MarkdownView && leaf.view.file
+					? formatPathForDebug(leaf.view.file.path, this.settings.debugVerbosePaths)
+					: null,
+			});
+		}
+		return this.workspaceEventController;
+	}
+
 	async applyAllOpenMarkdownLeaves(reason: string): Promise<void> {
 		await this.getEnforcementService().applyAllOpenMarkdownLeaves(reason);
-	}
-
-	private isTargetedWorkspaceEventBurst(reasons: string[]): boolean {
-		if (reasons.length === 0) {
-			return false;
-		}
-		return reasons.every((reason) => ReadOnlyViewPlugin.TARGETED_WORKSPACE_REASONS.has(reason));
-	}
-
-	private scheduleWorkspaceEventReapply(reason: string, leaf: WorkspaceLeaf | null = null): void {
-		this.workspaceEventReasons.add(reason);
-		if (leaf) {
-			this.workspaceEventLeaves.add(leaf);
-		}
-		if (this.workspaceEventTimer) {
-			return;
-		}
-
-		this.workspaceEventTimer = activeWindow.setTimeout(() => {
-			const reasons = Array.from(this.workspaceEventReasons);
-			const leaves = Array.from(this.workspaceEventLeaves);
-			this.workspaceEventReasons.clear();
-			this.workspaceEventLeaves.clear();
-			this.workspaceEventTimer = null;
-			void this.applyWorkspaceEventBurst(reasons, leaves);
-		}, ReadOnlyViewPlugin.WORKSPACE_EVENT_COALESCE_MS);
-	}
-
-	private async applyWorkspaceEventBurst(reasons: string[], leaves: WorkspaceLeaf[]): Promise<void> {
-		const reasonText = `workspace-events:${reasons.join(',')}`;
-		this.logDebug('workspace-reapply-plan', {
-			reason: reasonText,
-			sourceReasons: reasons,
-			leafCount: leaves.length,
-			strategy: this.isTargetedWorkspaceEventBurst(reasons) ? 'targeted' : 'full',
-		});
-		if (!this.isTargetedWorkspaceEventBurst(reasons)) {
-			await this.applyAllOpenMarkdownLeaves(reasonText);
-			return;
-		}
-
-		if (leaves.length === 0) {
-			await this.applyAllOpenMarkdownLeaves(reasonText);
-			return;
-		}
-
-		for (const leaf of leaves) {
-			const filePath = leaf.view instanceof MarkdownView && leaf.view.file
-				? formatPathForDebug(leaf.view.file.path, this.settings.debugVerbosePaths)
-				: null;
-			this.logDebug('workspace-reapply-target', {
-				reason: reasonText,
-				source: 'active-leaf-change',
-				filePath,
-			});
-			await this.getEnforcementService().applyReadOnlyForLeaf(leaf, `${reasonText}:targeted-leaf`);
-		}
 	}
 
 	private invalidateLeafContainerCache(): void {

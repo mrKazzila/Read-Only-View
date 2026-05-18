@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Last updated: 2026-02-26
+Last updated: 2026-05-18
 
 This document is a living system map for the `read-only-view` Obsidian plugin.
 
@@ -10,20 +10,32 @@ High-level modules:
 
 - `src/main.ts`
   - Plugin lifecycle (`onload`, `onunload`)
-  - Event wiring (`file-open`, `active-leaf-change`, `layout-change`) with event coalescing
-  - Orchestration for enforcement service calls
-  - Settings tab wiring (without UI-render details)
-  - Orchestration for popover observer service calls
+  - Thin composition root for commands, workspace-event controller, enforcement service, settings tab, and popover observer service
 - `src/command-controls.ts`
   - Command availability guards (`canRunEnableCommand`, `canRunDisableCommand`)
   - Re-apply decision helper for enabled-state transitions (`shouldReapplyAfterEnabledChange`)
+- `src/plugin-commands.ts`
+  - Command registration/composition for enable, disable, toggle, and manual re-apply commands
+- `src/plugin-types.ts`
+  - Shared plugin-facing settings and settings-tab contract types
+- `src/plugin-settings.ts`
+  - Default settings and persisted-settings merge helper
+- `src/debug-log.ts`
+  - Path redaction helper for debug logging
 - `src/enforcement.ts`
   - Typed enforcement service (`createEnforcementService`)
   - Enforcement loop, lock/pending queue, and per-leaf preview throttle
   - Leaf-level preview forcing with fallback logging
 - `src/settings-tab.ts`
-  - `ForceReadModeSettingTab` UI module (settings controls, rules editor, diagnostics panel, path tester)
-  - `DebouncedRuleChangeSaver` for input-save debounce and flush
+  - `ForceReadModeSettingTab` composition entrypoint for settings UI sections
+- `src/settings-general.ts`
+  - General toggle settings rendering and shared save/re-apply side-effect helper
+- `src/settings-rule-editor.ts`
+  - Rules editor section rendering, diagnostics list UI, and `DebouncedRuleChangeSaver`
+- `src/settings-ui-state.ts`
+  - Pure settings summary/warning state computation for rule-limit banners
+- `src/settings-path-tester.ts`
+  - Path tester section rendering
 - `src/constants.ts`
   - Rule volume thresholds and hard limits (`50/150`, `200/300/400`)
 - `src/rule-limits.ts`
@@ -38,6 +50,9 @@ High-level modules:
 - `src/rule-diagnostics.ts`
   - Rule text parsing and diagnostics helpers
   - Path tester matching helpers for include/exclude/result output
+- `src/workspace-events.ts`
+  - Workspace-event coalescing controller for targeted-vs-full reapply strategy
+  - Timed burst scheduling and cleanup for `file-open`, `active-leaf-change`, and `layout-change`
 - `src/matcher.ts`
   - `normalizeVaultPath(path)`
   - `compileGlobToRegex(pattern, caseSensitive)` with bounded FIFO cache (`cap=512`)
@@ -70,12 +85,16 @@ High-level modules:
   - Unit coverage for observer service lifecycle, prefilter, dispatch, selector contract, and leaf-cache invalidation
 - `tests/rules-save-debounce.test.ts`
   - Debounced rules-save coverage for settings module: burst collapse, immediate flush, and latest-value persistence
+- `tests/settings-general.test.ts`
+  - Settings toggle side-effect coverage for save/re-apply behavior after UI extraction
 - `tests/rule-diagnostics.test.ts`
   - Diagnostics and path tester helper coverage for inline warnings and include/exclude/result computation
 - `tests/rule-limits.test.ts`
   - Rule cap/warning coverage and matching behavior with ignored tail rules
 - `tests/debug-logging.test.ts`
   - Debug logging privacy coverage for path redaction/verbose mode and fallback error diagnostics
+- `tests/workspace-events.test.ts`
+  - Workspace-event controller coverage for targeted bursts, full-scan fallback, and timer cleanup
 
 Design intent:
 
@@ -88,8 +107,8 @@ Design intent:
 ### A. Startup flow
 
 1. Load persisted settings (`loadData`).
-2. Register commands.
-3. Register workspace event listeners.
+2. Register commands via `src/plugin-commands.ts`.
+3. Register workspace event listeners that delegate to `src/workspace-events.ts`.
 4. Start mutation observer.
 5. Perform initial enforcement pass (`applyAllOpenMarkdownLeaves('onload')`).
 
@@ -104,7 +123,7 @@ Design intent:
 
 Workspace-event coalescing:
 
-- `file-open`, `active-leaf-change`, and `layout-change` are combined in a 150 ms window.
+- `file-open`, `active-leaf-change`, and `layout-change` are combined in a 150 ms window by `WorkspaceEventController`.
 - One coalesced run executes with reason format `workspace-events:<joined reasons>`.
 - Optimization: when a coalesced batch contains only `active-leaf-change` and/or `file-open`, enforcement is applied only to the affected leaf instead of scanning all markdown leaves.
 - Manual command `Re-apply rules now` still runs immediately.
@@ -122,6 +141,7 @@ Loop protection:
 - Global lock (`enforcing`) + pending reason queue (`pendingReapply`)
 - Per-leaf throttle (`WeakMap<WorkspaceLeaf, number>`) to reduce repeated `setViewState` calls.
 - Layout-change bursts use an extended per-leaf throttle window to reduce repeated reflow-prone mode flips during heavy UI relayouts.
+- Throttled layout-change attempts schedule one trailing retry per leaf so a note is not left in source mode after the burst ends.
 
 Command entry points:
 
@@ -147,7 +167,11 @@ Command entry points:
 
 UI module split:
 
-- `src/settings-tab.ts` owns rendering and handlers for settings UI sections.
+- `src/settings-tab.ts` owns only top-level composition of settings UI sections.
+- `src/settings-general.ts` owns toggle rendering and persistence side effects.
+- `src/settings-rule-editor.ts` owns the include/exclude editor sections and debounced save helper.
+- `src/settings-ui-state.ts` owns the pure summary/warning calculation used by the rules section.
+- `src/settings-path-tester.ts` owns the path tester section.
 - `src/rule-diagnostics.ts` provides pure helpers used by settings UI (rule diagnostics + path tester computations).
 
 - Toggles: `Enabled`, `Use glob patterns`, `Case sensitive`, `Debug logging`
@@ -204,8 +228,10 @@ Core config:
   - strict-ish TS options for `src/**/*.ts`
 - `tsconfig.test.json`
   - test compile output to `build-tests/`
+  - includes all `src/**/*.ts` plus `tests/**/*.ts` so extracted helper modules stay covered by the test build
 - `eslint.config.mts`
   - Obsidian lint preset + repo ignores + test-file overrides
+  - default-project allowance sized for the current typed test suite
 - Dependency strategy:
   - `obsidian` is pinned to an exact version (`1.10.3`) in `package.json`
   - `minAppVersion` is aligned to the only explicitly pinned and manually tracked compatibility baseline (`1.10.3`)
@@ -219,6 +245,7 @@ Generated artifacts (not source of truth):
 ## 4) Known Gotchas
 
 - `build-tests/` is generated by tests and can pollute lint if ignored patterns/config are changed.
+- `tests/helpers/prepare-obsidian-runtime.mjs` rewrites extensionless local imports in `build-tests/src/*.js`; update it if the test runtime layout changes.
 - `ensurePreview` uses `setViewState` with `{ replace: true }` and fallback call style; API behavior can differ across Obsidian versions.
 - Matching is intentionally limited to `.md`; attachments and other extensions are untouched.
 - Prefix mode treats `*` and `?` as literal characters, which can surprise users.

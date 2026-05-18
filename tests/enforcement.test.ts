@@ -50,6 +50,41 @@ function createService(options: CreateServiceOptions = {}) {
 	};
 }
 
+function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) => Promise<void>): Promise<void> {
+	const originalSetTimeout = globalThis.setTimeout;
+	const originalClearTimeout = globalThis.clearTimeout;
+	const originalActiveWindow = (globalThis as Record<string, unknown>).activeWindow;
+
+	let nextId = 1;
+	const queue = new Map<number, () => void>();
+
+	globalThis.setTimeout = ((handler: TimerHandler) => {
+		const callbackHandler = typeof handler === 'function' ? handler : () => undefined;
+		const id = nextId++;
+		queue.set(id, callbackHandler as () => void);
+		return id as unknown as ReturnType<typeof setTimeout>;
+	}) as typeof setTimeout;
+
+	globalThis.clearTimeout = ((timeoutId: ReturnType<typeof setTimeout>) => {
+		queue.delete(Number(timeoutId));
+	}) as typeof clearTimeout;
+	(globalThis as Record<string, unknown>).activeWindow = globalThis;
+
+	const flushAll = async () => {
+		for (const [id, callbackHandler] of Array.from(queue.entries())) {
+			queue.delete(id);
+			callbackHandler();
+			await Promise.resolve();
+		}
+	};
+
+	return callback({ flushAll }).finally(() => {
+		globalThis.setTimeout = originalSetTimeout;
+		globalThis.clearTimeout = originalClearTimeout;
+		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
+	});
+}
+
 test('service contract: queues pending reapply while enforcement is running', async () => {
 	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
 	const setup = createService({ leaves: [leaf] });
@@ -144,4 +179,25 @@ test('service contract: layout-change reason uses extended per-leaf throttle', a
 	await setup.service.applyAllOpenMarkdownLeaves('workspace-events:layout-change');
 
 	assert.equal(leaf.setViewStateCalls.length, 2);
+});
+
+test('service contract: throttled layout-change schedules trailing retry', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
+	const nowValues = [1000, 1300, 1701];
+	let nowIndex = 0;
+	const setup = createService({
+		leaves: [leaf],
+		now: () => nowValues[Math.min(nowIndex++, nowValues.length - 1)] ?? 0,
+	});
+
+	await withFakeTimeouts(async ({ flushAll }) => {
+		await setup.service.applyAllOpenMarkdownLeaves('workspace-events:layout-change');
+		leaf.setMode('source');
+		await setup.service.applyAllOpenMarkdownLeaves('workspace-events:layout-change');
+		assert.equal(leaf.setViewStateCalls.length, 1);
+
+		await flushAll();
+
+		assert.equal(leaf.setViewStateCalls.length, 2);
+	});
 });
