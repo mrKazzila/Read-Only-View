@@ -263,6 +263,9 @@ Use the Command Palette:
 Manual cross-platform/version compatibility checks are tracked in:
 
 - `docs/compatibility-matrix.md`
+- `docs/RELEASE_QA.md`
+
+Current supported baseline for this release branch is Obsidian `1.10.3`.
 
 ## Development
 

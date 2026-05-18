@@ -32,6 +32,8 @@ export default tseslint.config(
 		files: ['tests/**/*.ts'],
 		rules: {
 			'import/no-nodejs-modules': 'off',
+			'obsidianmd/no-nodejs-modules': 'off',
+			'obsidianmd/prefer-active-doc': 'off',
 			'@typescript-eslint/no-floating-promises': 'off',
 		},
 	},

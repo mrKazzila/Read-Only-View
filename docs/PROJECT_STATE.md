@@ -191,6 +191,7 @@ Core config:
 - `manifest.json`
   - `id: read-only-view`
   - `isDesktopOnly: false`
+  - `minAppVersion: 1.10.3`
 - `esbuild.config.mjs`
   - entry: `src/main.ts`
   - output: `main.js`
@@ -203,6 +204,7 @@ Core config:
   - Obsidian lint preset + repo ignores + test-file overrides
 - Dependency strategy:
   - `obsidian` is pinned to an exact version (`1.10.3`) in `package.json`
+  - `minAppVersion` is aligned to the only explicitly pinned and manually tracked compatibility baseline (`1.10.3`)
   - version updates are explicit and validated with full lint/test/build and runtime smoke checks
 
 Generated artifacts (not source of truth):
@@ -226,6 +228,8 @@ Items where behavior depends on Obsidian internals and is best-effort:
 
 - Manual compatibility tracking matrix:
   - See `docs/compatibility-matrix.md` for platform/version/scenario results and pending checks.
+- Release QA checklist:
+  - See `docs/RELEASE_QA.md` for the concise pre-release desktop/mobile/accessibility pass.
 
 - Hover/popover edit prevention coverage is not guaranteed for every internal view implementation.
   - Verify in: `src/popover-observer.ts` (`start`, selector matching, `findLeafByNode`).
