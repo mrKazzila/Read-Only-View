@@ -44,7 +44,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'toggle-plugin-enabled',
-			name: 'Toggle plugin enabled',
+			name: 'Toggle read-only mode',
 			callback: async () => {
 				await this.setPluginEnabled(!this.settings.enabled, 'command-toggle-enabled');
 			},

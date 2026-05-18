@@ -127,7 +127,7 @@ Command entry points:
 
 - `Enable read-only mode` (shown only when currently disabled)
 - `Disable read-only mode` (shown only when currently enabled)
-- `Toggle plugin enabled`
+- `Toggle read-only mode`
 - `Re-apply rules now`
 - Command visibility and enable/disable transition rules are centralized in `src/command-controls.ts`.
 
