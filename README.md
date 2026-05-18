@@ -226,6 +226,7 @@ Use **Path tester** to paste the exact note path and confirm:
   - wait for `Saved.`
   - run **Re-apply rules now**
   - reopen the note if needed
+  - after very rapid view toggles, allow a brief moment for the plugin to retry after the layout burst settles
 - Diagnostics show ignored rules:
   - reduce the number of rules
   - merge similar paths where practical

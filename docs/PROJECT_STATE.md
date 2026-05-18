@@ -141,6 +141,7 @@ Loop protection:
 - Global lock (`enforcing`) + pending reason queue (`pendingReapply`)
 - Per-leaf throttle (`WeakMap<WorkspaceLeaf, number>`) to reduce repeated `setViewState` calls.
 - Layout-change bursts use an extended per-leaf throttle window to reduce repeated reflow-prone mode flips during heavy UI relayouts.
+- Throttled layout-change attempts schedule one trailing retry per leaf so a note is not left in source mode after the burst ends.
 
 Command entry points:
 
