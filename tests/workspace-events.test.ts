@@ -93,6 +93,53 @@ test('workspace event controller falls back to full reapply for layout-change bu
 	assert.deepEqual(targetedReasons, []);
 });
 
+test('workspace event controller de-duplicates repeated leaf scheduling within one targeted burst', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
+	const targetedReasons: string[] = [];
+	const controller = new WorkspaceEventController({
+		logDebug: () => undefined,
+		applyAllOpenMarkdownLeaves: async () => undefined,
+		applyReadOnlyForLeaf: async (_leaf, reason) => {
+			targetedReasons.push(reason);
+		},
+		formatLeafPathForDebug: () => '[redacted]/file.md',
+	});
+
+	await withFakeTimeouts(async ({ flushAll }) => {
+		controller.schedule('active-leaf-change', leaf as never);
+		controller.schedule('file-open', leaf as never);
+		controller.schedule('active-leaf-change', leaf as never);
+		await flushAll();
+	});
+
+	assert.deepEqual(targetedReasons, ['workspace-events:active-leaf-change,file-open:targeted-leaf']);
+});
+
+test('workspace event controller uses full reapply when targeted and non-targeted reasons are mixed', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
+	const fullReasons: string[] = [];
+	const targetedReasons: string[] = [];
+	const controller = new WorkspaceEventController({
+		logDebug: () => undefined,
+		applyAllOpenMarkdownLeaves: async (reason) => {
+			fullReasons.push(reason);
+		},
+		applyReadOnlyForLeaf: async (_leaf, reason) => {
+			targetedReasons.push(reason);
+		},
+		formatLeafPathForDebug: () => '[redacted]/file.md',
+	});
+
+	await withFakeTimeouts(async ({ flushAll }) => {
+		controller.schedule('file-open', leaf as never);
+		controller.schedule('layout-change', leaf as never);
+		await flushAll();
+	});
+
+	assert.deepEqual(fullReasons, ['workspace-events:file-open,layout-change']);
+	assert.deepEqual(targetedReasons, []);
+});
+
 test('workspace event controller falls back to full reapply when targeted burst has no leaves', async () => {
 	const fullReasons: string[] = [];
 	const controller = new WorkspaceEventController({

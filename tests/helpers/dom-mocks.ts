@@ -33,12 +33,28 @@ function restoreGlobalValue(name: string, descriptor: GlobalValueDescriptor): vo
 export class MockHTMLElement {
 	private readonly selectors: Set<string>;
 	private readonly children: MockHTMLElement[];
+	private readonly attributes: Map<string, string>;
+	private readonly eventListeners: Map<string, Array<() => void>>;
+	readonly tagName: string;
 	parentElement: MockHTMLElement | null;
+	textContent: string;
+	value: string;
+	placeholder: string;
+	rows: number;
+	type: string;
 
-	constructor(selectors: string[] = []) {
+	constructor(selectors: string[] = [], tagName = 'div') {
 		this.selectors = new Set(selectors);
 		this.children = [];
+		this.attributes = new Map<string, string>();
+		this.eventListeners = new Map<string, Array<() => void>>();
+		this.tagName = tagName.toLowerCase();
 		this.parentElement = null;
+		this.textContent = '';
+		this.value = '';
+		this.placeholder = '';
+		this.rows = 0;
+		this.type = '';
 	}
 
 	addClassSelector(selector: string): void {
@@ -50,11 +66,86 @@ export class MockHTMLElement {
 		this.children.push(child);
 	}
 
+	private createChild(tag: string, options?: { cls?: string; text?: string; type?: string }): MockHTMLElement {
+		const selectors: string[] = [tag.toLowerCase()];
+		if (options?.cls) {
+			for (const part of options.cls.split(' ').filter(Boolean)) {
+				selectors.push(`.${part}`);
+			}
+		}
+		const child = new MockHTMLElement(selectors, tag);
+		if (options?.text) {
+			child.textContent = options.text;
+		}
+		if (options?.type) {
+			child.type = options.type;
+		}
+		this.appendChild(child);
+		return child;
+	}
+
+	createDiv(options?: { cls?: string; text?: string }): MockHTMLElement {
+		return this.createChild('div', options);
+	}
+
+	createSpan(options?: { cls?: string; text?: string }): MockHTMLElement {
+		return this.createChild('span', options);
+	}
+
+	createEl(tag: string, options?: { cls?: string; text?: string; type?: string }): MockHTMLElement {
+		return this.createChild(tag, options);
+	}
+
+	addClass(cls: string): void {
+		this.selectors.add(`.${cls}`);
+	}
+
+	setText(text: string): void {
+		this.textContent = text;
+	}
+
+	empty(): void {
+		this.children.length = 0;
+		this.textContent = '';
+	}
+
+	remove(): void {
+		if (!this.parentElement) {
+			return;
+		}
+		const siblings = this.parentElement.children;
+		const index = siblings.indexOf(this);
+		if (index >= 0) {
+			siblings.splice(index, 1);
+		}
+		this.parentElement = null;
+	}
+
+	setAttr(name: string, value: string): void {
+		this.attributes.set(name, value);
+	}
+
+	getAttr(name: string): string | null {
+		return this.attributes.get(name) ?? null;
+	}
+
+	addEventListener(type: string, listener: () => void): void {
+		const listeners = this.eventListeners.get(type) ?? [];
+		listeners.push(listener);
+		this.eventListeners.set(type, listeners);
+	}
+
+	trigger(type: string): void {
+		for (const listener of this.eventListeners.get(type) ?? []) {
+			listener();
+		}
+	}
+
 	matches(selector: string): boolean {
 		return selector
 			.split(',')
 			.map((part) => part.trim())
-			.some((part) => this.selectors.has(part));
+			.some((part) => this.selectors.has(part) || part === this.tagName);
 	}
 
 	querySelector(selector: string): MockHTMLElement | null {
@@ -68,6 +159,21 @@ export class MockHTMLElement {
 			}
 		}
 		return null;
+	}
+
+	querySelectorAll(selector: string): MockHTMLElement[] {
+		const matches: MockHTMLElement[] = [];
+		for (const child of this.children) {
+			if (child.matches(selector)) {
+				matches.push(child);
+			}
+			matches.push(...child.querySelectorAll(selector));
+		}
+		return matches;
+	}
+
+	getChildren(): MockHTMLElement[] {
+		return [...this.children];
 	}
 
 	contains(node: unknown): boolean {

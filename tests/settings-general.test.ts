@@ -59,12 +59,38 @@ test('general settings update re-applies for matching-related toggles', async ()
 	assert.deepEqual(plugin.applyReasons, ['settings-use-glob-patterns']);
 });
 
+test('general settings update re-applies for case-sensitive toggle and refreshes after save', async () => {
+	const plugin = createPlugin();
+	const callOrder: string[] = [];
+	plugin.saveSettings = async () => {
+		callOrder.push('save');
+	};
+
+	await updateBooleanSetting(plugin, 'caseSensitive', false, () => {
+		callOrder.push('refresh');
+	}, 'settings-case-sensitive');
+
+	assert.equal(plugin.settings.caseSensitive, false);
+	assert.deepEqual(plugin.applyReasons, ['settings-case-sensitive']);
+	assert.deepEqual(callOrder, ['save', 'refresh']);
+});
+
 test('general settings update saves debug toggles without re-applying leaves', async () => {
 	const plugin = createPlugin();
 
 	await updateBooleanSetting(plugin, 'debugVerbosePaths', true, () => undefined);
 
 	assert.equal(plugin.settings.debugVerbosePaths, true);
+	assert.equal(plugin.saveCalls, 1);
+	assert.deepEqual(plugin.applyReasons, []);
+});
+
+test('general settings update saves debug toggle without re-applying leaves', async () => {
+	const plugin = createPlugin();
+
+	await updateBooleanSetting(plugin, 'debug', true, () => undefined);
+
+	assert.equal(plugin.settings.debug, true);
 	assert.equal(plugin.saveCalls, 1);
 	assert.deepEqual(plugin.applyReasons, []);
 });
