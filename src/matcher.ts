@@ -1,25 +1,9 @@
 import { normalizeVaultPath } from './path-utils';
 import { buildEffectiveRules } from './rule-limits';
+import type { ForceReadModeSettings } from './plugin-types';
 
-export interface ForceReadModeSettings {
-	enabled: boolean;
-	useGlobPatterns: boolean;
-	caseSensitive: boolean;
-	debug: boolean;
-	debugVerbosePaths: boolean;
-	includeRules: string[];
-	excludeRules: string[];
-}
-
-export const DEFAULT_SETTINGS: ForceReadModeSettings = {
-	enabled: true,
-	useGlobPatterns: false,
-	caseSensitive: true,
-	debug: false,
-	debugVerbosePaths: false,
-	includeRules: [],
-	excludeRules: [],
-};
+export { DEFAULT_SETTINGS } from './plugin-settings';
+export type { ForceReadModeSettings } from './plugin-types';
 
 export interface MatchPathOptions {
 	useGlobPatterns: boolean;

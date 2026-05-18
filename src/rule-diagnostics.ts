@@ -1,5 +1,6 @@
-import { matchPath, normalizeVaultPath, shouldForceReadOnly, type ForceReadModeSettings } from './matcher';
+import { matchPath, normalizeVaultPath, shouldForceReadOnly } from './matcher';
 import { buildEffectiveRules, type RuleVolumeWarningLevel } from './rule-limits';
+import type { ForceReadModeSettings } from './plugin-types';
 
 export type RuleDiagnosticsEntry = {
 	lineNumber: number;

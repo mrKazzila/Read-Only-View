@@ -1,5 +1,6 @@
 import { MarkdownView, WorkspaceLeaf, type ViewState } from 'obsidian';
-import { shouldForceReadOnly, type ForceReadModeSettings } from './matcher';
+import { shouldForceReadOnly } from './matcher';
+import type { ForceReadModeSettings } from './plugin-types';
 
 export interface EnforcementDependencies {
 	getSettings: () => ForceReadModeSettings;
