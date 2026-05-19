@@ -23,6 +23,13 @@ Read Only View forces matched `.md` notes to stay in Reading view.
 
 This plugin changes Obsidian view behavior only. It does not change file-system permissions.
 
+Read-only protection uses two layers:
+
+- editor-level input blocking for CodeMirror-backed Markdown editors
+- automatic return to Reading view for matched notes as a view-level fallback, including when a read-only editor context is interacted with
+
+This additional editor layer is intended to cover contexts such as Page Preview / Hover Preview more directly, though some edge cases still depend on Obsidian internal view behavior.
+
 ## Quick start
 
 By default:

@@ -12,4 +12,5 @@ export interface SettingsTabPlugin {
 	settings: ForceReadModeSettings;
 	saveSettings: () => Promise<void>;
 	applyAllOpenMarkdownLeaves: (reason: string) => Promise<void>;
+	refreshEditorOptions: () => void;
 }

@@ -154,6 +154,69 @@ test('observer service findLeafByNode uses cache and invalidation', () => {
 	}
 });
 
+test('observer service ignores popover editor nodes when no leaf can be resolved', async () => {
+	const harness = createMainTestHarness();
+	let ensurePreviewCalls = 0;
+	const service = createPopoverObserverService({
+		isEnabled: () => true,
+		getMarkdownLeaves: () => [],
+		shouldForceReadOnlyPath: () => true,
+		ensurePreview: async () => {
+			ensurePreviewCalls += 1;
+		},
+	});
+
+	try {
+		service.start();
+		const observer = MockMutationObserver.instances[0];
+		assert.ok(observer);
+
+		const popoverNode = new MockHTMLElement(['.popover']);
+		popoverNode.appendChild(new MockHTMLElement(['.cm-editor']));
+
+		observer.trigger([{ addedNodes: [popoverNode] }]);
+		await Promise.resolve();
+
+		assert.equal(ensurePreviewCalls, 0);
+	} finally {
+		harness.restore();
+	}
+});
+
+test('observer service ignores popover nodes when file path cannot be determined', async () => {
+	const harness = createMainTestHarness();
+	const leaf = harness.leaves[0];
+	assert.ok(leaf);
+	leaf.setFilePath(undefined);
+	let ensurePreviewCalls = 0;
+	const service = createPopoverObserverService({
+		isEnabled: () => true,
+		getMarkdownLeaves: () => [leaf as never],
+		shouldForceReadOnlyPath: () => true,
+		ensurePreview: async () => {
+			ensurePreviewCalls += 1;
+		},
+	});
+
+	try {
+		service.start();
+		const observer = MockMutationObserver.instances[0];
+		assert.ok(observer);
+
+		const container = leaf.view.containerEl as unknown as MockHTMLElement;
+		const popoverNode = new MockHTMLElement(['.popover']);
+		popoverNode.appendChild(new MockHTMLElement(['.cm-editor']));
+		container.appendChild(popoverNode);
+
+		observer.trigger([{ addedNodes: [popoverNode] }]);
+		await Promise.resolve();
+
+		assert.equal(ensurePreviewCalls, 0);
+	} finally {
+		harness.restore();
+	}
+});
+
 test('observer service centralizes selector contract', () => {
 	assert.equal(
 		DEFAULT_POPOVER_OBSERVER_SELECTORS.popoverCandidate,

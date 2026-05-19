@@ -47,6 +47,7 @@ export type MockWorkspaceLeaf = {
 		file: MockVaultFile | null;
 		getMode: () => MockViewMode;
 		containerEl: HTMLElement;
+		leaf?: MockWorkspaceLeaf;
 	};
 	getViewState: () => MockViewState;
 	setViewState: (state: MockViewState, arg?: MockSetViewStateArg) => Promise<void>;
@@ -112,6 +113,9 @@ export function createMockWorkspaceLeaf(options: CreateMockLeafOptions = {}): Mo
 			filePath = nextFilePath;
 		},
 	};
+	if (isMarkdownView) {
+		leaf.view.leaf = leaf;
+	}
 
 	return leaf;
 }
@@ -121,6 +125,8 @@ type WorkspaceEventCallback = (...args: unknown[]) => unknown;
 export type MockWorkspace = {
 	getLeavesOfType: (type: string) => MockWorkspaceLeaf[];
 	getLeavesOfTypeCalls: string[];
+	updateOptions: () => void;
+	updateOptionsCalls: number;
 	on: (event: string, callback: WorkspaceEventCallback) => () => void;
 	trigger: (event: string, ...args: unknown[]) => void;
 };
@@ -133,6 +139,7 @@ export function createMockWorkspace(options: CreateMockWorkspaceOptions = {}): M
 	const leaves = options.leaves ?? [];
 	const getLeavesOfTypeCalls: string[] = [];
 	const listeners = new Map<string, Set<WorkspaceEventCallback>>();
+	let updateOptionsCalls = 0;
 
 	return {
 		getLeavesOfType: (type: string) => {
@@ -143,6 +150,12 @@ export function createMockWorkspace(options: CreateMockWorkspaceOptions = {}): M
 			return [];
 		},
 		getLeavesOfTypeCalls,
+		updateOptions: () => {
+			updateOptionsCalls += 1;
+		},
+		get updateOptionsCalls() {
+			return updateOptionsCalls;
+		},
 		on: (event, callback) => {
 			const callbacks = listeners.get(event) ?? new Set<WorkspaceEventCallback>();
 			callbacks.add(callback);

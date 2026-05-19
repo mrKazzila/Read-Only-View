@@ -52,6 +52,9 @@ export async function updateBooleanSetting(
 ): Promise<void> {
 	plugin.settings[settingKey] = value;
 	await plugin.saveSettings();
+	if (reapplyReason) {
+		plugin.refreshEditorOptions();
+	}
 	if (reapplyReason && (settingKey !== 'enabled' || value)) {
 		await plugin.applyAllOpenMarkdownLeaves(reapplyReason);
 	}
