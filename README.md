@@ -61,7 +61,7 @@ If it does not apply:
 - run **Re-apply rules now** from the Command Palette
 - use the **Path tester** with the exact note path
 
-![Animated demo of a matching note staying in Reading view](/docs/images/read-only-view-obsidian-plugin-demo.gif)
+![Read Only View main settings](docs/images/Read-Only-View-main-settings.png)
 
 *A note that matches the configured rules is kept in Reading view.*
 
@@ -211,7 +211,7 @@ Use **Path tester** to paste the exact note path and confirm:
 - which exclude rules matched
 - whether the final result is `READ-ONLY ON` or `READ-ONLY OFF`
 
-![Screenshot of include-rule diagnostics in the settings tab](/docs/images/read-only-view-obsidian-plugin-demo3.png)
+![Screenshot of matching rules in the settings tab](docs/images/Read-Only-View-rules.png)
 
 *Inline diagnostics help explain why a rule is valid, suspicious, or ignored.*
 
