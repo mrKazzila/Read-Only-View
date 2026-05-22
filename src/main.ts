@@ -2,12 +2,15 @@ import {
 	Plugin,
 	MarkdownView,
 	WorkspaceLeaf,
+	type MarkdownFileInfo,
+	type Editor,
 } from 'obsidian';
 import {
 	shouldForceReadOnly,
 } from './matcher';
 import { shouldReapplyAfterEnabledChange } from './command-controls';
 import { formatPathForDebug } from './debug-log';
+import { createEditorReadOnlyExtension } from './editor-readonly';
 import { createEnforcementService, type EnforcementService } from './enforcement';
 import { createPopoverObserverService, type PopoverObserverService } from './popover-observer';
 import { DEFAULT_SETTINGS, mergeLoadedSettings } from './plugin-settings';
@@ -27,6 +30,12 @@ export default class ReadOnlyViewPlugin extends Plugin {
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
+		this.registerEditorExtension(createEditorReadOnlyExtension({
+			getSettings: () => this.settings,
+			onReadOnlyInteraction: (info, reason) => {
+				void this.handleProtectedEditorInput(info, reason);
+			},
+		}));
 
 		registerPluginCommands({
 			addCommand: this.addCommand.bind(this),
@@ -44,6 +53,28 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		this.registerEvent(this.app.workspace.on('layout-change', () => {
 			this.invalidateLeafContainerCache();
 			this.getWorkspaceEventController().schedule('layout-change');
+		}));
+		this.registerEvent(this.app.workspace.on('editor-paste', (evt: ClipboardEvent, _editor: Editor, info: MarkdownView | MarkdownFileInfo) => {
+			if (evt.defaultPrevented) {
+				return;
+			}
+			const file = info.file;
+			if (!file || !shouldForceReadOnly(file.path, this.settings)) {
+				return;
+			}
+			evt.preventDefault();
+			void this.handleProtectedEditorInput(info, 'editor-paste');
+		}));
+		this.registerEvent(this.app.workspace.on('editor-drop', (evt: DragEvent, _editor: Editor, info: MarkdownView | MarkdownFileInfo) => {
+			if (evt.defaultPrevented) {
+				return;
+			}
+			const file = info.file;
+			if (!file || !shouldForceReadOnly(file.path, this.settings)) {
+				return;
+			}
+			evt.preventDefault();
+			void this.handleProtectedEditorInput(info, 'editor-drop');
 		}));
 
 		this.installMutationObserver();
@@ -81,6 +112,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		}
 		this.settings.enabled = enabled;
 		await this.saveSettings();
+		this.refreshEditorOptions();
 		this.logDebug('set-enabled', { enabled: this.settings.enabled, reason });
 		if (shouldReapplyAfterEnabledChange(previousEnabled, enabled)) {
 			await this.applyAllOpenMarkdownLeaves(reason);
@@ -129,6 +161,12 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		await this.getEnforcementService().applyAllOpenMarkdownLeaves(reason);
 	}
 
+	refreshEditorOptions(): void {
+		if (typeof this.app.workspace.updateOptions === 'function') {
+			this.app.workspace.updateOptions();
+		}
+	}
+
 	private invalidateLeafContainerCache(): void {
 		this.getPopoverObserverService().invalidateLeafCache();
 	}
@@ -139,6 +177,55 @@ export default class ReadOnlyViewPlugin extends Plugin {
 
 	private findLeafByNode(node: HTMLElement): WorkspaceLeaf | null {
 		return this.getPopoverObserverService().findLeafByNode(node);
+	}
+
+	private async handleProtectedEditorInput(
+		info: MarkdownView | MarkdownFileInfo,
+		reason: string,
+	): Promise<void> {
+		const file = info.file;
+		if (!file) {
+			return;
+		}
+		const leaf = this.resolveLeafForEditorContext(info);
+		this.logDebug('editor-input-blocked', {
+			reason,
+			filePath: formatPathForDebug(file.path, this.settings.debugVerbosePaths),
+			resolvedLeaf: !!leaf,
+		});
+		if (!leaf) {
+			return;
+		}
+		await this.getEnforcementService().ensurePreview(leaf, reason);
+	}
+
+	private resolveLeafForEditorContext(info: MarkdownView | MarkdownFileInfo): WorkspaceLeaf | null {
+		if (info instanceof MarkdownView) {
+			const directLeaf = (info as MarkdownView & { leaf?: WorkspaceLeaf | null }).leaf;
+			if (directLeaf) {
+				return directLeaf;
+			}
+		}
+
+		const targetPath = info.file?.path;
+		if (!targetPath) {
+			return null;
+		}
+
+		const leaves = this.app.workspace.getLeavesOfType('markdown');
+		for (const leaf of leaves) {
+			if (!(leaf.view instanceof MarkdownView)) {
+				continue;
+			}
+			if (leaf.view === info) {
+				return leaf;
+			}
+			const leafFile = leaf.view.file;
+			if (leafFile?.path === targetPath) {
+				return leaf;
+			}
+		}
+		return null;
 	}
 
 	logDebug(message: string, payload?: Record<string, unknown>): void {

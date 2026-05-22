@@ -24,15 +24,35 @@ await writeFile(
 	'utf8',
 );
 
-const runtimeSource = `export class App {}
+const runtimeSource = `import { StateField } from '@codemirror/state';
+
+let editorInfoValue = null;
+
+export function __setEditorInfo(value) {
+  editorInfoValue = value;
+}
+
+export class App {}
 export class WorkspaceLeaf {}
 export class MarkdownView {}
+export const editorInfoField = StateField.define({
+  create() {
+    return editorInfoValue;
+  },
+  update() {
+    return editorInfoValue;
+  },
+});
 export class Plugin {
   constructor(app = new App()) {
     this.app = app;
+    this.editorExtensions = [];
   }
   addCommand() {}
   registerEvent() {}
+  registerEditorExtension(extension) {
+    this.editorExtensions.push(extension);
+  }
   addSettingTab() {}
 }
 export class PluginSettingTab {

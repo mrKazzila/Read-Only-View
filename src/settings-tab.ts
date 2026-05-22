@@ -42,6 +42,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 			onChange: async (value) => {
 			this.plugin.settings.includeRules = splitRulesFromText(value);
 			await this.plugin.saveSettings();
+			this.plugin.refreshEditorOptions();
 			await this.plugin.applyAllOpenMarkdownLeaves('settings-include-rules');
 			},
 			onTextInput: (value) => {
@@ -59,6 +60,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 			onChange: async (value) => {
 			this.plugin.settings.excludeRules = splitRulesFromText(value);
 			await this.plugin.saveSettings();
+			this.plugin.refreshEditorOptions();
 			await this.plugin.applyAllOpenMarkdownLeaves('settings-exclude-rules');
 			},
 			onTextInput: (value) => {
