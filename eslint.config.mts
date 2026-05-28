@@ -44,6 +44,7 @@ export default tseslint.config(
 		'node_modules',
 		'dist',
 		'build-tests',
+		'demo-vault',
 		'esbuild.config.mjs',
 		'eslint.config.js',
 		'version-bump.mjs',

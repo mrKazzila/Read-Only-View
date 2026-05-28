@@ -45,6 +45,21 @@ unlink-plugin:
 	rm -rf "$PLUGIN_DIR"; \
 	echo "Removed local dev plugin from $PLUGIN_DIR"; \
 	echo "To return to the release build, reinstall Read Only View from Obsidian Community Plugins."
+
+[group('Local')]
+[doc('Create or refresh the synthetic demo vault with the local plugin linked')]
+demo-vault:
+	@python3 scripts/create_demo_vault.py
+
+[group('Local')]
+[doc('Recreate the synthetic demo vault from scratch')]
+demo-vault-reset:
+	@python3 scripts/create_demo_vault.py --force
+
+[group('Local')]
+[doc('Create the synthetic demo vault without linking plugin files')]
+demo-vault-no-plugin:
+	@python3 scripts/create_demo_vault.py --no-plugin-link
 [group('Release')]
 [doc('Run release preflight checks for a target version (x.y.z)')]
 release-preflight version:

@@ -125,6 +125,24 @@ just unlink-plugin
 - Dev and release builds use the same plugin ID `read-only-view`, so they cannot coexist in the same vault.
 - After `just unlink-plugin`, reinstall the release build from **Community Plugins** if you want to switch back.
 
+### Demo vault for QA and media
+
+Use the synthetic demo vault when you need manual QA, screenshots, or short videos without opening real notes.
+
+```bash
+just demo-vault
+just demo-vault-reset
+just demo-vault-no-plugin
+```
+
+- `just demo-vault` creates or refreshes `./demo-vault` and links the current local plugin build by default.
+- `just demo-vault-reset` recreates the vault from scratch.
+- `just demo-vault-no-plugin` creates the same synthetic notes without linking plugin files.
+- The generated vault preconfigures `Include rules` for `Read Only/` and `Archive/`, plus an `Exclude rule` for `Read Only/Drafts/`.
+- If `main.js` is missing, the generator stops with a clear build-first message instead of creating a broken plugin install.
+
+See [docs/DEMO_VAULT.md](docs/DEMO_VAULT.md) for setup details and recommended recording scenarios.
+
 ## How matching works
 
 - Only Markdown files (`.md`) are affected.
