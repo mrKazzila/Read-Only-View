@@ -123,6 +123,9 @@ export class MockHTMLElement {
 
 	setAttr(name: string, value: string): void {
 		this.attributes.set(name, value);
+		if (name === 'id') {
+			this.selectors.add(`#${value}`);
+		}
 	}
 
 	getAttr(name: string): string | null {
@@ -139,6 +142,10 @@ export class MockHTMLElement {
 		for (const listener of this.eventListeners.get(type) ?? []) {
 			listener();
 		}
+	}
+
+	instanceOf<T>(type: { new (): T }): this is T {
+		return type === MockHTMLElement || type === (globalThis as Record<string, unknown>).HTMLElement;
 	}
 
 	matches(selector: string): boolean {

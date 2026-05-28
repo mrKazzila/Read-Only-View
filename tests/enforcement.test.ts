@@ -201,3 +201,25 @@ test('service contract: throttled layout-change schedules trailing retry', async
 		assert.equal(leaf.setViewStateCalls.length, 2);
 	});
 });
+
+test('service contract: stop cancels pending layout-change retry', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
+	const nowValues = [1000, 1300, 1701];
+	let nowIndex = 0;
+	const setup = createService({
+		leaves: [leaf],
+		now: () => nowValues[Math.min(nowIndex++, nowValues.length - 1)] ?? 0,
+	});
+
+	await withFakeTimeouts(async ({ flushAll }) => {
+		await setup.service.applyAllOpenMarkdownLeaves('workspace-events:layout-change');
+		leaf.setMode('source');
+		await setup.service.applyAllOpenMarkdownLeaves('workspace-events:layout-change');
+		assert.equal(leaf.setViewStateCalls.length, 1);
+
+		setup.service.stop();
+		await flushAll();
+
+		assert.equal(leaf.setViewStateCalls.length, 1);
+	});
+});

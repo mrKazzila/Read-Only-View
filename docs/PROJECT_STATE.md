@@ -26,6 +26,7 @@ High-level modules:
   - Typed enforcement service (`createEnforcementService`)
   - Enforcement loop, lock/pending queue, and per-leaf preview throttle
   - Leaf-level preview forcing with fallback logging
+  - Explicit `stop()` cleanup for deferred layout-change retry timers
 - `src/editor-readonly.ts`
   - CodeMirror 6 read-only extension for markdown editors
   - Path-aware `EditorState.readOnly` and `EditorView.editable` gating via `editorInfoField`
@@ -155,6 +156,7 @@ Loop protection:
 - Per-leaf throttle (`WeakMap<WorkspaceLeaf, number>`) to reduce repeated `setViewState` calls.
 - Layout-change bursts use an extended per-leaf throttle window to reduce repeated reflow-prone mode flips during heavy UI relayouts.
 - Throttled layout-change attempts schedule one trailing retry per leaf so a note is not left in source mode after the burst ends.
+- Pending layout-change retry timers are cleared during plugin unload through `EnforcementService.stop()`.
 
 Command entry points:
 
@@ -202,8 +204,8 @@ UI module split:
   - flush on `blur` and `change`
   - status text: `Saving...`, `Saved.`, `Save failed.`
 - Diagnostics list per line:
-  - `✅` healthy
-  - `⚠️` suspicious (empty lines, wildcard in prefix mode, normalization/folder-hint changes)
+  - `✅` healthy, marked `aria-hidden` with adjacent text status for screen readers
+  - `⚠️` suspicious (empty lines, wildcard in prefix mode, normalization/folder-hint changes), marked `aria-hidden` with adjacent text status for screen readers
   - ignored line marker (`Ignored`) and inline warning (`Ignored due to rule limit.`) for rules truncated by caps
   - empty lines render as `(empty line)` and do not receive synthetic `/` normalization
   - warning details are rendered inline in nested semantic lists (`ul/li`) and announced via `aria-live`

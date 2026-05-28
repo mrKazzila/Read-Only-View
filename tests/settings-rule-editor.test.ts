@@ -61,10 +61,46 @@ test('rules editor renders ignored-line warning after ignored indexes are update
 		controller.setIgnoredLineIndexes([1]);
 
 		const texts = collectTexts(container);
-		assert.ok(texts.includes('⚠️ [2] docs/b.md'));
+		assert.ok(texts.includes('⚠️'));
+		assert.ok(texts.includes(' Warning [2] docs/b.md'));
 		assert.ok(texts.includes(' Ignored'));
 		assert.ok(texts.includes('Ignored due to rule limit.'));
 		assert.ok(container.querySelector('.read-only-view-diagnostics-item-ignored'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor exposes textarea description and live save status to assistive tech', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			title: 'Include rules',
+			description: 'One rule per line.',
+			initialText: 'docs/a.md',
+			useGlobPatterns: true,
+			onChange: async () => undefined,
+		});
+
+		const textarea = container.querySelector('textarea');
+		const saveStatus = container.querySelector('#read-only-view-include-rules-save-status');
+		const diagnostics = container.querySelector('#read-only-view-include-rules-diagnostics');
+
+		assert.ok(textarea);
+		assert.equal(textarea.getAttr('aria-label'), 'Include rules');
+		assert.equal(
+			textarea.getAttr('aria-describedby'),
+			'read-only-view-include-rules-description read-only-view-include-rules-save-status read-only-view-include-rules-diagnostics',
+		);
+		assert.ok(saveStatus);
+		assert.equal(saveStatus.getAttr('role'), 'status');
+		assert.equal(saveStatus.getAttr('aria-live'), 'polite');
+		assert.equal(saveStatus.getAttr('aria-atomic'), 'true');
+		assert.ok(diagnostics);
+		assert.equal(diagnostics.getAttr('aria-live'), 'polite');
 	} finally {
 		dom.restore();
 	}

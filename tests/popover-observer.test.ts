@@ -46,6 +46,74 @@ test('observer service start/stop manages lifecycle and keeps prefilter optimiza
 	}
 });
 
+test('observer service skips added nodes without Obsidian instanceOf support', () => {
+	const harness = createMainTestHarness();
+	const leaf = harness.leaves[0];
+	assert.ok(leaf);
+
+	let ensurePreviewCalls = 0;
+	let getLeavesCalls = 0;
+	const service = createPopoverObserverService({
+		isEnabled: () => true,
+		getMarkdownLeaves: () => {
+			getLeavesCalls += 1;
+			return [leaf as never];
+		},
+		shouldForceReadOnlyPath: () => true,
+		ensurePreview: async () => {
+			ensurePreviewCalls += 1;
+		},
+	});
+
+	try {
+		service.start();
+		const observer = MockMutationObserver.instances[0];
+		assert.ok(observer);
+
+		observer.trigger([{ addedNodes: [{ matches: () => true, querySelector: () => null }] }]);
+
+		assert.equal(ensurePreviewCalls, 0);
+		assert.equal(getLeavesCalls, 0);
+	} finally {
+		harness.restore();
+	}
+});
+
+test('observer service accepts popout-safe instanceOf HTMLElement nodes', async () => {
+	const harness = createMainTestHarness();
+	const leaf = harness.leaves[0];
+	assert.ok(leaf);
+	leaf.setFilePath('docs/file.md');
+
+	let ensurePreviewCalls = 0;
+	const service = createPopoverObserverService({
+		isEnabled: () => true,
+		getMarkdownLeaves: () => [leaf as never],
+		shouldForceReadOnlyPath: () => true,
+		ensurePreview: async () => {
+			ensurePreviewCalls += 1;
+		},
+	});
+
+	try {
+		service.start();
+		const observer = MockMutationObserver.instances[0];
+		assert.ok(observer);
+
+		const container = leaf.view.containerEl as unknown as MockHTMLElement;
+		const popoverNode = new MockHTMLElement(['.popover']);
+		popoverNode.appendChild(new MockHTMLElement(['.cm-editor']));
+		container.appendChild(popoverNode);
+
+		observer.trigger([{ addedNodes: [popoverNode] }]);
+		await Promise.resolve();
+
+		assert.equal(ensurePreviewCalls, 1);
+	} finally {
+		harness.restore();
+	}
+});
+
 test('observer service dispatches matching popover/editor node to enforcement callback', async () => {
 	const harness = createMainTestHarness();
 	const leaf = harness.leaves[0];
