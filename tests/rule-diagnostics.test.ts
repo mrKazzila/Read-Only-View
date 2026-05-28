@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { buildPathTesterResult, buildRuleDiagnostics } from '../src/rule-diagnostics.js';
-import { DEFAULT_SETTINGS } from '../src/matcher.js';
+import { createCompiledRuleMatcher, DEFAULT_SETTINGS } from '../src/matcher.js';
 
 test('empty diagnostic line stays empty in prefix mode and keeps empty-line warning', () => {
 	const diagnostics = buildRuleDiagnostics('', false);
@@ -86,4 +86,24 @@ test('path tester uses effective rules and does not match ignored tail rules', (
 	const result = buildPathTesterResult('notes/ignored.md', settings);
 	assert.deepEqual(result.includeMatches, []);
 	assert.equal(result.finalReadOnly, false);
+});
+
+test('path tester helper preserves diagnostics result when reusing a compiled matcher', () => {
+	const settings = {
+		...DEFAULT_SETTINGS,
+		enabled: true,
+		useGlobPatterns: true,
+		caseSensitive: true,
+		includeRules: ['docs/**'],
+		excludeRules: ['docs/private/**'],
+	};
+
+	const withoutReuse = buildPathTesterResult('docs/private/secret.md', settings);
+	const withReuse = buildPathTesterResult(
+		'docs/private/secret.md',
+		settings,
+		createCompiledRuleMatcher(settings),
+	);
+
+	assert.deepEqual(withReuse, withoutReuse);
 });

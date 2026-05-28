@@ -1,3 +1,5 @@
+import type { CompiledRuleMatcher } from './matcher';
+
 export interface ForceReadModeSettings {
 	enabled: boolean;
 	useGlobPatterns: boolean;
@@ -13,4 +15,5 @@ export interface SettingsTabPlugin {
 	saveSettings: () => Promise<void>;
 	applyAllOpenMarkdownLeaves: (reason: string) => Promise<void>;
 	refreshEditorOptions: () => void;
+	getCompiledRuleMatcher?: () => CompiledRuleMatcher;
 }

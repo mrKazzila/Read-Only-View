@@ -98,7 +98,10 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 
 		renderRuleLimitsState();
 
-		renderPathTester(containerEl, this.plugin.settings);
+		renderPathTester(containerEl, {
+			settings: this.plugin.settings,
+			getCompiledRuleMatcher: this.plugin.getCompiledRuleMatcher?.bind(this.plugin),
+		});
 	}
 
 	hide(): void {

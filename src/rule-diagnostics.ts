@@ -1,4 +1,4 @@
-import { createCompiledRuleMatcher, matchPath, normalizeVaultPath } from './matcher';
+import { createCompiledRuleMatcher, matchPath, normalizeVaultPath, type CompiledRuleMatcher } from './matcher';
 import type { RuleVolumeWarningLevel } from './rule-limits';
 import type { ForceReadModeSettings } from './plugin-types';
 
@@ -89,14 +89,35 @@ export function matchRules(filePath: string, rules: string[], useGlobPatterns: b
 	return rules.filter((rule) => matchPath(filePath, rule, { useGlobPatterns, caseSensitive }));
 }
 
+type PathTesterMatcher = Pick<CompiledRuleMatcher, 'matchIncludeRules' | 'matchExcludeRules' | 'shouldForceReadOnly'>;
+
 export function buildPathTesterResult(filePathInput: string, settings: ForceReadModeSettings): {
+	testPath: string;
+	includeMatches: string[];
+	excludeMatches: string[];
+	finalReadOnly: boolean;
+};
+export function buildPathTesterResult(
+	filePathInput: string,
+	settings: ForceReadModeSettings,
+	matcher: PathTesterMatcher,
+): {
+	testPath: string;
+	includeMatches: string[];
+	excludeMatches: string[];
+	finalReadOnly: boolean;
+};
+export function buildPathTesterResult(
+	filePathInput: string,
+	settings: ForceReadModeSettings,
+	matcher: PathTesterMatcher = createCompiledRuleMatcher(settings),
+): {
 	testPath: string;
 	includeMatches: string[];
 	excludeMatches: string[];
 	finalReadOnly: boolean;
 } {
 	const testPath = normalizeVaultPath(filePathInput);
-	const matcher = createCompiledRuleMatcher(settings);
 	const includeMatches = matcher.matchIncludeRules(testPath);
 	const excludeMatches = matcher.matchExcludeRules(testPath);
 	const finalReadOnly = matcher.shouldForceReadOnly(testPath);

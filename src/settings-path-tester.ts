@@ -3,7 +3,18 @@ import { normalizeVaultPath } from './matcher';
 import { buildPathTesterResult } from './rule-diagnostics';
 import type { ForceReadModeSettings } from './plugin-types';
 
-export function renderPathTester(containerEl: HTMLElement, settings: ForceReadModeSettings): void {
+type PathTesterRenderMatcher = {
+	matchIncludeRules: (filePath: string) => string[];
+	matchExcludeRules: (filePath: string) => string[];
+	shouldForceReadOnly: (filePath: string) => boolean;
+};
+
+type PathTesterRenderOptions = {
+	settings: ForceReadModeSettings;
+	getCompiledRuleMatcher?: () => PathTesterRenderMatcher | undefined;
+};
+
+export function renderPathTester(containerEl: HTMLElement, options: PathTesterRenderOptions): void {
 	const wrapperEl = containerEl.createDiv({ cls: 'read-only-view-path-tester' });
 	new Setting(wrapperEl).setName('Path tester').setHeading();
 	wrapperEl.createEl('p', {
@@ -18,10 +29,10 @@ export function renderPathTester(containerEl: HTMLElement, settings: ForceReadMo
 	const resultEl = wrapperEl.createDiv({ cls: 'read-only-view-path-tester-result' });
 
 	const renderResult = () => {
-		const { testPath, includeMatches, excludeMatches, finalReadOnly } = buildPathTesterResult(
-			normalizeVaultPath(inputEl.value),
-			settings,
-		);
+		const matcher = options.getCompiledRuleMatcher?.();
+		const { testPath, includeMatches, excludeMatches, finalReadOnly } = matcher
+			? buildPathTesterResult(normalizeVaultPath(inputEl.value), options.settings, matcher)
+			: buildPathTesterResult(normalizeVaultPath(inputEl.value), options.settings);
 		resultEl.empty();
 
 		if (!testPath) {
