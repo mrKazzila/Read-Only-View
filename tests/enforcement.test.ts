@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createEnforcementService } from '../src/enforcement.js';
-import { DEFAULT_SETTINGS, type ForceReadModeSettings } from '../src/matcher.js';
+import { createCompiledRuleMatcher, DEFAULT_SETTINGS, type ForceReadModeSettings } from '../src/matcher.js';
 import { createMockWorkspaceLeaf } from './helpers/obsidian-mocks.js';
 
 type CreateServiceOptions = {
@@ -27,6 +27,7 @@ function createService(options: CreateServiceOptions = {}) {
 	const leaves = options.leaves ?? [createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' })];
 	const debugCalls: Array<{ message: string; payload?: Record<string, unknown> }> = [];
 	let getMarkdownLeavesCalls = 0;
+	const matcher = createCompiledRuleMatcher(settings);
 
 	const service = createEnforcementService({
 		getSettings: () => settings,
@@ -34,6 +35,7 @@ function createService(options: CreateServiceOptions = {}) {
 			getMarkdownLeavesCalls += 1;
 			return leaves as unknown as WorkspaceLeaf[];
 		},
+		shouldForceReadOnlyPath: (path) => matcher.shouldForceReadOnly(path),
 		logDebug: (message, payload) => {
 			debugCalls.push({ message, payload });
 		},

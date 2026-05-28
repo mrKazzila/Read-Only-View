@@ -1,22 +1,20 @@
 import { EditorState, Prec, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { editorInfoField, type MarkdownFileInfo } from 'obsidian';
-import { shouldForceReadOnly } from './matcher';
-import type { ForceReadModeSettings } from './plugin-types';
 
 export interface EditorReadOnlyDependencies {
-	getSettings: () => ForceReadModeSettings;
+	shouldForceReadOnlyPath: (path: string) => boolean;
 	onReadOnlyInteraction?: (info: MarkdownFileInfo, reason: string) => void;
 }
 
 function shouldEditorBeReadOnly(
 	path: string | null | undefined,
-	getSettings: () => ForceReadModeSettings,
+	shouldForceReadOnlyPath: (path: string) => boolean,
 ): boolean {
 	if (!path) {
 		return false;
 	}
-	return shouldForceReadOnly(path, getSettings());
+	return shouldForceReadOnlyPath(path);
 }
 
 export function notifyReadOnlyInteraction(
@@ -25,7 +23,7 @@ export function notifyReadOnlyInteraction(
 	reason: string,
 ): void {
 	const info = state.field(editorInfoField, false);
-	if (!info || !shouldEditorBeReadOnly(info.file?.path, dependencies.getSettings)) {
+	if (!info || !shouldEditorBeReadOnly(info.file?.path, dependencies.shouldForceReadOnlyPath)) {
 		return;
 	}
 	dependencies.onReadOnlyInteraction?.(info, reason);
@@ -36,7 +34,7 @@ export function createEditorReadOnlyExtension(
 ): Extension {
 	const computeReadOnly = (state: EditorState): boolean => {
 		const info = state.field(editorInfoField, false);
-		return shouldEditorBeReadOnly(info?.file?.path, dependencies.getSettings);
+		return shouldEditorBeReadOnly(info?.file?.path, dependencies.shouldForceReadOnlyPath);
 	};
 
 	return [

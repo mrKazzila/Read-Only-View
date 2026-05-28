@@ -6,7 +6,9 @@ import {
 	type Editor,
 } from 'obsidian';
 import {
-	shouldForceReadOnly,
+	createCompiledRuleMatcher,
+	getCompiledRuleMatcherKey,
+	type CompiledRuleMatcher,
 } from './matcher';
 import { shouldReapplyAfterEnabledChange } from './command-controls';
 import { formatPathForDebug } from './debug-log';
@@ -27,11 +29,13 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	private enforcementService: EnforcementService | null = null;
 	private popoverObserverService: PopoverObserverService | null = null;
 	private workspaceEventController: WorkspaceEventController | null = null;
+	private compiledRuleMatcher: CompiledRuleMatcher = createCompiledRuleMatcher(this.settings);
+	private compiledRuleMatcherKey = getCompiledRuleMatcherKey(this.settings);
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
 		this.registerEditorExtension(createEditorReadOnlyExtension({
-			getSettings: () => this.settings,
+			shouldForceReadOnlyPath: (path) => this.shouldForceReadOnlyPath(path),
 			onReadOnlyInteraction: (info, reason) => {
 				void this.handleProtectedEditorInput(info, reason);
 			},
@@ -59,7 +63,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 				return;
 			}
 			const file = info.file;
-			if (!file || !shouldForceReadOnly(file.path, this.settings)) {
+			if (!file || !this.shouldForceReadOnlyPath(file.path)) {
 				return;
 			}
 			evt.preventDefault();
@@ -70,7 +74,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 				return;
 			}
 			const file = info.file;
-			if (!file || !shouldForceReadOnly(file.path, this.settings)) {
+			if (!file || !this.shouldForceReadOnlyPath(file.path)) {
 				return;
 			}
 			evt.preventDefault();
@@ -102,9 +106,11 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	async loadSettings(): Promise<void> {
 		const loaded = await this.loadData() as Partial<ForceReadModeSettings> | null;
 		this.settings = mergeLoadedSettings(loaded);
+		this.rebuildCompiledRuleMatcher();
 	}
 
 	async saveSettings(): Promise<void> {
+		this.rebuildCompiledRuleMatcher();
 		await this.saveData(this.settings);
 	}
 
@@ -129,6 +135,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 				getMarkdownLeaves: () => this.app.workspace.getLeavesOfType('markdown'),
 				logDebug: (message, payload) => this.logDebug(message, payload),
 				formatPathForDebug,
+				shouldForceReadOnlyPath: (path) => this.shouldForceReadOnlyPath(path),
 			});
 		}
 		return this.enforcementService;
@@ -139,7 +146,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			this.popoverObserverService = createPopoverObserverService({
 				isEnabled: () => this.settings.enabled,
 				getMarkdownLeaves: () => this.app.workspace.getLeavesOfType('markdown'),
-				shouldForceReadOnlyPath: (path) => shouldForceReadOnly(path, this.settings),
+				shouldForceReadOnlyPath: (path) => this.shouldForceReadOnlyPath(path),
 				ensurePreview: (leaf, reason) => this.getEnforcementService().ensurePreview(leaf, reason),
 			});
 		}
@@ -168,6 +175,23 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		if (typeof this.app.workspace.updateOptions === 'function') {
 			this.app.workspace.updateOptions();
 		}
+	}
+
+	shouldForceReadOnlyPath(path: string): boolean {
+		return this.getCompiledRuleMatcher().shouldForceReadOnly(path);
+	}
+
+	getCompiledRuleMatcher(): CompiledRuleMatcher {
+		const nextKey = getCompiledRuleMatcherKey(this.settings);
+		if (nextKey !== this.compiledRuleMatcherKey) {
+			this.rebuildCompiledRuleMatcher();
+		}
+		return this.compiledRuleMatcher;
+	}
+
+	private rebuildCompiledRuleMatcher(): void {
+		this.compiledRuleMatcher = createCompiledRuleMatcher(this.settings);
+		this.compiledRuleMatcherKey = getCompiledRuleMatcherKey(this.settings);
 	}
 
 	private invalidateLeafContainerCache(): void {

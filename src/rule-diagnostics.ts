@@ -1,5 +1,5 @@
-import { matchPath, normalizeVaultPath, shouldForceReadOnly } from './matcher';
-import { buildEffectiveRules, type RuleVolumeWarningLevel } from './rule-limits';
+import { createCompiledRuleMatcher, matchPath, normalizeVaultPath } from './matcher';
+import type { RuleVolumeWarningLevel } from './rule-limits';
 import type { ForceReadModeSettings } from './plugin-types';
 
 export type RuleDiagnosticsEntry = {
@@ -96,20 +96,10 @@ export function buildPathTesterResult(filePathInput: string, settings: ForceRead
 	finalReadOnly: boolean;
 } {
 	const testPath = normalizeVaultPath(filePathInput);
-	const effectiveRules = buildEffectiveRules(settings.includeRules, settings.excludeRules);
-	const includeMatches = matchRules(
-		testPath,
-		effectiveRules.effectiveIncludeRules,
-		settings.useGlobPatterns,
-		settings.caseSensitive,
-	);
-	const excludeMatches = matchRules(
-		testPath,
-		effectiveRules.effectiveExcludeRules,
-		settings.useGlobPatterns,
-		settings.caseSensitive,
-	);
-	const finalReadOnly = shouldForceReadOnly(testPath, settings);
+	const matcher = createCompiledRuleMatcher(settings);
+	const includeMatches = matcher.matchIncludeRules(testPath);
+	const excludeMatches = matcher.matchExcludeRules(testPath);
+	const finalReadOnly = matcher.shouldForceReadOnly(testPath);
 	return { testPath, includeMatches, excludeMatches, finalReadOnly };
 }
 

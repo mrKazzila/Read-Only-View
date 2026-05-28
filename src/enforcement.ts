@@ -1,10 +1,10 @@
 import { MarkdownView, WorkspaceLeaf, type ViewState } from 'obsidian';
-import { shouldForceReadOnly } from './matcher';
 import type { ForceReadModeSettings } from './plugin-types';
 
 export interface EnforcementDependencies {
 	getSettings: () => ForceReadModeSettings;
 	getMarkdownLeaves: () => WorkspaceLeaf[];
+	shouldForceReadOnlyPath: (path: string) => boolean;
 	logDebug: (message: string, payload?: Record<string, unknown>) => void;
 	formatPathForDebug: (path: string, verbosePaths: boolean) => string;
 	now?: () => number;
@@ -123,8 +123,7 @@ class DefaultEnforcementService implements EnforcementService {
 			return;
 		}
 
-		const settings = this.dependencies.getSettings();
-		if (!shouldForceReadOnly(file.path, settings)) {
+		if (!this.dependencies.shouldForceReadOnlyPath(file.path)) {
 			return;
 		}
 
