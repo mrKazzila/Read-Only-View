@@ -109,6 +109,22 @@ Use this only as a fallback for local development or manual testing.
    - `styles.css`
 5. Restart Obsidian or reload plugins, then enable **Read Only View**.
 
+### Local dev install with `just`
+
+Use this to install a clearly marked local dev build into a test vault without changing the repo `manifest.json`.
+
+```bash
+just link-plugin
+DEV_PLUGIN_VERSION=999.1.0 just link-plugin
+just unlink-plugin
+```
+
+- `just link-plugin` symlinks `main.js` and optional `styles.css`, then generates a vault-local `manifest.json` with a DEV label.
+- `DEV_PLUGIN_VERSION=... just link-plugin` overrides the default dev manifest version `999.0.0`.
+- `just unlink-plugin` removes the local dev copy from the vault after confirmation.
+- Dev and release builds use the same plugin ID `read-only-view`, so they cannot coexist in the same vault.
+- After `just unlink-plugin`, reinstall the release build from **Community Plugins** if you want to switch back.
+
 ## How matching works
 
 - Only Markdown files (`.md`) are affected.
@@ -256,6 +272,8 @@ npm run lint
 npm test
 npm run build
 ```
+
+For installing the plugin into a local test vault, use `just link-plugin`; remove it later with `just unlink-plugin`.
 
 Repository guidance and contributor workflow live in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 

@@ -4,6 +4,13 @@ Last updated: 2026-05-18
 
 This document is a living system map for the `read-only-view` Obsidian plugin.
 
+## 0) Development workflow
+
+- Local vault installation uses `just link-plugin`.
+- The workflow symlinks `main.js` and optional `styles.css` into the target vault plugin directory.
+- `manifest.json` is generated as a vault-local DEV copy so the installed test build is visibly marked without mutating the repo release manifest.
+- `just unlink-plugin` removes that local dev install from the vault; switching back to release requires reinstalling from Obsidian Community Plugins because both builds use the same plugin ID.
+
 ## 1) Architecture
 
 High-level modules:
