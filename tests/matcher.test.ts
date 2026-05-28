@@ -274,3 +274,37 @@ test('T) compiled matcher key changes when matching settings change', () => {
 	assert.equal(firstMatcher.shouldForceReadOnly('docs/private/file.md'), true);
 	assert.equal(secondMatcher.shouldForceReadOnly('docs/private/file.md'), false);
 });
+
+test('U) shouldForceReadOnly preserves exact include path behavior in prefix mode', () => {
+	const settings = createSettings({
+		useGlobPatterns: false,
+		includeRules: ['docs/file.md'],
+		excludeRules: [],
+	});
+
+	assert.equal(shouldForceReadOnly('docs/file.md', settings), true);
+	assert.equal(shouldForceReadOnly('docs/other.md', settings), false);
+});
+
+test('V) shouldForceReadOnly treats empty or normalized-empty paths as non-matches', () => {
+	const settings = createSettings({
+		useGlobPatterns: true,
+		includeRules: ['docs/**'],
+		excludeRules: [],
+	});
+
+	assert.equal(shouldForceReadOnly('', settings), false);
+	assert.equal(shouldForceReadOnly('   ', settings), false);
+	assert.equal(shouldForceReadOnly('./', settings), false);
+});
+
+test('W) compileGlobToRegex creates a new regex after cache miss via clear', () => {
+	clearGlobRegexCache();
+	const regex1 = compileGlobToRegex('cache/miss/**/*.md', true);
+
+	clearGlobRegexCache();
+	const regex2 = compileGlobToRegex('cache/miss/**/*.md', true);
+
+	assert.notEqual(regex1, regex2);
+	assert.equal(getGlobRegexCacheSize(), 1);
+});
