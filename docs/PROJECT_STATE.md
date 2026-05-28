@@ -7,9 +7,10 @@ This document is a living system map for the `read-only-view` Obsidian plugin.
 ## 0) Development workflow
 
 - Local vault installation uses `just link-plugin`.
+- The default local QA target is the repo-local `./demo-vault`; `VAULT=...` can override it for a different vault.
 - The workflow symlinks `main.js` and optional `styles.css` into the target vault plugin directory.
 - `manifest.json` is generated as a vault-local DEV copy so the installed test build is visibly marked without mutating the repo release manifest.
-- `just unlink-plugin` removes that local dev install from the vault; switching back to release requires reinstalling from Obsidian Community Plugins because both builds use the same plugin ID.
+- `just unlink-plugin` removes only that local dev install from the vault and also removes the plugin id from `.obsidian/community-plugins.json`; vault notes remain intact.
 - Synthetic QA vault generation uses `python3 scripts/create_demo_vault.py` or the wrapper recipes `just demo-vault`, `just demo-vault-reset`, and `just demo-vault-no-plugin`.
 - The demo vault lives at `./demo-vault`, is ignored by git, and contains only synthetic Markdown notes plus optional linked plugin files for safe screenshots and recordings.
 - When plugin linking is enabled, the generator copies `manifest.json`, links `main.js`, links optional `styles.css`, writes plugin `data.json`, and enables the plugin in `.obsidian/community-plugins.json`.

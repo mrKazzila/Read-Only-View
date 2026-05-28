@@ -8,11 +8,15 @@ The demo vault provides a reproducible synthetic Obsidian vault for manual QA, s
 just demo-vault
 just demo-vault-reset
 just demo-vault-no-plugin
+just link-plugin
+just unlink-plugin
 ```
 
 - `just demo-vault` creates or refreshes `./demo-vault` without deleting unrelated files in that directory.
 - `just demo-vault-reset` removes and recreates `./demo-vault`.
 - `just demo-vault-no-plugin` creates the synthetic notes and folder structure only.
+- `just link-plugin` attaches the current local dev build to `./demo-vault` by default.
+- `just unlink-plugin` detaches the local dev build from `./demo-vault` without removing notes.
 
 Direct script usage:
 
@@ -32,6 +36,14 @@ If `main.js` is missing, the script prints a clear message asking you to build t
 5. Confirm that **Read Only View** appears in Community plugins and is enabled.
 
 The script copies `manifest.json`, links `main.js` and optional `styles.css` by default, and writes `data.json` plus `.obsidian/community-plugins.json` for the demo vault.
+
+If you want to create the vault structure first and attach the plugin later:
+
+1. Run `just demo-vault-no-plugin`.
+2. Run `just link-plugin`.
+3. Open `demo-vault` in Obsidian.
+
+To remove the dev install but keep the synthetic notes, run `just unlink-plugin`.
 
 ## Default rules in the demo vault
 
