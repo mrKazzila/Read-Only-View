@@ -20,10 +20,66 @@ export interface EnforcementService {
 const LEAF_FORCE_PREVIEW_THROTTLE_MS = 120;
 const LAYOUT_CHANGE_FORCE_PREVIEW_THROTTLE_MS = 700;
 
+type AnimationFrameWindow = Pick<Window, 'requestAnimationFrame' | 'cancelAnimationFrame'>;
+
+function getAnimationFrameWindow(): AnimationFrameWindow | null {
+	if (
+		typeof activeWindow === 'object' &&
+		activeWindow &&
+		typeof activeWindow.requestAnimationFrame === 'function' &&
+		typeof activeWindow.cancelAnimationFrame === 'function'
+	) {
+		return activeWindow;
+	}
+	if (
+		typeof window === 'object' &&
+		window &&
+		typeof window.requestAnimationFrame === 'function' &&
+		typeof window.cancelAnimationFrame === 'function'
+	) {
+		return window;
+	}
+	return null;
+}
+
+export function requestAnimationFrameSafe(callback: FrameRequestCallback): number | null {
+	const frameWindow = getAnimationFrameWindow();
+	if (frameWindow) {
+		return frameWindow.requestAnimationFrame(callback);
+	}
+	if (typeof requestAnimationFrame === 'function') {
+		return requestAnimationFrame(callback);
+	}
+	return null;
+}
+
+export function cancelAnimationFrameSafe(frameId: number): void {
+	const frameWindow = getAnimationFrameWindow();
+	if (frameWindow) {
+		frameWindow.cancelAnimationFrame(frameId);
+		return;
+	}
+	if (typeof cancelAnimationFrame === 'function') {
+		cancelAnimationFrame(frameId);
+	}
+}
+
 function waitForNextFrame(): Promise<void> {
+	const frameWindow = getAnimationFrameWindow();
+	if (frameWindow) {
+		return new Promise((resolve) => {
+			const frameId = frameWindow.requestAnimationFrame(() => {
+				frameWindow.cancelAnimationFrame(frameId);
+				resolve();
+			});
+		});
+	}
 	if (typeof requestAnimationFrame === 'function') {
 		return new Promise((resolve) => {
-			requestAnimationFrame(() => resolve());
+			const frameId = requestAnimationFrame(() => {
+				cancelAnimationFrameSafe(frameId);
+				resolve();
+			});
 		});
 	}
 	return Promise.resolve();

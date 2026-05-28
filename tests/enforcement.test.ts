@@ -2,7 +2,11 @@ import type { WorkspaceLeaf } from 'obsidian';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { createEnforcementService } from '../src/enforcement.js';
+import {
+	cancelAnimationFrameSafe,
+	createEnforcementService,
+	requestAnimationFrameSafe,
+} from '../src/enforcement.js';
 import { createCompiledRuleMatcher, DEFAULT_SETTINGS, type ForceReadModeSettings } from '../src/matcher.js';
 import { createMockWorkspaceLeaf } from './helpers/obsidian-mocks.js';
 
@@ -224,4 +228,100 @@ test('service contract: stop cancels pending layout-change retry', async () => {
 
 		assert.equal(leaf.setViewStateCalls.length, 1);
 	});
+});
+
+test('requestAnimationFrameSafe falls back to global window', async () => {
+	const originalWindow = (globalThis as Record<string, unknown>).window;
+	const originalActiveWindow = (globalThis as Record<string, unknown>).activeWindow;
+
+	let callbackInvoked = false;
+	const fallbackWindow = {
+		requestAnimationFrame: (callback: FrameRequestCallback) => {
+			callbackInvoked = true;
+			callback(16);
+			return 11;
+		},
+		cancelAnimationFrame: (_frameId: number) => {
+			assert.fail('fallback window cancel should not be called in this test');
+		},
+	};
+
+	(globalThis as Record<string, unknown>).window = fallbackWindow;
+	(globalThis as Record<string, unknown>).activeWindow = undefined;
+
+	try {
+		const frameId = requestAnimationFrameSafe(() => undefined);
+		assert.equal(frameId, 11);
+		assert.equal(callbackInvoked, true);
+	} finally {
+		(globalThis as Record<string, unknown>).window = originalWindow;
+		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
+	}
+});
+
+test('requestAnimationFrameSafe prefers provided activeWindow', async () => {
+	const originalWindow = (globalThis as Record<string, unknown>).window;
+	const originalActiveWindow = (globalThis as Record<string, unknown>).activeWindow;
+
+	let usedActiveWindow = false;
+	const fallbackWindow = {
+		requestAnimationFrame: (_callback: FrameRequestCallback) => {
+			assert.fail('global window should not be used when activeWindow supports requestAnimationFrame');
+		},
+		cancelAnimationFrame: (_frameId: number) => undefined,
+	};
+	const popoutWindow = {
+		requestAnimationFrame: (callback: FrameRequestCallback) => {
+			usedActiveWindow = true;
+			callback(16);
+			return 27;
+		},
+		cancelAnimationFrame: (_frameId: number) => undefined,
+	};
+
+	(globalThis as Record<string, unknown>).window = fallbackWindow;
+	(globalThis as Record<string, unknown>).activeWindow = popoutWindow;
+
+	try {
+		const frameId = requestAnimationFrameSafe(() => undefined);
+		assert.equal(frameId, 27);
+		assert.equal(usedActiveWindow, true);
+	} finally {
+		(globalThis as Record<string, unknown>).window = originalWindow;
+		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
+	}
+});
+
+test('cancelAnimationFrameSafe uses matching activeWindow context', async () => {
+	const originalWindow = (globalThis as Record<string, unknown>).window;
+	const originalActiveWindow = (globalThis as Record<string, unknown>).activeWindow;
+
+	const calls: string[] = [];
+	const fallbackWindow = {
+		requestAnimationFrame: (_callback: FrameRequestCallback) => {
+			assert.fail('global window should not be used when activeWindow supports requestAnimationFrame');
+		},
+		cancelAnimationFrame: (_frameId: number) => {
+			calls.push('window');
+		},
+	};
+	const popoutWindow = {
+		requestAnimationFrame: (_callback: FrameRequestCallback) => 39,
+		cancelAnimationFrame: (frameId: number) => {
+			calls.push(`active:${frameId}`);
+		},
+	};
+
+	(globalThis as Record<string, unknown>).window = fallbackWindow;
+	(globalThis as Record<string, unknown>).activeWindow = popoutWindow;
+
+	try {
+		const frameId = requestAnimationFrameSafe(() => undefined);
+		assert.equal(frameId, 39);
+		cancelAnimationFrameSafe(frameId ?? -1);
+		assert.deepEqual(calls, ['active:39']);
+	} finally {
+		(globalThis as Record<string, unknown>).window = originalWindow;
+		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
+	}
 });
