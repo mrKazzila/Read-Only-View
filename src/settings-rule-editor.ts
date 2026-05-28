@@ -22,6 +22,10 @@ type RenderRuleEditorOptions = {
 	onTextInput?: (value: string) => void;
 };
 
+function buildElementId(title: string, suffix: string): string {
+	return `read-only-view-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${suffix}`;
+}
+
 export class DebouncedRuleChangeSaver {
 	private timer: ReturnType<Window['setTimeout']> | null = null;
 	private lastValue = '';
@@ -80,6 +84,20 @@ export class DebouncedRuleChangeSaver {
 	}
 }
 
+function renderDiagnosticsSummary(itemEl: HTMLElement, entry: RuleDiagnosticsEntry): HTMLElement {
+	const summaryEl = itemEl.createDiv({
+		cls: 'read-only-view-diagnostics-summary',
+	});
+	summaryEl.createSpan({
+		text: entry.isOk ? '✅' : '⚠️',
+		cls: 'read-only-view-diagnostics-icon',
+	}).setAttr('aria-hidden', 'true');
+	summaryEl.createSpan({
+		text: ` ${entry.isOk ? 'OK' : 'Warning'} [${entry.lineNumber}] ${entry.normalized || '(empty line)'}`,
+	});
+	return summaryEl;
+}
+
 function renderDiagnosticsList(
 	diagnosticsEl: HTMLElement,
 	entries: RuleDiagnosticsEntry[],
@@ -87,18 +105,13 @@ function renderDiagnosticsList(
 	diagnosticsEl.querySelectorAll('ul').forEach((el) => el.remove());
 	const listEl = diagnosticsEl.createEl('ul', { cls: 'read-only-view-diagnostics-list' });
 	for (const entry of entries) {
-		const bullet = entry.isOk ? '✅' : '⚠️';
-		const summary = `${bullet} [${entry.lineNumber}] ${entry.normalized || '(empty line)'}`;
 		const itemEl = listEl.createEl('li', {
 			cls: [
 				entry.isOk ? 'read-only-view-diagnostics-item-ok' : 'read-only-view-diagnostics-item-warning',
 				entry.ignoredByRuleLimit ? 'read-only-view-diagnostics-item-ignored' : '',
 			].filter(Boolean).join(' '),
 		});
-		const summaryEl = itemEl.createDiv({
-			text: summary,
-			cls: 'read-only-view-diagnostics-summary',
-		});
+		const summaryEl = renderDiagnosticsSummary(itemEl, entry);
 		if (entry.ignoredByRuleLimit) {
 			summaryEl.createSpan({
 				text: ' Ignored',
@@ -123,21 +136,31 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	let ignoredLineIndexes = new Set<number>();
 
 	const sectionEl = containerEl.createDiv({ cls: 'read-only-view-rule-section' });
+	const descriptionId = buildElementId(options.title, 'description');
+	const saveStatusId = buildElementId(options.title, 'save-status');
+	const diagnosticsId = buildElementId(options.title, 'diagnostics');
 	new Setting(sectionEl).setName(options.title).setHeading();
-	sectionEl.createEl('p', {
+	const descriptionEl = sectionEl.createEl('p', {
 		text: options.description,
 		cls: 'setting-item-description',
 	});
+	descriptionEl.setAttr('id', descriptionId);
 
 	const textAreaEl = sectionEl.createEl('textarea');
 	textAreaEl.value = options.initialText;
 	textAreaEl.placeholder ='Examples:\nproject_a/**\n**/README.md\nfolder/subfolder/';
 	textAreaEl.rows = 6;
 	textAreaEl.addClass('read-only-view-full-width');
+	textAreaEl.setAttr('aria-label', options.title);
+	textAreaEl.setAttr('aria-describedby', `${descriptionId} ${saveStatusId} ${diagnosticsId}`);
 	const saveStatusEl = sectionEl.createEl('p', {
 		cls: 'setting-item-description',
 		text: 'Saved.',
 	});
+	saveStatusEl.setAttr('id', saveStatusId);
+	saveStatusEl.setAttr('role', 'status');
+	saveStatusEl.setAttr('aria-live', 'polite');
+	saveStatusEl.setAttr('aria-atomic', 'true');
 
 	const setSaveState = (state: RuleSaveState) => {
 		if (state === 'saving') {
@@ -159,6 +182,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 
 	const diagnosticsEl = sectionEl.createDiv({ cls: 'read-only-view-rule-diagnostics' });
 	new Setting(diagnosticsEl).setName('Rule diagnostics').setHeading();
+	diagnosticsEl.setAttr('id', diagnosticsId);
 	diagnosticsEl.setAttr('aria-live', 'polite');
 
 	const renderDiagnostics = () => {

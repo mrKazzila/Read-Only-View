@@ -89,7 +89,10 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			this.workspaceEventController = null;
 		}
 		this.invalidateLeafContainerCache();
-		this.enforcementService = null;
+		if (this.enforcementService) {
+			this.enforcementService.stop();
+			this.enforcementService = null;
+		}
 		if (this.popoverObserverService) {
 			this.popoverObserverService.stop();
 			this.popoverObserverService = null;

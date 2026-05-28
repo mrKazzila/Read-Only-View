@@ -14,6 +14,7 @@ export interface EnforcementService {
 	applyAllOpenMarkdownLeaves: (reason: string) => Promise<void>;
 	applyReadOnlyForLeaf: (leaf: WorkspaceLeaf, reason: string) => Promise<void>;
 	ensurePreview: (leaf: WorkspaceLeaf, reason: string) => Promise<void>;
+	stop: () => void;
 }
 
 const LEAF_FORCE_PREVIEW_THROTTLE_MS = 120;
@@ -28,7 +29,7 @@ function waitForNextFrame(): Promise<void> {
 	return Promise.resolve();
 }
 
-function getTimerWindow(): Pick<Window, 'setTimeout'> {
+function getTimerWindow(): Pick<Window, 'setTimeout' | 'clearTimeout'> {
 	if (typeof activeWindow === 'object' && activeWindow) {
 		return activeWindow;
 	}
@@ -37,6 +38,7 @@ function getTimerWindow(): Pick<Window, 'setTimeout'> {
 	}
 	return {
 		setTimeout,
+		clearTimeout,
 	};
 }
 
@@ -62,10 +64,21 @@ class DefaultEnforcementService implements EnforcementService {
 	private pendingReapply: string | null = null;
 	private lastForcedAt = new WeakMap<WorkspaceLeaf, number>();
 	private pendingLayoutRetry = new WeakMap<WorkspaceLeaf, ReturnType<Window['setTimeout']>>();
+	private pendingLayoutRetryTimers = new Set<ReturnType<Window['setTimeout']>>();
 	private readonly now: () => number;
 
 	constructor(private readonly dependencies: EnforcementDependencies) {
 		this.now = dependencies.now ?? (() => Date.now());
+	}
+
+	stop(): void {
+		const timerWindow = getTimerWindow();
+		for (const timer of this.pendingLayoutRetryTimers) {
+			timerWindow.clearTimeout(timer);
+		}
+		this.pendingLayoutRetryTimers.clear();
+		this.pendingLayoutRetry = new WeakMap<WorkspaceLeaf, ReturnType<Window['setTimeout']>>();
+		this.pendingReapply = null;
 	}
 
 	async applyAllOpenMarkdownLeaves(reason: string): Promise<void> {
@@ -248,9 +261,11 @@ class DefaultEnforcementService implements EnforcementService {
 		const timerWindow = getTimerWindow();
 		const timer = timerWindow.setTimeout(() => {
 			this.pendingLayoutRetry.delete(leaf);
+			this.pendingLayoutRetryTimers.delete(timer);
 			void this.applyReadOnlyForLeaf(leaf, `deferred:${reason}`);
 		}, Math.max(delayMs, 0));
 		this.pendingLayoutRetry.set(leaf, timer);
+		this.pendingLayoutRetryTimers.add(timer);
 	}
 }
 

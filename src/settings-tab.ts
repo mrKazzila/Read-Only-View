@@ -1,4 +1,4 @@
-import { App, PluginSettingTab } from 'obsidian';
+import { App, Plugin, PluginSettingTab } from 'obsidian';
 import {
 	splitRulesFromText,
 	stringifyRules,
@@ -15,8 +15,8 @@ export { DebouncedRuleChangeSaver } from './settings-rule-editor';
 export class ForceReadModeSettingTab extends PluginSettingTab {
 	plugin: SettingsTabPlugin;
 
-	constructor(app: App, plugin: SettingsTabPlugin) {
-		super(app, plugin as never);
+	constructor(app: App, plugin: Plugin & SettingsTabPlugin) {
+		super(app, plugin);
 		this.plugin = plugin;
 	}
 

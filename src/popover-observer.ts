@@ -24,6 +24,13 @@ export interface PopoverObserverService {
 	findLeafByNode: (node: HTMLElement) => WorkspaceLeaf | null;
 }
 
+function isHtmlElement(node: Node): node is HTMLElement {
+	if (typeof node.instanceOf !== 'function') {
+		return false;
+	}
+	return node.instanceOf(HTMLElement);
+}
+
 class DefaultPopoverObserverService implements PopoverObserverService {
 	private mutationObserver: MutationObserver | null = null;
 	private leafByContainer = new WeakMap<HTMLElement, WorkspaceLeaf>();
@@ -108,7 +115,10 @@ class DefaultPopoverObserverService implements PopoverObserverService {
 			}
 			for (let index = 0; index < mutation.addedNodes.length; index++) {
 				const node = mutation.addedNodes[index];
-				if (!(node instanceof HTMLElement)) {
+				if (!node) {
+					continue;
+				}
+				if (!isHtmlElement(node)) {
 					continue;
 				}
 				if (!this.isPotentialPopoverNode(node)) {
