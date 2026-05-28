@@ -102,3 +102,41 @@ test('debounced rule saver keeps latest edit even without blur/change flush', as
 		assert.deepEqual(savedValues, ['include/docs/**']);
 	});
 });
+
+test('debounced rule saver dispose cancels pending save', async () => {
+	const savedValues: string[] = [];
+	const saver = new DebouncedRuleChangeSaver(
+		400,
+		async (value) => {
+			savedValues.push(value);
+		},
+		() => undefined,
+	);
+
+	await withFakeTimeouts(async ({ flushAll }) => {
+		saver.schedule('docs/cancelled.md');
+		saver.dispose();
+		await flushAll();
+		assert.deepEqual(savedValues, []);
+	});
+});
+
+test('debounced rule saver dispose is idempotent and blocks later saves', async () => {
+	const savedValues: string[] = [];
+	const saver = new DebouncedRuleChangeSaver(
+		400,
+		async (value) => {
+			savedValues.push(value);
+		},
+		() => undefined,
+	);
+
+	await withFakeTimeouts(async ({ flushAll }) => {
+		saver.dispose();
+		saver.dispose();
+		saver.schedule('docs/ignored.md');
+		await saver.flush('docs/ignored-again.md');
+		await flushAll();
+		assert.deepEqual(savedValues, []);
+	});
+});

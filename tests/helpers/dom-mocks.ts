@@ -100,6 +100,10 @@ export class MockHTMLElement {
 		this.selectors.add(`.${cls}`);
 	}
 
+	removeClass(cls: string): void {
+		this.selectors.delete(`.${cls}`);
+	}
+
 	setText(text: string): void {
 		this.textContent = text;
 	}

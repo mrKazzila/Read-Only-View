@@ -8,12 +8,14 @@ import { renderPathTester } from './settings-path-tester';
 import { renderRuleEditor } from './settings-rule-editor';
 import { computeRuleLimitsUiState } from './settings-ui-state';
 import type { SettingsTabPlugin } from './plugin-types';
+import type { RuleEditorController } from './settings-rule-editor';
 
 export { computeRuleLimitsUiState } from './settings-ui-state';
 export { DebouncedRuleChangeSaver } from './settings-rule-editor';
 
 export class ForceReadModeSettingTab extends PluginSettingTab {
 	plugin: SettingsTabPlugin;
+	private ruleEditors: RuleEditorController[] = [];
 
 	constructor(app: App, plugin: Plugin & SettingsTabPlugin) {
 		super(app, plugin);
@@ -21,6 +23,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
+		this.disposeRuleEditors();
 		const { containerEl } = this;
 		containerEl.empty();
 
@@ -68,6 +71,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 				renderRuleLimitsState();
 			},
 		});
+		this.ruleEditors = [includeEditor, excludeEditor];
 
 		const renderRuleLimitsState = () => {
 			const uiState = computeRuleLimitsUiState(includeRulesText, excludeRulesText);
@@ -95,5 +99,16 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 		renderRuleLimitsState();
 
 		renderPathTester(containerEl, this.plugin.settings);
+	}
+
+	hide(): void {
+		this.disposeRuleEditors();
+	}
+
+	private disposeRuleEditors(): void {
+		for (const editor of this.ruleEditors) {
+			editor.dispose();
+		}
+		this.ruleEditors = [];
 	}
 }

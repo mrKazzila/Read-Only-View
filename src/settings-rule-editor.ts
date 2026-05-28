@@ -10,6 +10,7 @@ const RULES_SAVE_DEBOUNCE_MS = 400;
 
 export type RuleEditorController = {
 	setIgnoredLineIndexes: (lineIndexes: number[]) => void;
+	dispose: () => void;
 };
 
 type RenderRuleEditorOptions = {
@@ -31,6 +32,7 @@ export class DebouncedRuleChangeSaver {
 	private lastValue = '';
 	private running = false;
 	private pendingRun = false;
+	private disposed = false;
 
 	constructor(
 		private readonly delayMs: number,
@@ -39,6 +41,9 @@ export class DebouncedRuleChangeSaver {
 	) {}
 
 	schedule(value: string): void {
+		if (this.disposed) {
+			return;
+		}
 		this.lastValue = value;
 		this.onStateChange('saving');
 		if (this.timer) {
@@ -51,6 +56,9 @@ export class DebouncedRuleChangeSaver {
 	}
 
 	async flush(value?: string): Promise<void> {
+		if (this.disposed) {
+			return;
+		}
 		if (value !== undefined) {
 			this.lastValue = value;
 		}
@@ -62,7 +70,22 @@ export class DebouncedRuleChangeSaver {
 		await this.runCommit();
 	}
 
+	dispose(): void {
+		if (this.disposed) {
+			return;
+		}
+		this.disposed = true;
+		this.pendingRun = false;
+		if (this.timer) {
+			activeWindow.clearTimeout(this.timer);
+			this.timer = null;
+		}
+	}
+
 	private async runCommit(): Promise<void> {
+		if (this.disposed) {
+			return;
+		}
 		if (this.running) {
 			this.pendingRun = true;
 			return;
@@ -71,12 +94,16 @@ export class DebouncedRuleChangeSaver {
 		this.running = true;
 		try {
 			await this.commit(this.lastValue);
-			this.onStateChange('saved');
+			if (!this.disposed) {
+				this.onStateChange('saved');
+			}
 		} catch {
-			this.onStateChange('error');
+			if (!this.disposed) {
+				this.onStateChange('error');
+			}
 		} finally {
 			this.running = false;
-			if (this.pendingRun) {
+			if (!this.disposed && this.pendingRun) {
 				this.pendingRun = false;
 				await this.runCommit();
 			}
@@ -219,6 +246,9 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		setIgnoredLineIndexes: (lineIndexes: number[]) => {
 			ignoredLineIndexes = new Set<number>(lineIndexes);
 			renderDiagnostics();
+		},
+		dispose: () => {
+			saver.dispose();
 		},
 	};
 }
