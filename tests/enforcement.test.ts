@@ -139,6 +139,102 @@ function withFakeAnimationFrames(
 	});
 }
 
+function withOwnedFakeTimeoutWindows(
+	callback: (tools: {
+		switchActiveWindow: (name: 'A' | 'B') => void;
+		windowA: { clearedIds: number[] };
+		windowB: { clearedIds: number[] };
+	}) => Promise<void>,
+): Promise<void> {
+	const originalActiveWindow = (globalThis as Record<string, unknown>).activeWindow;
+
+	let nextId = 1;
+	const createWindow = () => {
+		const queue = new Map<number, () => void>();
+		const clearedIds: number[] = [];
+		return {
+			queue,
+			clearedIds,
+			setTimeout: ((handler: TimerHandler) => {
+				const callbackHandler = typeof handler === 'function' ? handler : () => undefined;
+				const id = nextId++;
+				queue.set(id, callbackHandler as () => void);
+				return id as unknown as ReturnType<typeof setTimeout>;
+			}) as typeof setTimeout,
+			clearTimeout: ((timeoutId: ReturnType<typeof setTimeout>) => {
+				clearedIds.push(Number(timeoutId));
+				queue.delete(Number(timeoutId));
+			}) as typeof clearTimeout,
+		};
+	};
+
+	const windowA = createWindow();
+	const windowB = createWindow();
+	(globalThis as Record<string, unknown>).activeWindow = windowA;
+
+	return callback({
+		switchActiveWindow: (name) => {
+			(globalThis as Record<string, unknown>).activeWindow = name === 'A' ? windowA : windowB;
+		},
+		windowA,
+		windowB,
+	}).finally(() => {
+		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
+	});
+}
+
+function withOwnedFakeAnimationFrameWindows(
+	callback: (tools: {
+		switchActiveWindow: (name: 'A' | 'B') => void;
+		windowA: { cancelCalls: number[] };
+		windowB: { cancelCalls: number[] };
+	}) => Promise<void>,
+): Promise<void> {
+	const originalWindow = (globalThis as Record<string, unknown>).window;
+	const originalActiveWindow = (globalThis as Record<string, unknown>).activeWindow;
+	const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+	const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+
+	let nextId = 1;
+	const createWindow = () => {
+		const queue = new Map<number, FrameRequestCallback>();
+		const cancelCalls: number[] = [];
+		return {
+			queue,
+			cancelCalls,
+			requestAnimationFrame: (callbackHandler: FrameRequestCallback) => {
+				const id = nextId++;
+				queue.set(id, callbackHandler);
+				return id;
+			},
+			cancelAnimationFrame: (frameId: number) => {
+				cancelCalls.push(frameId);
+				queue.delete(frameId);
+			},
+		};
+	};
+
+	const windowA = createWindow();
+	const windowB = createWindow();
+	(globalThis as Record<string, unknown>).window = windowB;
+	(globalThis as Record<string, unknown>).activeWindow = windowA;
+	globalThis.requestAnimationFrame = windowB.requestAnimationFrame;
+	globalThis.cancelAnimationFrame = windowB.cancelAnimationFrame;
+
+	return callback({
+		switchActiveWindow: (name) => {
+			(globalThis as Record<string, unknown>).activeWindow = name === 'A' ? windowA : windowB;
+		},
+		windowA,
+		windowB,
+	}).finally(() => {
+		(globalThis as Record<string, unknown>).window = originalWindow;
+		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
+		globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+		globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+	});
+}
+
 test('service contract: queues pending reapply while enforcement is running', async () => {
 	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
 	const setup = createService({ leaves: [leaf] });
@@ -278,6 +374,27 @@ test('service contract: stop cancels pending layout-change retry', async () => {
 	});
 });
 
+test('service contract: layout retry cleanup uses original timer owner after focus switch', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
+	const nowValues = [1000, 1300];
+	let nowIndex = 0;
+	const setup = createService({
+		leaves: [leaf],
+		now: () => nowValues[Math.min(nowIndex++, nowValues.length - 1)] ?? 0,
+	});
+
+	await withOwnedFakeTimeoutWindows(async ({ switchActiveWindow, windowA, windowB }) => {
+		await setup.service.applyAllOpenMarkdownLeaves('workspace-events:layout-change');
+		leaf.setMode('source');
+		await setup.service.applyAllOpenMarkdownLeaves('workspace-events:layout-change');
+		switchActiveWindow('B');
+		setup.service.stop();
+
+		assert.deepEqual(windowA.clearedIds, [1]);
+		assert.deepEqual(windowB.clearedIds, []);
+	});
+});
+
 test('service contract: frame-deferred enforcement still runs while active', async () => {
 	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
 	const setup = createService({ leaves: [leaf] });
@@ -325,6 +442,21 @@ test('service contract: repeated stop is idempotent for pending frames', async (
 
 		assert.equal(pendingFrameCount(), 0);
 		assert.equal(leaf.setViewStateCalls.length, 0);
+	});
+});
+
+test('service contract: stop cancels pending frame through original owner window after focus switch', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
+	const setup = createService({ leaves: [leaf] });
+
+	await withOwnedFakeAnimationFrameWindows(async ({ switchActiveWindow, windowA, windowB }) => {
+		const ensurePreviewPromise = setup.service.ensurePreview(leaf as unknown as WorkspaceLeaf, 'frame-stop-owner');
+		switchActiveWindow('B');
+		setup.service.stop();
+		await ensurePreviewPromise;
+
+		assert.deepEqual(windowA.cancelCalls, [1]);
+		assert.deepEqual(windowB.cancelCalls, []);
 	});
 });
 
@@ -418,6 +550,34 @@ test('cancelAnimationFrameSafe uses matching activeWindow context', async () => 
 		assert.equal(frameId, 39);
 		cancelAnimationFrameSafe(frameId ?? -1);
 		assert.deepEqual(calls, ['active:39']);
+	} finally {
+		(globalThis as Record<string, unknown>).window = originalWindow;
+		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
+	}
+});
+
+test('cancelAnimationFrameSafe uses provided owner window when activeWindow changes', async () => {
+	const originalWindow = (globalThis as Record<string, unknown>).window;
+	const originalActiveWindow = (globalThis as Record<string, unknown>).activeWindow;
+
+	const fallbackWindow = {
+		requestAnimationFrame: (_callback: FrameRequestCallback) => 0,
+		cancelAnimationFrame: (_frameId: number) => {
+			assert.fail('fallback window should not receive owner-bound cancellation');
+		},
+	};
+	const ownerWindow = {
+		requestAnimationFrame: (_callback: FrameRequestCallback) => 55,
+		cancelAnimationFrame: (frameId: number) => {
+			assert.equal(frameId, 55);
+		},
+	};
+
+	(globalThis as Record<string, unknown>).window = fallbackWindow;
+	(globalThis as Record<string, unknown>).activeWindow = fallbackWindow;
+
+	try {
+		cancelAnimationFrameSafe(55, ownerWindow);
 	} finally {
 		(globalThis as Record<string, unknown>).window = originalWindow;
 		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;

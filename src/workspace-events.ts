@@ -1,4 +1,5 @@
 import { MarkdownView, WorkspaceLeaf } from 'obsidian';
+import { clearOwnedTimeout, scheduleOwnedTimeout, type OwnedTimeout } from './window-ownership';
 
 export interface WorkspaceEventControllerDependencies {
 	logDebug: (message: string, payload?: Record<string, unknown>) => void;
@@ -11,7 +12,7 @@ const WORKSPACE_EVENT_COALESCE_MS = 150;
 const TARGETED_WORKSPACE_REASONS = new Set(['active-leaf-change', 'file-open']);
 
 export class WorkspaceEventController {
-	private timer: ReturnType<Window['setTimeout']> | null = null;
+	private timer: OwnedTimeout | null = null;
 	private reasons = new Set<string>();
 	private leaves = new Set<WorkspaceLeaf>();
 
@@ -26,7 +27,7 @@ export class WorkspaceEventController {
 			return;
 		}
 
-		this.timer = activeWindow.setTimeout(() => {
+		this.timer = scheduleOwnedTimeout(() => {
 			const reasons = Array.from(this.reasons);
 			const leaves = Array.from(this.leaves);
 			this.reasons.clear();
@@ -37,10 +38,8 @@ export class WorkspaceEventController {
 	}
 
 	stop(): void {
-		if (this.timer) {
-			activeWindow.clearTimeout(this.timer);
-			this.timer = null;
-		}
+		clearOwnedTimeout(this.timer);
+		this.timer = null;
 		this.reasons.clear();
 		this.leaves.clear();
 	}

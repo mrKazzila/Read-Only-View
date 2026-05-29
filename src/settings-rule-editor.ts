@@ -4,6 +4,12 @@ import {
 	buildRuleDiagnosticsWithIgnoredLines,
 	type RuleDiagnosticsEntry,
 } from './rule-diagnostics';
+import {
+	clearOwnedTimeout,
+	scheduleOwnedTimeout,
+	type OwnedTimeout,
+	type TimerWindow,
+} from './window-ownership';
 
 type RuleSaveState = 'saving' | 'saved' | 'error';
 
@@ -30,7 +36,7 @@ function buildElementId(title: string, suffix: string): string {
 }
 
 export class DebouncedRuleChangeSaver {
-	private timer: ReturnType<Window['setTimeout']> | null = null;
+	private timer: OwnedTimeout | null = null;
 	private lastValue = '';
 	private running = false;
 	private pendingRun = false;
@@ -40,6 +46,7 @@ export class DebouncedRuleChangeSaver {
 		private readonly delayMs: number,
 		private readonly commit: (value: string) => Promise<void>,
 		private readonly onStateChange: (state: RuleSaveState) => void,
+		private readonly ownerWindow?: TimerWindow | null,
 	) {}
 
 	schedule(value: string): void {
@@ -48,13 +55,11 @@ export class DebouncedRuleChangeSaver {
 		}
 		this.lastValue = value;
 		this.onStateChange('saving');
-		if (this.timer) {
-			activeWindow.clearTimeout(this.timer);
-		}
-		this.timer = activeWindow.setTimeout(() => {
+		clearOwnedTimeout(this.timer);
+		this.timer = scheduleOwnedTimeout(() => {
 			this.timer = null;
 			void this.runCommit();
-		}, this.delayMs);
+		}, this.delayMs, this.ownerWindow);
 	}
 
 	async flush(value?: string): Promise<void> {
@@ -64,10 +69,8 @@ export class DebouncedRuleChangeSaver {
 		if (value !== undefined) {
 			this.lastValue = value;
 		}
-		if (this.timer) {
-			activeWindow.clearTimeout(this.timer);
-			this.timer = null;
-		}
+		clearOwnedTimeout(this.timer);
+		this.timer = null;
 		this.onStateChange('saving');
 		await this.runCommit();
 	}
@@ -78,10 +81,8 @@ export class DebouncedRuleChangeSaver {
 		}
 		this.disposed = true;
 		this.pendingRun = false;
-		if (this.timer) {
-			activeWindow.clearTimeout(this.timer);
-			this.timer = null;
-		}
+		clearOwnedTimeout(this.timer);
+		this.timer = null;
 	}
 
 	private async runCommit(): Promise<void> {
@@ -161,6 +162,7 @@ function renderDiagnosticsList(
 
 export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorController {
 	const { containerEl } = options;
+	const ownerWindow = containerEl.ownerDocument?.defaultView;
 	let currentText = options.initialText;
 	let ignoredLineIndexes = new Set<number>();
 
@@ -207,6 +209,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		RULES_SAVE_DEBOUNCE_MS,
 		options.onChange,
 		setSaveState,
+		ownerWindow,
 	);
 
 	const diagnosticsEl = sectionEl.createDiv({ cls: 'read-only-view-rule-diagnostics' });
@@ -225,6 +228,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	const diagnosticsRenderScheduler = new DebouncedRenderScheduler(
 		DIAGNOSTICS_RENDER_DEBOUNCE_MS,
 		renderDiagnostics,
+		ownerWindow,
 	);
 
 	renderDiagnostics();

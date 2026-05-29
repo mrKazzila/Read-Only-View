@@ -1,5 +1,14 @@
 import { MarkdownView, WorkspaceLeaf, type ViewState } from 'obsidian';
 import type { ForceReadModeSettings } from './plugin-types';
+import {
+	cancelOwnedAnimationFrame,
+	clearOwnedTimeout,
+	requestOwnedAnimationFrame,
+	resolveAnimationFrameWindow,
+	scheduleOwnedTimeout,
+	type AnimationFrameWindow,
+	type OwnedTimeout,
+} from './window-ownership';
 
 export interface EnforcementDependencies {
 	getSettings: () => ForceReadModeSettings;
@@ -20,44 +29,22 @@ export interface EnforcementService {
 const LEAF_FORCE_PREVIEW_THROTTLE_MS = 120;
 const LAYOUT_CHANGE_FORCE_PREVIEW_THROTTLE_MS = 700;
 
-type AnimationFrameWindow = Pick<Window, 'requestAnimationFrame' | 'cancelAnimationFrame'>;
 type PendingAnimationFrame = {
 	cancel: () => void;
 };
 
-function getAnimationFrameWindow(): AnimationFrameWindow | null {
-	if (
-		typeof activeWindow === 'object' &&
-		activeWindow &&
-		typeof activeWindow.requestAnimationFrame === 'function' &&
-		typeof activeWindow.cancelAnimationFrame === 'function'
-	) {
-		return activeWindow;
-	}
-	if (
-		typeof window === 'object' &&
-		window &&
-		typeof window.requestAnimationFrame === 'function' &&
-		typeof window.cancelAnimationFrame === 'function'
-	) {
-		return window;
-	}
-	return null;
+export function requestAnimationFrameSafe(
+	callback: FrameRequestCallback,
+	ownerWindow?: AnimationFrameWindow | null,
+): number | null {
+	return requestOwnedAnimationFrame(callback, ownerWindow)?.id ?? null;
 }
 
-export function requestAnimationFrameSafe(callback: FrameRequestCallback): number | null {
-	const frameWindow = getAnimationFrameWindow();
-	if (frameWindow) {
-		return frameWindow.requestAnimationFrame(callback);
-	}
-	if (typeof requestAnimationFrame === 'function') {
-		return requestAnimationFrame(callback);
-	}
-	return null;
-}
-
-export function cancelAnimationFrameSafe(frameId: number): void {
-	const frameWindow = getAnimationFrameWindow();
+export function cancelAnimationFrameSafe(
+	frameId: number,
+	ownerWindow?: AnimationFrameWindow | null,
+): void {
+	const frameWindow = resolveAnimationFrameWindow(ownerWindow);
 	if (frameWindow) {
 		frameWindow.cancelAnimationFrame(frameId);
 		return;
@@ -65,19 +52,6 @@ export function cancelAnimationFrameSafe(frameId: number): void {
 	if (typeof cancelAnimationFrame === 'function') {
 		cancelAnimationFrame(frameId);
 	}
-}
-
-function getTimerWindow(): Pick<Window, 'setTimeout' | 'clearTimeout'> {
-	if (typeof activeWindow === 'object' && activeWindow) {
-		return activeWindow;
-	}
-	if (typeof window === 'object' && window) {
-		return window;
-	}
-	return {
-		setTimeout,
-		clearTimeout,
-	};
 }
 
 function isLayoutChangeReason(reason: string): boolean {
@@ -102,8 +76,8 @@ class DefaultEnforcementService implements EnforcementService {
 	private stopped = false;
 	private pendingReapply: string | null = null;
 	private lastForcedAt = new WeakMap<WorkspaceLeaf, number>();
-	private pendingLayoutRetry = new WeakMap<WorkspaceLeaf, ReturnType<Window['setTimeout']>>();
-	private pendingLayoutRetryTimers = new Set<ReturnType<Window['setTimeout']>>();
+	private pendingLayoutRetry = new WeakMap<WorkspaceLeaf, OwnedTimeout>();
+	private pendingLayoutRetryTimers = new Set<OwnedTimeout>();
 	private pendingAnimationFrames = new Set<PendingAnimationFrame>();
 	private readonly now: () => number;
 
@@ -113,16 +87,15 @@ class DefaultEnforcementService implements EnforcementService {
 
 	stop(): void {
 		this.stopped = true;
-		const timerWindow = getTimerWindow();
 		for (const timer of this.pendingLayoutRetryTimers) {
-			timerWindow.clearTimeout(timer);
+			clearOwnedTimeout(timer);
 		}
 		for (const pendingFrame of this.pendingAnimationFrames) {
 			pendingFrame.cancel();
 		}
 		this.pendingLayoutRetryTimers.clear();
 		this.pendingAnimationFrames.clear();
-		this.pendingLayoutRetry = new WeakMap<WorkspaceLeaf, ReturnType<Window['setTimeout']>>();
+		this.pendingLayoutRetry = new WeakMap<WorkspaceLeaf, OwnedTimeout>();
 		this.pendingReapply = null;
 	}
 
@@ -321,8 +294,7 @@ class DefaultEnforcementService implements EnforcementService {
 		if (this.stopped || this.pendingLayoutRetry.has(leaf)) {
 			return;
 		}
-		const timerWindow = getTimerWindow();
-		const timer = timerWindow.setTimeout(() => {
+		const timer = scheduleOwnedTimeout(() => {
 			this.pendingLayoutRetry.delete(leaf);
 			this.pendingLayoutRetryTimers.delete(timer);
 			if (this.stopped) {
@@ -339,12 +311,12 @@ class DefaultEnforcementService implements EnforcementService {
 			return Promise.resolve(false);
 		}
 
-		const frameWindow = getAnimationFrameWindow();
+		const frameWindow = resolveAnimationFrameWindow();
 		if (frameWindow) {
 			return new Promise((resolve) => {
 				let settled = false;
 				let pendingFrame: PendingAnimationFrame | null = null;
-				const frameId = frameWindow.requestAnimationFrame(() => {
+				const ownedFrame = requestOwnedAnimationFrame(() => {
 					if (settled) {
 						return;
 					}
@@ -353,14 +325,18 @@ class DefaultEnforcementService implements EnforcementService {
 						this.pendingAnimationFrames.delete(pendingFrame);
 					}
 					resolve(true);
-				});
+				}, frameWindow);
+				if (!ownedFrame) {
+					resolve(true);
+					return;
+				}
 				pendingFrame = {
 					cancel: () => {
 						if (settled) {
 							return;
 						}
 						settled = true;
-						frameWindow.cancelAnimationFrame(frameId);
+						cancelOwnedAnimationFrame(ownedFrame);
 						if (pendingFrame) {
 							this.pendingAnimationFrames.delete(pendingFrame);
 						}
@@ -375,7 +351,7 @@ class DefaultEnforcementService implements EnforcementService {
 			return new Promise((resolve) => {
 				let settled = false;
 				let pendingFrame: PendingAnimationFrame | null = null;
-				const frameId = requestAnimationFrame(() => {
+				const ownedFrame = requestOwnedAnimationFrame(() => {
 					if (settled) {
 						return;
 					}
@@ -385,13 +361,17 @@ class DefaultEnforcementService implements EnforcementService {
 					}
 					resolve(true);
 				});
+				if (!ownedFrame) {
+					resolve(true);
+					return;
+				}
 				pendingFrame = {
 					cancel: () => {
 						if (settled) {
 							return;
 						}
 						settled = true;
-						cancelAnimationFrameSafe(frameId);
+						cancelOwnedAnimationFrame(ownedFrame);
 						if (pendingFrame) {
 							this.pendingAnimationFrames.delete(pendingFrame);
 						}

@@ -25,6 +25,7 @@ export function renderPathTester(
 	containerEl: HTMLElement,
 	options: PathTesterRenderOptions,
 ): PathTesterController {
+	const ownerWindow = containerEl.ownerDocument?.defaultView;
 	const wrapperEl = containerEl.createDiv({ cls: 'read-only-view-path-tester' });
 	new Setting(wrapperEl).setName('Path tester').setHeading();
 	wrapperEl.createEl('p', {
@@ -63,6 +64,7 @@ export function renderPathTester(
 	const renderScheduler = new DebouncedRenderScheduler(
 		PATH_TESTER_RENDER_DEBOUNCE_MS,
 		renderResult,
+		ownerWindow,
 	);
 
 	inputEl.addEventListener('input', () => renderScheduler.schedule());
