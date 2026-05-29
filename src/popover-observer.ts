@@ -13,6 +13,7 @@ export const DEFAULT_POPOVER_OBSERVER_SELECTORS: PopoverObserverSelectors = {
 export interface PopoverObserverDependencies {
 	isEnabled: () => boolean;
 	getMarkdownLeaves: () => WorkspaceLeaf[];
+	getRelevantDocuments: () => Document[];
 	shouldForceReadOnlyPath: (path: string) => boolean;
 	ensurePreview: (leaf: WorkspaceLeaf, reason: string) => Promise<void>;
 }
@@ -20,6 +21,7 @@ export interface PopoverObserverDependencies {
 export interface PopoverObserverService {
 	start: () => void;
 	stop: () => void;
+	reconcileDocuments: () => void;
 	invalidateLeafCache: () => void;
 	findLeafByNode: (node: HTMLElement) => WorkspaceLeaf | null;
 }
@@ -32,7 +34,7 @@ function isHtmlElement(node: Node): node is HTMLElement {
 }
 
 class DefaultPopoverObserverService implements PopoverObserverService {
-	private mutationObserver: MutationObserver | null = null;
+	private mutationObservers = new Map<Document, MutationObserver>();
 	private leafByContainer = new WeakMap<HTMLElement, WorkspaceLeaf>();
 
 	constructor(
@@ -41,34 +43,27 @@ class DefaultPopoverObserverService implements PopoverObserverService {
 	) {}
 
 	start(): void {
-		if (this.mutationObserver) {
-			return;
-		}
-		if (!activeDocument.body) {
-			return;
-		}
-
-		this.mutationObserver = new MutationObserver((mutations) => {
-			if (!this.dependencies.isEnabled()) {
-				return;
-			}
-			const candidateNodes = this.collectPopoverCandidates(mutations);
-			if (candidateNodes.length === 0) {
-				return;
-			}
-			void this.handlePotentialPopoverBatch(candidateNodes);
-		});
-
-		this.mutationObserver.observe(activeDocument.body, {
-			childList: true,
-			subtree: true,
-		});
+		this.reconcileDocuments();
 	}
 
 	stop(): void {
-		if (this.mutationObserver) {
-			this.mutationObserver.disconnect();
-			this.mutationObserver = null;
+		for (const observer of this.mutationObservers.values()) {
+			observer.disconnect();
+		}
+		this.mutationObservers.clear();
+	}
+
+	reconcileDocuments(): void {
+		const relevantDocuments = new Set(this.dependencies.getRelevantDocuments());
+		for (const document of Array.from(this.mutationObservers.keys())) {
+			if (relevantDocuments.has(document)) {
+				continue;
+			}
+			this.mutationObservers.get(document)?.disconnect();
+			this.mutationObservers.delete(document);
+		}
+		for (const document of relevantDocuments) {
+			this.attachObserver(document);
 		}
 	}
 
@@ -128,6 +123,29 @@ class DefaultPopoverObserverService implements PopoverObserverService {
 			}
 		}
 		return candidates;
+	}
+
+	private attachObserver(document: Document): void {
+		if (this.mutationObservers.has(document) || !document.body) {
+			return;
+		}
+
+		const observer = new MutationObserver((mutations) => {
+			if (!this.dependencies.isEnabled()) {
+				return;
+			}
+			const candidateNodes = this.collectPopoverCandidates(mutations);
+			if (candidateNodes.length === 0) {
+				return;
+			}
+			void this.handlePotentialPopoverBatch(candidateNodes);
+		});
+
+		observer.observe(document.body, {
+			childList: true,
+			subtree: true,
+		});
+		this.mutationObservers.set(document, observer);
 	}
 
 	private async handlePotentialPopoverBatch(nodes: HTMLElement[]): Promise<void> {

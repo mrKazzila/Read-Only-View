@@ -37,6 +37,7 @@ export class MockHTMLElement {
 	private readonly eventListeners: Map<string, Array<() => void>>;
 	readonly tagName: string;
 	parentElement: MockHTMLElement | null;
+	ownerDocument: MockDocument | null;
 	textContent: string;
 	value: string;
 	placeholder: string;
@@ -50,6 +51,7 @@ export class MockHTMLElement {
 		this.eventListeners = new Map<string, Array<() => void>>();
 		this.tagName = tagName.toLowerCase();
 		this.parentElement = null;
+		this.ownerDocument = null;
 		this.textContent = '';
 		this.value = '';
 		this.placeholder = '';
@@ -63,6 +65,7 @@ export class MockHTMLElement {
 
 	appendChild(child: MockHTMLElement): void {
 		child.parentElement = this;
+		child.ownerDocument = this.ownerDocument;
 		this.children.push(child);
 	}
 
@@ -203,6 +206,15 @@ export class MockHTMLElement {
 	}
 }
 
+export class MockDocument {
+	readonly body: MockHTMLElement;
+
+	constructor() {
+		this.body = new MockHTMLElement();
+		this.body.ownerDocument = this;
+	}
+}
+
 type MockMutationObserverInit = {
 	childList?: boolean;
 	subtree?: boolean;
@@ -249,12 +261,15 @@ export class MockMutationObserver {
 }
 
 export type InstalledDomMocks = {
+	document: MockDocument;
 	documentBody: MockHTMLElement;
+	createDocument: () => MockDocument;
 	restore: () => void;
 };
 
 export function installDomMocks(): InstalledDomMocks {
-	const previousDocument = setGlobalValue('document', { body: new MockHTMLElement() });
+	const mainDocument = new MockDocument();
+	const previousDocument = setGlobalValue('document', mainDocument);
 	const previousActiveDocument = setGlobalValue(
 		'activeDocument',
 		(globalThis as unknown as { document: unknown }).document,
@@ -267,7 +282,9 @@ export function installDomMocks(): InstalledDomMocks {
 	);
 
 	return {
+		document: mainDocument,
 		documentBody,
+		createDocument: () => new MockDocument(),
 		restore: () => {
 			restoreGlobalValue('document', previousDocument);
 			restoreGlobalValue('activeDocument', previousActiveDocument);

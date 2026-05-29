@@ -4,6 +4,7 @@ import test from 'node:test';
 import ReadOnlyViewPlugin from '../src/main.js';
 import { DEFAULT_SETTINGS } from '../src/matcher.js';
 import { MockHTMLElement, MockMutationObserver } from './helpers/dom-mocks.js';
+import { createMockWorkspaceLeaf } from './helpers/obsidian-mocks.js';
 import { createMainTestHarness } from './helpers/test-setup.js';
 
 type PatchablePlugin = ReadOnlyViewPlugin & {
@@ -144,13 +145,14 @@ test('observer prefilter skips batches with no relevant candidate nodes', async 
 
 	try {
 		(plugin as unknown as ObserverInternals).installMutationObserver();
+		const initialLeafScans = harness.workspace.getLeavesOfTypeCalls.length;
 		const observer = MockMutationObserver.instances[0];
 		assert.ok(observer);
 
 		observer.trigger([{ addedNodes: [new MockHTMLElement(), { foo: 'bar' }] }]);
 		await Promise.resolve();
 
-		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 0);
+		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, initialLeafScans);
 	} finally {
 		harness.restore();
 	}
@@ -211,15 +213,51 @@ test('layout-change invalidates leaf container cache', async () => {
 	try {
 		await withFakeTimeouts(async () => {
 			await plugin.onload();
+			const initialLeafScans = harness.workspace.getLeavesOfTypeCalls.length;
 			internals.findLeafByNode(nestedNode as unknown as HTMLElement);
 			internals.findLeafByNode(nestedNode as unknown as HTMLElement);
-			assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 1);
+			assert.equal(harness.workspace.getLeavesOfTypeCalls.length, initialLeafScans + 1);
 
 			harness.workspace.trigger('layout-change');
 			await Promise.resolve();
 
 			internals.findLeafByNode(nestedNode as unknown as HTMLElement);
-			assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 2);
+			assert.equal(harness.workspace.getLeavesOfTypeCalls.length, initialLeafScans + 3);
+		});
+	} finally {
+		harness.restore();
+	}
+});
+
+test('workspace reconciliation attaches observer for popout document added after load', async () => {
+	const { harness, plugin } = createObserverPlugin();
+
+	plugin.loadSettings = async () => undefined;
+	plugin.applyAllOpenMarkdownLeaves = async () => undefined;
+	plugin.registerEvent = () => undefined;
+	(plugin as unknown as { addCommand: (command: unknown) => unknown }).addCommand = () => ({});
+
+	try {
+		await withFakeTimeouts(async () => {
+			await plugin.onload();
+			assert.equal(MockMutationObserver.instances.length, 1);
+
+			const popoutDocument = harness.dom.createDocument();
+			const popoutLeaf = createMockWorkspaceLeaf({
+				filePath: 'docs/popout.md',
+				mode: 'source',
+				containerEl: popoutDocument.body.createDiv({ cls: 'workspace-leaf' }) as unknown as HTMLElement,
+			});
+			harness.leaves.push(popoutLeaf);
+
+			harness.workspace.trigger('layout-change');
+			await Promise.resolve();
+
+			assert.equal(MockMutationObserver.instances.length, 2);
+			assert.equal(
+				MockMutationObserver.instances[1]?.observeCalls[0]?.target,
+				popoutDocument.body,
+			);
 		});
 	} finally {
 		harness.restore();

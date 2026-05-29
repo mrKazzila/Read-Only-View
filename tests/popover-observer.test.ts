@@ -7,6 +7,7 @@ import {
 } from '../src/popover-observer.js';
 import { MockHTMLElement, MockMutationObserver } from './helpers/dom-mocks.js';
 import { createMainTestHarness } from './helpers/test-setup.js';
+import { createMockWorkspaceLeaf } from './helpers/obsidian-mocks.js';
 
 test('observer service start/stop manages lifecycle and keeps prefilter optimization', () => {
 	const harness = createMainTestHarness();
@@ -23,6 +24,7 @@ test('observer service start/stop manages lifecycle and keeps prefilter optimiza
 			getLeavesCalls += 1;
 			return [leaf as never];
 		},
+		getRelevantDocuments: () => [harness.dom.document as unknown as Document],
 		shouldForceReadOnlyPath: () => true,
 		ensurePreview: async () => {
 			ensurePreviewCalls += 1;
@@ -59,6 +61,7 @@ test('observer service skips added nodes without Obsidian instanceOf support', (
 			getLeavesCalls += 1;
 			return [leaf as never];
 		},
+		getRelevantDocuments: () => [harness.dom.document as unknown as Document],
 		shouldForceReadOnlyPath: () => true,
 		ensurePreview: async () => {
 			ensurePreviewCalls += 1;
@@ -89,6 +92,7 @@ test('observer service accepts popout-safe instanceOf HTMLElement nodes', async 
 	const service = createPopoverObserverService({
 		isEnabled: () => true,
 		getMarkdownLeaves: () => [leaf as never],
+		getRelevantDocuments: () => [harness.dom.document as unknown as Document],
 		shouldForceReadOnlyPath: () => true,
 		ensurePreview: async () => {
 			ensurePreviewCalls += 1;
@@ -125,6 +129,7 @@ test('observer service dispatches matching popover/editor node to enforcement ca
 	const service = createPopoverObserverService({
 		isEnabled: () => true,
 		getMarkdownLeaves: () => [leaf as never],
+		getRelevantDocuments: () => [harness.dom.document as unknown as Document],
 		shouldForceReadOnlyPath: (path) => path.startsWith('docs/'),
 		ensurePreview: async (_leaf, reason) => {
 			ensurePreviewCalls.push({ reason });
@@ -162,6 +167,7 @@ test('observer service de-duplicates enforcement per leaf within a single mutati
 	const service = createPopoverObserverService({
 		isEnabled: () => true,
 		getMarkdownLeaves: () => [leaf as never],
+		getRelevantDocuments: () => [harness.dom.document as unknown as Document],
 		shouldForceReadOnlyPath: (path) => path.startsWith('docs/'),
 		ensurePreview: async () => {
 			ensurePreviewCalls += 1;
@@ -205,6 +211,7 @@ test('observer service findLeafByNode uses cache and invalidation', () => {
 			getLeavesCalls += 1;
 			return [leaf as never];
 		},
+		getRelevantDocuments: () => [harness.dom.document as unknown as Document],
 		shouldForceReadOnlyPath: () => true,
 		ensurePreview: async () => undefined,
 	});
@@ -228,6 +235,7 @@ test('observer service ignores popover editor nodes when no leaf can be resolved
 	const service = createPopoverObserverService({
 		isEnabled: () => true,
 		getMarkdownLeaves: () => [],
+		getRelevantDocuments: () => [harness.dom.document as unknown as Document],
 		shouldForceReadOnlyPath: () => true,
 		ensurePreview: async () => {
 			ensurePreviewCalls += 1;
@@ -260,6 +268,7 @@ test('observer service ignores popover nodes when file path cannot be determined
 	const service = createPopoverObserverService({
 		isEnabled: () => true,
 		getMarkdownLeaves: () => [leaf as never],
+		getRelevantDocuments: () => [harness.dom.document as unknown as Document],
 		shouldForceReadOnlyPath: () => true,
 		ensurePreview: async () => {
 			ensurePreviewCalls += 1;
@@ -294,4 +303,145 @@ test('observer service centralizes selector contract', () => {
 		DEFAULT_POPOVER_OBSERVER_SELECTORS.editorCandidate,
 		'.markdown-source-view, .cm-editor',
 	);
+});
+
+test('observer service attaches to initial document on start', () => {
+	const harness = createMainTestHarness();
+	const service = createPopoverObserverService({
+		isEnabled: () => true,
+		getMarkdownLeaves: () => [],
+		getRelevantDocuments: () => [harness.dom.document as unknown as Document],
+		shouldForceReadOnlyPath: () => true,
+		ensurePreview: async () => undefined,
+	});
+
+	try {
+		service.start();
+		assert.equal(MockMutationObserver.instances.length, 1);
+		assert.equal(
+			MockMutationObserver.instances[0]?.observeCalls[0]?.target,
+			harness.dom.document.body,
+		);
+	} finally {
+		harness.restore();
+	}
+});
+
+test('observer service can attach to second document during reconciliation', () => {
+	const harness = createMainTestHarness();
+	const secondDocument = harness.dom.createDocument();
+	const relevantDocuments = [harness.dom.document as unknown as Document];
+	const service = createPopoverObserverService({
+		isEnabled: () => true,
+		getMarkdownLeaves: () => [],
+		getRelevantDocuments: () => relevantDocuments,
+		shouldForceReadOnlyPath: () => true,
+		ensurePreview: async () => undefined,
+	});
+
+	try {
+		service.start();
+		assert.equal(MockMutationObserver.instances.length, 1);
+		relevantDocuments.push(secondDocument as unknown as Document);
+		service.reconcileDocuments();
+		assert.equal(MockMutationObserver.instances.length, 2);
+		assert.equal(
+			MockMutationObserver.instances[1]?.observeCalls[0]?.target,
+			secondDocument.body,
+		);
+	} finally {
+		harness.restore();
+	}
+});
+
+test('observer service does not create duplicate observer for same document', () => {
+	const harness = createMainTestHarness();
+	const relevantDocuments = [harness.dom.document as unknown as Document];
+	const service = createPopoverObserverService({
+		isEnabled: () => true,
+		getMarkdownLeaves: () => [],
+		getRelevantDocuments: () => relevantDocuments,
+		shouldForceReadOnlyPath: () => true,
+		ensurePreview: async () => undefined,
+	});
+
+	try {
+		service.start();
+		service.reconcileDocuments();
+		service.reconcileDocuments();
+		assert.equal(MockMutationObserver.instances.length, 1);
+	} finally {
+		harness.restore();
+	}
+});
+
+test('observer service stop disconnects all document observers', () => {
+	const harness = createMainTestHarness();
+	const secondDocument = harness.dom.createDocument();
+	const relevantDocuments = [
+		harness.dom.document as unknown as Document,
+		secondDocument as unknown as Document,
+	];
+	const service = createPopoverObserverService({
+		isEnabled: () => true,
+		getMarkdownLeaves: () => [],
+		getRelevantDocuments: () => relevantDocuments,
+		shouldForceReadOnlyPath: () => true,
+		ensurePreview: async () => undefined,
+	});
+
+	try {
+		service.start();
+		assert.equal(MockMutationObserver.instances.length, 2);
+		service.stop();
+		assert.equal(MockMutationObserver.instances[0]?.disconnected, true);
+		assert.equal(MockMutationObserver.instances[1]?.disconnected, true);
+	} finally {
+		harness.restore();
+	}
+});
+
+test('observer service enforces popovers from second mock document', async () => {
+	const harness = createMainTestHarness();
+	const secondDocument = harness.dom.createDocument();
+	const secondLeaf = createMockWorkspaceLeaf({
+		filePath: 'docs/popout.md',
+		mode: 'source',
+		containerEl: secondDocument.body.createDiv({ cls: 'workspace-leaf' }) as unknown as HTMLElement,
+	});
+
+	let ensurePreviewCalls = 0;
+	const service = createPopoverObserverService({
+		isEnabled: () => true,
+		getMarkdownLeaves: () => [secondLeaf as never],
+		getRelevantDocuments: () => [
+			harness.dom.document as unknown as Document,
+			secondDocument as unknown as Document,
+		],
+		shouldForceReadOnlyPath: (path) => path.startsWith('docs/'),
+		ensurePreview: async () => {
+			ensurePreviewCalls += 1;
+		},
+	});
+
+	try {
+		service.start();
+		assert.equal(MockMutationObserver.instances.length, 2);
+		const secondObserver = MockMutationObserver.instances.find(
+			(observer) => observer.observeCalls[0]?.target === secondDocument.body,
+		);
+		assert.ok(secondObserver);
+
+		const container = secondLeaf.view.containerEl as unknown as MockHTMLElement;
+		const popoverNode = new MockHTMLElement(['.popover']);
+		popoverNode.appendChild(new MockHTMLElement(['.cm-editor']));
+		container.appendChild(popoverNode);
+
+		secondObserver.trigger([{ addedNodes: [popoverNode] }]);
+		await Promise.resolve();
+
+		assert.equal(ensurePreviewCalls, 1);
+	} finally {
+		harness.restore();
+	}
 });

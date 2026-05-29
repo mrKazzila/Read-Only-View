@@ -26,9 +26,13 @@ type CreateMockLeafOptions = {
 	filePath?: string;
 	isMarkdownView?: boolean;
 	throwOnReplaceCall?: boolean;
+	containerEl?: HTMLElement;
 };
 
-function createContainerElement(): HTMLElement {
+function createContainerElement(containerEl?: HTMLElement): HTMLElement {
+	if (containerEl) {
+		return containerEl;
+	}
 	if (typeof HTMLElement === 'function') {
 		return new HTMLElement();
 	}
@@ -62,7 +66,7 @@ export function createMockWorkspaceLeaf(options: CreateMockLeafOptions = {}): Mo
 	const isMarkdownView = options.isMarkdownView ?? true;
 	let throwOnReplaceCall = options.throwOnReplaceCall ?? false;
 	const setViewStateCalls: MockSetViewStateCall[] = [];
-	const containerEl = createContainerElement();
+	const containerEl = createContainerElement(options.containerEl);
 
 	const getFile = (): MockVaultFile | null => {
 		if (!filePath) {
