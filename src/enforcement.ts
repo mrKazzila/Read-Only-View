@@ -21,6 +21,9 @@ const LEAF_FORCE_PREVIEW_THROTTLE_MS = 120;
 const LAYOUT_CHANGE_FORCE_PREVIEW_THROTTLE_MS = 700;
 
 type AnimationFrameWindow = Pick<Window, 'requestAnimationFrame' | 'cancelAnimationFrame'>;
+type PendingAnimationFrame = {
+	cancel: () => void;
+};
 
 function getAnimationFrameWindow(): AnimationFrameWindow | null {
 	if (
@@ -64,27 +67,6 @@ export function cancelAnimationFrameSafe(frameId: number): void {
 	}
 }
 
-function waitForNextFrame(): Promise<void> {
-	const frameWindow = getAnimationFrameWindow();
-	if (frameWindow) {
-		return new Promise((resolve) => {
-			const frameId = frameWindow.requestAnimationFrame(() => {
-				frameWindow.cancelAnimationFrame(frameId);
-				resolve();
-			});
-		});
-	}
-	if (typeof requestAnimationFrame === 'function') {
-		return new Promise((resolve) => {
-			const frameId = requestAnimationFrame(() => {
-				cancelAnimationFrameSafe(frameId);
-				resolve();
-			});
-		});
-	}
-	return Promise.resolve();
-}
-
 function getTimerWindow(): Pick<Window, 'setTimeout' | 'clearTimeout'> {
 	if (typeof activeWindow === 'object' && activeWindow) {
 		return activeWindow;
@@ -117,10 +99,12 @@ function describeError(error: unknown): { errorType: string; errorMessage: strin
 
 class DefaultEnforcementService implements EnforcementService {
 	private enforcing = false;
+	private stopped = false;
 	private pendingReapply: string | null = null;
 	private lastForcedAt = new WeakMap<WorkspaceLeaf, number>();
 	private pendingLayoutRetry = new WeakMap<WorkspaceLeaf, ReturnType<Window['setTimeout']>>();
 	private pendingLayoutRetryTimers = new Set<ReturnType<Window['setTimeout']>>();
+	private pendingAnimationFrames = new Set<PendingAnimationFrame>();
 	private readonly now: () => number;
 
 	constructor(private readonly dependencies: EnforcementDependencies) {
@@ -128,16 +112,24 @@ class DefaultEnforcementService implements EnforcementService {
 	}
 
 	stop(): void {
+		this.stopped = true;
 		const timerWindow = getTimerWindow();
 		for (const timer of this.pendingLayoutRetryTimers) {
 			timerWindow.clearTimeout(timer);
 		}
+		for (const pendingFrame of this.pendingAnimationFrames) {
+			pendingFrame.cancel();
+		}
 		this.pendingLayoutRetryTimers.clear();
+		this.pendingAnimationFrames.clear();
 		this.pendingLayoutRetry = new WeakMap<WorkspaceLeaf, ReturnType<Window['setTimeout']>>();
 		this.pendingReapply = null;
 	}
 
 	async applyAllOpenMarkdownLeaves(reason: string): Promise<void> {
+		if (this.stopped) {
+			return;
+		}
 		const settings = this.dependencies.getSettings();
 		if (!settings.enabled) {
 			return;
@@ -155,7 +147,9 @@ class DefaultEnforcementService implements EnforcementService {
 			}
 		} finally {
 			this.enforcing = false;
-			if (this.pendingReapply) {
+			if (this.stopped) {
+				this.pendingReapply = null;
+			} else if (this.pendingReapply) {
 				const nextReason = this.pendingReapply;
 				this.pendingReapply = null;
 				await this.applyAllOpenMarkdownLeaves(`pending:${nextReason}`);
@@ -164,6 +158,9 @@ class DefaultEnforcementService implements EnforcementService {
 	}
 
 	async applyReadOnlyForLeaf(leaf: WorkspaceLeaf, reason: string): Promise<void> {
+		if (this.stopped) {
+			return;
+		}
 		if (!(leaf.view instanceof MarkdownView)) {
 			return;
 		}
@@ -201,6 +198,9 @@ class DefaultEnforcementService implements EnforcementService {
 	}
 
 	async ensurePreview(leaf: WorkspaceLeaf, reason: string): Promise<void> {
+		if (this.stopped) {
+			return;
+		}
 		if (!(leaf.view instanceof MarkdownView)) {
 			return;
 		}
@@ -263,7 +263,15 @@ class DefaultEnforcementService implements EnforcementService {
 		this.lastForcedAt.set(leaf, now);
 		// Defer the actual mode write to the next frame to avoid forcing it
 		// in the middle of CodeMirror measurement/layout work.
-		await waitForNextFrame();
+		const frameCompleted = await this.waitForNextFrame();
+		if (!frameCompleted || this.stopped) {
+			this.dependencies.logDebug('ensure-preview-skip', {
+				reason,
+				filePath,
+				skipReason: 'stopped-after-frame',
+			});
+			return;
+		}
 
 		const refreshedState = leaf.getViewState();
 		if (refreshedState.type !== 'markdown') {
@@ -310,17 +318,91 @@ class DefaultEnforcementService implements EnforcementService {
 	}
 
 	private scheduleLayoutRetry(leaf: WorkspaceLeaf, reason: string, delayMs: number): void {
-		if (this.pendingLayoutRetry.has(leaf)) {
+		if (this.stopped || this.pendingLayoutRetry.has(leaf)) {
 			return;
 		}
 		const timerWindow = getTimerWindow();
 		const timer = timerWindow.setTimeout(() => {
 			this.pendingLayoutRetry.delete(leaf);
 			this.pendingLayoutRetryTimers.delete(timer);
+			if (this.stopped) {
+				return;
+			}
 			void this.applyReadOnlyForLeaf(leaf, `deferred:${reason}`);
 		}, Math.max(delayMs, 0));
 		this.pendingLayoutRetry.set(leaf, timer);
 		this.pendingLayoutRetryTimers.add(timer);
+	}
+
+	private waitForNextFrame(): Promise<boolean> {
+		if (this.stopped) {
+			return Promise.resolve(false);
+		}
+
+		const frameWindow = getAnimationFrameWindow();
+		if (frameWindow) {
+			return new Promise((resolve) => {
+				let settled = false;
+				let pendingFrame: PendingAnimationFrame | null = null;
+				const frameId = frameWindow.requestAnimationFrame(() => {
+					if (settled) {
+						return;
+					}
+					settled = true;
+					if (pendingFrame) {
+						this.pendingAnimationFrames.delete(pendingFrame);
+					}
+					resolve(true);
+				});
+				pendingFrame = {
+					cancel: () => {
+						if (settled) {
+							return;
+						}
+						settled = true;
+						frameWindow.cancelAnimationFrame(frameId);
+						if (pendingFrame) {
+							this.pendingAnimationFrames.delete(pendingFrame);
+						}
+						resolve(false);
+					},
+				};
+				this.pendingAnimationFrames.add(pendingFrame);
+			});
+		}
+
+		if (typeof requestAnimationFrame === 'function') {
+			return new Promise((resolve) => {
+				let settled = false;
+				let pendingFrame: PendingAnimationFrame | null = null;
+				const frameId = requestAnimationFrame(() => {
+					if (settled) {
+						return;
+					}
+					settled = true;
+					if (pendingFrame) {
+						this.pendingAnimationFrames.delete(pendingFrame);
+					}
+					resolve(true);
+				});
+				pendingFrame = {
+					cancel: () => {
+						if (settled) {
+							return;
+						}
+						settled = true;
+						cancelAnimationFrameSafe(frameId);
+						if (pendingFrame) {
+							this.pendingAnimationFrames.delete(pendingFrame);
+						}
+						resolve(false);
+					},
+				};
+				this.pendingAnimationFrames.add(pendingFrame);
+			});
+		}
+
+		return Promise.resolve(true);
 	}
 }
 

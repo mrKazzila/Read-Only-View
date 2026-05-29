@@ -91,6 +91,54 @@ function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) =
 	});
 }
 
+function withFakeAnimationFrames(
+	callback: (tools: { flushNextFrame: () => Promise<void>; pendingFrameCount: () => number }) => Promise<void>
+): Promise<void> {
+	const originalWindow = (globalThis as Record<string, unknown>).window;
+	const originalActiveWindow = (globalThis as Record<string, unknown>).activeWindow;
+	const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+	const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
+
+	let nextId = 1;
+	const queue = new Map<number, FrameRequestCallback>();
+	const frameWindow = {
+		requestAnimationFrame: (callbackHandler: FrameRequestCallback) => {
+			const id = nextId++;
+			queue.set(id, callbackHandler);
+			return id;
+		},
+		cancelAnimationFrame: (frameId: number) => {
+			queue.delete(frameId);
+		},
+	};
+
+	(globalThis as Record<string, unknown>).window = frameWindow;
+	(globalThis as Record<string, unknown>).activeWindow = frameWindow;
+	globalThis.requestAnimationFrame = frameWindow.requestAnimationFrame;
+	globalThis.cancelAnimationFrame = frameWindow.cancelAnimationFrame;
+
+	const flushNextFrame = async () => {
+		const nextEntry = queue.entries().next();
+		if (nextEntry.done) {
+			return;
+		}
+		const [frameId, callbackHandler] = nextEntry.value;
+		queue.delete(frameId);
+		callbackHandler(16);
+		await Promise.resolve();
+	};
+
+	return callback({
+		flushNextFrame,
+		pendingFrameCount: () => queue.size,
+	}).finally(() => {
+		(globalThis as Record<string, unknown>).window = originalWindow;
+		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
+		globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+		globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
+	});
+}
+
 test('service contract: queues pending reapply while enforcement is running', async () => {
 	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
 	const setup = createService({ leaves: [leaf] });
@@ -227,6 +275,56 @@ test('service contract: stop cancels pending layout-change retry', async () => {
 		await flushAll();
 
 		assert.equal(leaf.setViewStateCalls.length, 1);
+	});
+});
+
+test('service contract: frame-deferred enforcement still runs while active', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
+	const setup = createService({ leaves: [leaf] });
+
+	await withFakeAnimationFrames(async ({ flushNextFrame, pendingFrameCount }) => {
+		const ensurePreviewPromise = setup.service.ensurePreview(leaf as unknown as WorkspaceLeaf, 'frame-active');
+		assert.equal(pendingFrameCount(), 1);
+		assert.equal(leaf.setViewStateCalls.length, 0);
+
+		await flushNextFrame();
+		await ensurePreviewPromise;
+
+		assert.equal(leaf.setViewStateCalls.length, 1);
+		assert.equal(leaf.setViewStateCalls[0]?.state.state.mode, 'preview');
+	});
+});
+
+test('service contract: stop cancels pending frame-deferred enforcement', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
+	const setup = createService({ leaves: [leaf] });
+
+	await withFakeAnimationFrames(async ({ pendingFrameCount }) => {
+		const ensurePreviewPromise = setup.service.ensurePreview(leaf as unknown as WorkspaceLeaf, 'frame-stop');
+		assert.equal(pendingFrameCount(), 1);
+
+		setup.service.stop();
+		await ensurePreviewPromise;
+
+		assert.equal(pendingFrameCount(), 0);
+		assert.equal(leaf.setViewStateCalls.length, 0);
+	});
+});
+
+test('service contract: repeated stop is idempotent for pending frames', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
+	const setup = createService({ leaves: [leaf] });
+
+	await withFakeAnimationFrames(async ({ pendingFrameCount }) => {
+		const ensurePreviewPromise = setup.service.ensurePreview(leaf as unknown as WorkspaceLeaf, 'frame-stop-repeat');
+		assert.equal(pendingFrameCount(), 1);
+
+		setup.service.stop();
+		setup.service.stop();
+		await ensurePreviewPromise;
+
+		assert.equal(pendingFrameCount(), 0);
+		assert.equal(leaf.setViewStateCalls.length, 0);
 	});
 });
 
