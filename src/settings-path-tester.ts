@@ -1,7 +1,10 @@
 import { Setting } from 'obsidian';
+import { DebouncedRenderScheduler } from './debounced-render';
 import { normalizeVaultPath } from './matcher';
 import { buildPathTesterResult } from './rule-diagnostics';
 import type { ForceReadModeSettings } from './plugin-types';
+
+const PATH_TESTER_RENDER_DEBOUNCE_MS = 75;
 
 type PathTesterRenderMatcher = {
 	matchIncludeRules: (filePath: string) => string[];
@@ -14,7 +17,14 @@ type PathTesterRenderOptions = {
 	getCompiledRuleMatcher?: () => PathTesterRenderMatcher | undefined;
 };
 
-export function renderPathTester(containerEl: HTMLElement, options: PathTesterRenderOptions): void {
+export type PathTesterController = {
+	dispose: () => void;
+};
+
+export function renderPathTester(
+	containerEl: HTMLElement,
+	options: PathTesterRenderOptions,
+): PathTesterController {
 	const wrapperEl = containerEl.createDiv({ cls: 'read-only-view-path-tester' });
 	new Setting(wrapperEl).setName('Path tester').setHeading();
 	wrapperEl.createEl('p', {
@@ -50,7 +60,19 @@ export function renderPathTester(containerEl: HTMLElement, options: PathTesterRe
 			text: `Result: ${finalReadOnly ? 'READ-ONLY ON' : 'READ-ONLY OFF'}`,
 		});
 	};
+	const renderScheduler = new DebouncedRenderScheduler(
+		PATH_TESTER_RENDER_DEBOUNCE_MS,
+		renderResult,
+	);
 
-	inputEl.addEventListener('input', renderResult);
+	inputEl.addEventListener('input', () => renderScheduler.schedule());
+	inputEl.addEventListener('change', () => renderScheduler.flush());
+	inputEl.addEventListener('blur', () => renderScheduler.flush());
 	renderResult();
+
+	return {
+		dispose: () => {
+			renderScheduler.dispose();
+		},
+	};
 }

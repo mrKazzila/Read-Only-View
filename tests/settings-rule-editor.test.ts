@@ -44,21 +44,24 @@ function collectTexts(root: MockHTMLElement): string[] {
 		.filter((value) => value.length > 0);
 }
 
-test('rules editor renders ignored-line warning after ignored indexes are updated', () => {
+test('rules editor renders ignored-line warning after ignored indexes are updated', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 
 	try {
-		const controller = renderRuleEditor({
-			containerEl: container as unknown as HTMLElement,
-			title: 'Include rules',
-			description: 'desc',
-			initialText: 'docs/a.md\ndocs/b.md',
-			useGlobPatterns: true,
-			onChange: async () => undefined,
-		});
+		await withFakeTimeouts(async ({ flushAll }) => {
+			const controller = renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				title: 'Include rules',
+				description: 'desc',
+				initialText: 'docs/a.md\ndocs/b.md',
+				useGlobPatterns: true,
+				onChange: async () => undefined,
+			});
 
-		controller.setIgnoredLineIndexes([1]);
+			controller.setIgnoredLineIndexes([1]);
+			await flushAll();
+		});
 
 		const texts = collectTexts(container);
 		assert.ok(texts.includes('⚠️'));
@@ -167,6 +170,103 @@ test('rules editor save status shows failure when commit rejects', async () => {
 		});
 
 		assert.ok(collectTexts(container).includes('Save failed.'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor debounces diagnostics input and eventually renders latest state once', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				title: 'Include rules',
+				description: 'desc',
+				initialText: 'docs/a.md',
+				useGlobPatterns: true,
+				onChange: async () => undefined,
+			});
+
+			const textarea = container.querySelector('textarea');
+			assert.ok(textarea);
+			textarea.value = 'docs/first.md';
+			textarea.trigger('input');
+			textarea.value = 'docs/latest.md';
+			textarea.trigger('input');
+
+			const textsBeforeFlush = collectTexts(container);
+			assert.ok(!textsBeforeFlush.includes(' OK [1] docs/latest.md'));
+
+			await flushAll();
+
+			const textsAfterFlush = collectTexts(container);
+			assert.ok(textsAfterFlush.includes(' OK [1] docs/latest.md'));
+			assert.ok(!textsAfterFlush.includes(' OK [1] docs/first.md'));
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor blur flushes pending diagnostics render immediately', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		await withFakeTimeouts(async () => {
+			renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				title: 'Include rules',
+				description: 'desc',
+				initialText: 'docs/a.md',
+				useGlobPatterns: true,
+				onChange: async () => undefined,
+			});
+
+			const textarea = container.querySelector('textarea');
+			assert.ok(textarea);
+			textarea.value = 'docs/blurred.md';
+			textarea.trigger('input');
+			assert.ok(!collectTexts(container).includes(' OK [1] docs/blurred.md'));
+
+			textarea.trigger('blur');
+			assert.ok(collectTexts(container).includes(' OK [1] docs/blurred.md'));
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor dispose cancels pending diagnostics render', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			const controller = renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				title: 'Include rules',
+				description: 'desc',
+				initialText: 'docs/a.md',
+				useGlobPatterns: true,
+				onChange: async () => undefined,
+			});
+
+			const textarea = container.querySelector('textarea');
+			assert.ok(textarea);
+			textarea.value = 'docs/cancelled.md';
+			textarea.trigger('input');
+			controller.dispose();
+
+			await flushAll();
+
+			const texts = collectTexts(container);
+			assert.ok(!texts.includes(' OK [1] docs/cancelled.md'));
+			assert.ok(texts.includes(' OK [1] docs/a.md'));
+		});
 	} finally {
 		dom.restore();
 	}

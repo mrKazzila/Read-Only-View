@@ -1,4 +1,5 @@
 import { App, Plugin, PluginSettingTab } from 'obsidian';
+import type { PathTesterController } from './settings-path-tester';
 import {
 	splitRulesFromText,
 	stringifyRules,
@@ -16,6 +17,7 @@ export { DebouncedRuleChangeSaver } from './settings-rule-editor';
 export class ForceReadModeSettingTab extends PluginSettingTab {
 	plugin: SettingsTabPlugin;
 	private ruleEditors: RuleEditorController[] = [];
+	private pathTesterController: PathTesterController | null = null;
 
 	constructor(app: App, plugin: Plugin & SettingsTabPlugin) {
 		super(app, plugin);
@@ -23,7 +25,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
-		this.disposeRuleEditors();
+		this.disposeUiControllers();
 		const { containerEl } = this;
 		containerEl.empty();
 
@@ -98,20 +100,22 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 
 		renderRuleLimitsState();
 
-		renderPathTester(containerEl, {
+		this.pathTesterController = renderPathTester(containerEl, {
 			settings: this.plugin.settings,
 			getCompiledRuleMatcher: this.plugin.getCompiledRuleMatcher?.bind(this.plugin),
 		});
 	}
 
 	hide(): void {
-		this.disposeRuleEditors();
+		this.disposeUiControllers();
 	}
 
-	private disposeRuleEditors(): void {
+	private disposeUiControllers(): void {
 		for (const editor of this.ruleEditors) {
 			editor.dispose();
 		}
 		this.ruleEditors = [];
+		this.pathTesterController?.dispose();
+		this.pathTesterController = null;
 	}
 }

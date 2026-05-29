@@ -1,4 +1,5 @@
 import { Setting } from 'obsidian';
+import { DebouncedRenderScheduler } from './debounced-render';
 import {
 	buildRuleDiagnosticsWithIgnoredLines,
 	type RuleDiagnosticsEntry,
@@ -7,6 +8,7 @@ import {
 type RuleSaveState = 'saving' | 'saved' | 'error';
 
 const RULES_SAVE_DEBOUNCE_MS = 400;
+const DIAGNOSTICS_RENDER_DEBOUNCE_MS = 75;
 
 export type RuleEditorController = {
 	setIgnoredLineIndexes: (lineIndexes: number[]) => void;
@@ -220,6 +222,10 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		);
 		renderDiagnosticsList(diagnosticsEl, entries);
 	};
+	const diagnosticsRenderScheduler = new DebouncedRenderScheduler(
+		DIAGNOSTICS_RENDER_DEBOUNCE_MS,
+		renderDiagnostics,
+	);
 
 	renderDiagnostics();
 
@@ -227,27 +233,28 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		currentText = textAreaEl.value;
 		options.onTextInput?.(currentText);
 		saver.schedule(currentText);
-		renderDiagnostics();
+		diagnosticsRenderScheduler.schedule();
 	});
 	textAreaEl.addEventListener('change', () => {
 		currentText = textAreaEl.value;
 		options.onTextInput?.(currentText);
 		void saver.flush(currentText);
-		renderDiagnostics();
+		diagnosticsRenderScheduler.flush();
 	});
 	textAreaEl.addEventListener('blur', () => {
 		currentText = textAreaEl.value;
 		options.onTextInput?.(currentText);
 		void saver.flush(currentText);
-		renderDiagnostics();
+		diagnosticsRenderScheduler.flush();
 	});
 
 	return {
 		setIgnoredLineIndexes: (lineIndexes: number[]) => {
 			ignoredLineIndexes = new Set<number>(lineIndexes);
-			renderDiagnostics();
+			diagnosticsRenderScheduler.schedule();
 		},
 		dispose: () => {
+			diagnosticsRenderScheduler.dispose();
 			saver.dispose();
 		},
 	};

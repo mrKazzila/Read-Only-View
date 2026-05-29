@@ -67,6 +67,11 @@ function createPlugin() {
 	return { plugin, saveCalls, applyReasons };
 }
 
+function collectTexts(root: MockHTMLElement): string[] {
+	return [root.textContent, ...root.getChildren().flatMap((child) => collectTexts(child))]
+		.filter((value) => value.length > 0);
+}
+
 test('settings tab rerender disposes previous rule editors and cancels pending saves', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
@@ -128,6 +133,35 @@ test('settings tab hide disposes rule editors and repeated hide is safe', async 
 
 			assert.deepEqual(saveCalls, []);
 			assert.deepEqual(applyReasons, []);
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('settings tab rerender cancels pending path tester render work', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const { plugin } = createPlugin();
+	const tab = new ForceReadModeSettingTab({} as never, plugin as never);
+	tab.containerEl = container as unknown as HTMLElement;
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			tab.display();
+			const initialInput = container.querySelector('input');
+			assert.ok(initialInput);
+
+			initialInput.value = 'docs/a.md';
+			initialInput.trigger('input');
+
+			tab.display();
+			await flushAll();
+
+			const texts = collectTexts(container);
+			assert.ok(!texts.includes('Matched include: docs/a.md'));
+			assert.ok(texts.includes('Enter a file path to test.'));
+			assert.ok(container.querySelector('input'));
 		});
 	} finally {
 		dom.restore();
