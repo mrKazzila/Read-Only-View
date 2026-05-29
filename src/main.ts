@@ -107,7 +107,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		const loaded = await this.loadData() as Partial<ForceReadModeSettings> | null;
+		const loaded: unknown = await this.loadData();
 		this.settings = mergeLoadedSettings(loaded);
 		this.rebuildCompiledRuleMatcher();
 	}

@@ -10,13 +10,53 @@ export const DEFAULT_SETTINGS: ForceReadModeSettings = {
 	excludeRules: [],
 };
 
+type BooleanSettingKey =
+	| 'enabled'
+	| 'useGlobPatterns'
+	| 'caseSensitive'
+	| 'debug'
+	| 'debugVerbosePaths';
+
+type LoadedSettingsRecord = Partial<Record<keyof ForceReadModeSettings, unknown>>;
+
+function isLoadedSettingsRecord(value: unknown): value is LoadedSettingsRecord {
+	return typeof value === 'object' && value !== null;
+}
+
+function parseBooleanSetting(
+	loaded: LoadedSettingsRecord,
+	key: BooleanSettingKey,
+): boolean {
+	const value = loaded[key];
+	return typeof value === 'boolean' ? value : DEFAULT_SETTINGS[key];
+}
+
+function parseRuleList(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	return value.filter((entry): entry is string => typeof entry === 'string');
+}
+
 export function mergeLoadedSettings(
-	loaded: Partial<ForceReadModeSettings> | null | undefined,
+	loaded: unknown,
 ): ForceReadModeSettings {
+	if (!isLoadedSettingsRecord(loaded)) {
+		return {
+			...DEFAULT_SETTINGS,
+			includeRules: [...DEFAULT_SETTINGS.includeRules],
+			excludeRules: [...DEFAULT_SETTINGS.excludeRules],
+		};
+	}
+
 	return {
-		...DEFAULT_SETTINGS,
-		...loaded,
-		includeRules: loaded?.includeRules ?? DEFAULT_SETTINGS.includeRules,
-		excludeRules: loaded?.excludeRules ?? DEFAULT_SETTINGS.excludeRules,
+		enabled: parseBooleanSetting(loaded, 'enabled'),
+		useGlobPatterns: parseBooleanSetting(loaded, 'useGlobPatterns'),
+		caseSensitive: parseBooleanSetting(loaded, 'caseSensitive'),
+		debug: parseBooleanSetting(loaded, 'debug'),
+		debugVerbosePaths: parseBooleanSetting(loaded, 'debugVerbosePaths'),
+		includeRules: parseRuleList(loaded.includeRules),
+		excludeRules: parseRuleList(loaded.excludeRules),
 	};
 }
