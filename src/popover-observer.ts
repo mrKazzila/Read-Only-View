@@ -12,10 +12,12 @@ export const DEFAULT_POPOVER_OBSERVER_SELECTORS: PopoverObserverSelectors = {
 
 export interface PopoverObserverDependencies {
 	isEnabled: () => boolean;
+	isDebugLoggingEnabled?: () => boolean;
 	getMarkdownLeaves: () => WorkspaceLeaf[];
 	getRelevantDocuments: () => Document[];
 	shouldForceReadOnlyPath: (path: string) => boolean;
 	ensurePreview: (leaf: WorkspaceLeaf, reason: string) => Promise<void>;
+	logDebug?: (message: string, payload?: Record<string, unknown>) => void;
 }
 
 export interface PopoverObserverService {
@@ -34,8 +36,13 @@ function isHtmlElement(node: Node): node is HTMLElement {
 }
 
 class DefaultPopoverObserverService implements PopoverObserverService {
+	private static readonly UNRESOLVED_DEBUG_THROTTLE_MS = 2_000;
+
 	private mutationObservers = new Map<Document, MutationObserver>();
 	private leafByContainer = new WeakMap<HTMLElement, WorkspaceLeaf>();
+	private readonly unresolvedCandidateLoggedAt = new Map<string, number>();
+	private readonly documentIds = new WeakMap<Document, number>();
+	private nextDocumentId = 1;
 
 	constructor(
 		private readonly dependencies: PopoverObserverDependencies,
@@ -170,6 +177,7 @@ class DefaultPopoverObserverService implements PopoverObserverService {
 
 		const leaf = this.findLeafByNode(node);
 		if (!leaf) {
+			this.logUnresolvedCandidate(node);
 			return null;
 		}
 
@@ -187,6 +195,53 @@ class DefaultPopoverObserverService implements PopoverObserverService {
 		}
 
 		return leaf;
+	}
+
+	private logUnresolvedCandidate(node: HTMLElement): void {
+		if (!this.dependencies.isDebugLoggingEnabled?.()) {
+			return;
+		}
+
+		const ownerDocument = node.ownerDocument;
+		const documentId = ownerDocument ? this.getDocumentDebugId(ownerDocument) : 0;
+		const candidateKind = node.matches(this.selectors.popoverCandidate)
+			? 'popover-root'
+			: 'popover-descendant';
+		const signature = `${documentId}:${node.tagName.toLowerCase()}:${candidateKind}`;
+		const now = Date.now();
+		const previousLoggedAt = this.unresolvedCandidateLoggedAt.get(signature);
+		if (
+			typeof previousLoggedAt === 'number' &&
+			now - previousLoggedAt < DefaultPopoverObserverService.UNRESOLVED_DEBUG_THROTTLE_MS
+		) {
+			return;
+		}
+		this.unresolvedCandidateLoggedAt.set(signature, now);
+
+		const markdownLeaves = this.dependencies.getMarkdownLeaves();
+		const sameDocumentLeafCount = ownerDocument
+			? markdownLeaves.filter((leaf) => leaf.view instanceof MarkdownView && leaf.view.containerEl.ownerDocument === ownerDocument).length
+			: 0;
+		this.dependencies.logDebug?.('popover-candidate-unresolved', {
+			candidateTag: node.tagName.toLowerCase(),
+			candidateKind,
+			documentId,
+			documentHasActiveContext:
+				typeof activeDocument === 'object' &&
+				activeDocument !== null &&
+				ownerDocument === activeDocument,
+			sameDocumentLeafCount,
+		});
+	}
+
+	private getDocumentDebugId(document: Document): number {
+		const existingId = this.documentIds.get(document);
+		if (typeof existingId === 'number') {
+			return existingId;
+		}
+		const nextId = this.nextDocumentId++;
+		this.documentIds.set(document, nextId);
+		return nextId;
 	}
 }
 

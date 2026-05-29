@@ -14,6 +14,7 @@ test('observer service start/stop manages lifecycle and keeps prefilter optimiza
 	const leaf = harness.leaves[0];
 	assert.ok(leaf);
 	leaf.setFilePath('docs/file.md');
+	(leaf.view.containerEl as unknown as MockHTMLElement).ownerDocument = harness.dom.document;
 	leaf.setMode('source');
 
 	let ensurePreviewCalls = 0;
@@ -87,6 +88,7 @@ test('observer service accepts popout-safe instanceOf HTMLElement nodes', async 
 	const leaf = harness.leaves[0];
 	assert.ok(leaf);
 	leaf.setFilePath('docs/file.md');
+	(leaf.view.containerEl as unknown as MockHTMLElement).ownerDocument = harness.dom.document;
 
 	let ensurePreviewCalls = 0;
 	const service = createPopoverObserverService({
@@ -254,6 +256,154 @@ test('observer service ignores popover editor nodes when no leaf can be resolved
 		await Promise.resolve();
 
 		assert.equal(ensurePreviewCalls, 0);
+	} finally {
+		harness.restore();
+	}
+});
+
+test('observer service documents detached popover limitation without enforcing blindly', async () => {
+	const harness = createMainTestHarness();
+	const leaf = harness.leaves[0];
+	assert.ok(leaf);
+	leaf.setFilePath('docs/file.md');
+	(leaf.view.containerEl as unknown as MockHTMLElement).ownerDocument = harness.dom.document;
+
+	let ensurePreviewCalls = 0;
+	const debugCalls: Array<{ message: string; payload?: Record<string, unknown> }> = [];
+	const originalNow = Date.now;
+	Date.now = () => 1_000;
+
+	const service = createPopoverObserverService({
+		isEnabled: () => true,
+		isDebugLoggingEnabled: () => true,
+		getMarkdownLeaves: () => [leaf as never],
+		getRelevantDocuments: () => [harness.dom.document as unknown as Document],
+		shouldForceReadOnlyPath: () => true,
+		ensurePreview: async () => {
+			ensurePreviewCalls += 1;
+		},
+		logDebug: (message, payload) => {
+			debugCalls.push({ message, payload });
+		},
+	});
+
+	try {
+		service.start();
+		const observer = MockMutationObserver.instances[0];
+		assert.ok(observer);
+
+		const popoverNode = new MockHTMLElement(['.popover']);
+		popoverNode.ownerDocument = harness.dom.document;
+		popoverNode.appendChild(new MockHTMLElement(['.cm-editor']));
+
+		observer.trigger([{ addedNodes: [popoverNode] }]);
+		await Promise.resolve();
+
+		assert.equal(ensurePreviewCalls, 0);
+		assert.equal(debugCalls.length, 1);
+		assert.equal(debugCalls[0]?.message, 'popover-candidate-unresolved');
+		assert.deepEqual(debugCalls[0]?.payload, {
+			candidateTag: 'div',
+			candidateKind: 'popover-root',
+			documentId: 1,
+			documentHasActiveContext: true,
+			sameDocumentLeafCount: 1,
+		});
+	} finally {
+		Date.now = originalNow;
+		harness.restore();
+	}
+});
+
+test('observer service throttles unresolved popover debug logging', async () => {
+	const harness = createMainTestHarness();
+	const leaf = harness.leaves[0];
+	assert.ok(leaf);
+	leaf.setFilePath('docs/file.md');
+	(leaf.view.containerEl as unknown as MockHTMLElement).ownerDocument = harness.dom.document;
+
+	let now = 1_000;
+	const originalNow = Date.now;
+	Date.now = () => now;
+	const debugCalls: string[] = [];
+
+	const service = createPopoverObserverService({
+		isEnabled: () => true,
+		isDebugLoggingEnabled: () => true,
+		getMarkdownLeaves: () => [leaf as never],
+		getRelevantDocuments: () => [harness.dom.document as unknown as Document],
+		shouldForceReadOnlyPath: () => true,
+		ensurePreview: async () => undefined,
+		logDebug: (message) => {
+			debugCalls.push(message);
+		},
+	});
+
+	try {
+		service.start();
+		const observer = MockMutationObserver.instances[0];
+		assert.ok(observer);
+
+		const firstPopover = new MockHTMLElement(['.popover']);
+		firstPopover.ownerDocument = harness.dom.document;
+		firstPopover.appendChild(new MockHTMLElement(['.cm-editor']));
+		observer.trigger([{ addedNodes: [firstPopover] }]);
+		await Promise.resolve();
+
+		const secondPopover = new MockHTMLElement(['.popover']);
+		secondPopover.ownerDocument = harness.dom.document;
+		secondPopover.appendChild(new MockHTMLElement(['.cm-editor']));
+		observer.trigger([{ addedNodes: [secondPopover] }]);
+		await Promise.resolve();
+
+		now += 2_001;
+		const thirdPopover = new MockHTMLElement(['.popover']);
+		thirdPopover.ownerDocument = harness.dom.document;
+		thirdPopover.appendChild(new MockHTMLElement(['.cm-editor']));
+		observer.trigger([{ addedNodes: [thirdPopover] }]);
+		await Promise.resolve();
+
+		assert.deepEqual(debugCalls, [
+			'popover-candidate-unresolved',
+			'popover-candidate-unresolved',
+		]);
+	} finally {
+		Date.now = originalNow;
+		harness.restore();
+	}
+});
+
+test('observer service skips unresolved popover debug logging when debug is disabled', async () => {
+	const harness = createMainTestHarness();
+	const leaf = harness.leaves[0];
+	assert.ok(leaf);
+	leaf.setFilePath('docs/file.md');
+
+	const debugCalls: string[] = [];
+	const service = createPopoverObserverService({
+		isEnabled: () => true,
+		isDebugLoggingEnabled: () => false,
+		getMarkdownLeaves: () => [leaf as never],
+		getRelevantDocuments: () => [harness.dom.document as unknown as Document],
+		shouldForceReadOnlyPath: () => true,
+		ensurePreview: async () => undefined,
+		logDebug: (message) => {
+			debugCalls.push(message);
+		},
+	});
+
+	try {
+		service.start();
+		const observer = MockMutationObserver.instances[0];
+		assert.ok(observer);
+
+		const popoverNode = new MockHTMLElement(['.popover']);
+		popoverNode.ownerDocument = harness.dom.document;
+		popoverNode.appendChild(new MockHTMLElement(['.cm-editor']));
+		observer.trigger([{ addedNodes: [popoverNode] }]);
+		await Promise.resolve();
+
+		assert.deepEqual(debugCalls, []);
 	} finally {
 		harness.restore();
 	}

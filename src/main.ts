@@ -148,10 +148,12 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		if (!this.popoverObserverService) {
 			this.popoverObserverService = createPopoverObserverService({
 				isEnabled: () => this.settings.enabled,
+				isDebugLoggingEnabled: () => this.settings.debug,
 				getMarkdownLeaves: () => this.app.workspace.getLeavesOfType('markdown'),
 				getRelevantDocuments: () => this.getRelevantDocumentsForPopoverObservers(),
 				shouldForceReadOnlyPath: (path) => this.shouldForceReadOnlyPath(path),
 				ensurePreview: (leaf, reason) => this.getEnforcementService().ensurePreview(leaf, reason),
+				logDebug: (message, payload) => this.logDebug(message, payload),
 			});
 		}
 		return this.popoverObserverService;
