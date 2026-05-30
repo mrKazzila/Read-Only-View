@@ -19,6 +19,7 @@ import { DEFAULT_SETTINGS, mergeLoadedSettings } from './plugin-settings';
 import { registerPluginCommands } from './plugin-commands';
 import { ForceReadModeSettingTab } from './settings-tab';
 import type { ForceReadModeSettings } from './plugin-types';
+import { maybeShowWelcomeModal } from './settings-welcome';
 import { WorkspaceEventController } from './workspace-events';
 
 export { formatPathForDebug } from './debug-log';
@@ -88,6 +89,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		this.addSettingTab(new ForceReadModeSettingTab(this.app, this));
 
 		await this.applyAllOpenMarkdownLeaves('onload');
+		maybeShowWelcomeModal(this.app, this, this.manifest.id);
 	}
 
 	onunload(): void {

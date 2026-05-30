@@ -2,10 +2,12 @@ import type { CompiledRuleMatcher } from './matcher';
 
 export interface ForceReadModeSettings {
 	enabled: boolean;
+	forceAllMarkdownReadOnly: boolean;
 	useGlobPatterns: boolean;
 	caseSensitive: boolean;
 	debug: boolean;
 	debugVerbosePaths: boolean;
+	dismissedWelcomeVersion: number;
 	includeRules: string[];
 	excludeRules: string[];
 }
