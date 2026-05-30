@@ -1,9 +1,31 @@
 import { Setting } from 'obsidian';
+import { DebouncedRenderScheduler } from './debounced-render';
 import { normalizeVaultPath } from './matcher';
 import { buildPathTesterResult } from './rule-diagnostics';
 import type { ForceReadModeSettings } from './plugin-types';
 
-export function renderPathTester(containerEl: HTMLElement, settings: ForceReadModeSettings): void {
+const PATH_TESTER_RENDER_DEBOUNCE_MS = 75;
+
+type PathTesterRenderMatcher = {
+	matchIncludeRules: (filePath: string) => string[];
+	matchExcludeRules: (filePath: string) => string[];
+	shouldForceReadOnly: (filePath: string) => boolean;
+};
+
+type PathTesterRenderOptions = {
+	settings: ForceReadModeSettings;
+	getCompiledRuleMatcher?: () => PathTesterRenderMatcher | undefined;
+};
+
+export type PathTesterController = {
+	dispose: () => void;
+};
+
+export function renderPathTester(
+	containerEl: HTMLElement,
+	options: PathTesterRenderOptions,
+): PathTesterController {
+	const ownerWindow = containerEl.ownerDocument?.defaultView;
 	const wrapperEl = containerEl.createDiv({ cls: 'read-only-view-path-tester' });
 	new Setting(wrapperEl).setName('Path tester').setHeading();
 	wrapperEl.createEl('p', {
@@ -18,10 +40,10 @@ export function renderPathTester(containerEl: HTMLElement, settings: ForceReadMo
 	const resultEl = wrapperEl.createDiv({ cls: 'read-only-view-path-tester-result' });
 
 	const renderResult = () => {
-		const { testPath, includeMatches, excludeMatches, finalReadOnly } = buildPathTesterResult(
-			normalizeVaultPath(inputEl.value),
-			settings,
-		);
+		const matcher = options.getCompiledRuleMatcher?.();
+		const { testPath, includeMatches, excludeMatches, finalReadOnly } = matcher
+			? buildPathTesterResult(normalizeVaultPath(inputEl.value), options.settings, matcher)
+			: buildPathTesterResult(normalizeVaultPath(inputEl.value), options.settings);
 		resultEl.empty();
 
 		if (!testPath) {
@@ -39,7 +61,20 @@ export function renderPathTester(containerEl: HTMLElement, settings: ForceReadMo
 			text: `Result: ${finalReadOnly ? 'READ-ONLY ON' : 'READ-ONLY OFF'}`,
 		});
 	};
+	const renderScheduler = new DebouncedRenderScheduler(
+		PATH_TESTER_RENDER_DEBOUNCE_MS,
+		renderResult,
+		ownerWindow,
+	);
 
-	inputEl.addEventListener('input', renderResult);
+	inputEl.addEventListener('input', () => renderScheduler.schedule());
+	inputEl.addEventListener('change', () => renderScheduler.flush());
+	inputEl.addEventListener('blur', () => renderScheduler.flush());
 	renderResult();
+
+	return {
+		dispose: () => {
+			renderScheduler.dispose();
+		},
+	};
 }

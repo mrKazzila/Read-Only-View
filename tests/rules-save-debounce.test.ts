@@ -38,6 +38,49 @@ function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) =
 	});
 }
 
+function withOwnedFakeTimeoutWindows(
+	callback: (tools: {
+		switchActiveWindow: (name: 'A' | 'B') => void;
+		windowA: { clearedIds: number[] };
+		windowB: { clearedIds: number[] };
+	}) => Promise<void>,
+): Promise<void> {
+	const originalActiveWindow = (globalThis as Record<string, unknown>).activeWindow;
+
+	let nextId = 1;
+	const createWindow = () => {
+		const queue = new Map<number, () => void>();
+		const clearedIds: number[] = [];
+		return {
+			clearedIds,
+			setTimeout: ((handler: TimerHandler) => {
+				const callbackHandler = typeof handler === 'function' ? handler : () => undefined;
+				const id = nextId++;
+				queue.set(id, callbackHandler as () => void);
+				return id as unknown as ReturnType<typeof setTimeout>;
+			}) as typeof setTimeout,
+			clearTimeout: ((timeoutId: ReturnType<typeof setTimeout>) => {
+				clearedIds.push(Number(timeoutId));
+				queue.delete(Number(timeoutId));
+			}) as typeof clearTimeout,
+		};
+	};
+
+	const windowA = createWindow();
+	const windowB = createWindow();
+	(globalThis as Record<string, unknown>).activeWindow = windowA;
+
+	return callback({
+		switchActiveWindow: (name) => {
+			(globalThis as Record<string, unknown>).activeWindow = name === 'A' ? windowA : windowB;
+		},
+		windowA,
+		windowB,
+	}).finally(() => {
+		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
+	});
+}
+
 test('debounced rule saver collapses burst input into one save with latest value', async () => {
 	const savedValues: string[] = [];
 	const states: string[] = [];
@@ -100,5 +143,60 @@ test('debounced rule saver keeps latest edit even without blur/change flush', as
 		assert.deepEqual(savedValues, []);
 		await flushAll();
 		assert.deepEqual(savedValues, ['include/docs/**']);
+	});
+});
+
+test('debounced rule saver dispose cancels pending save', async () => {
+	const savedValues: string[] = [];
+	const saver = new DebouncedRuleChangeSaver(
+		400,
+		async (value) => {
+			savedValues.push(value);
+		},
+		() => undefined,
+	);
+
+	await withFakeTimeouts(async ({ flushAll }) => {
+		saver.schedule('docs/cancelled.md');
+		saver.dispose();
+		await flushAll();
+		assert.deepEqual(savedValues, []);
+	});
+});
+
+test('debounced rule saver dispose is idempotent and blocks later saves', async () => {
+	const savedValues: string[] = [];
+	const saver = new DebouncedRuleChangeSaver(
+		400,
+		async (value) => {
+			savedValues.push(value);
+		},
+		() => undefined,
+	);
+
+	await withFakeTimeouts(async ({ flushAll }) => {
+		saver.dispose();
+		saver.dispose();
+		saver.schedule('docs/ignored.md');
+		await saver.flush('docs/ignored-again.md');
+		await flushAll();
+		assert.deepEqual(savedValues, []);
+	});
+});
+
+test('debounced rule saver dispose clears pending timer through owner window', async () => {
+	const saver = new DebouncedRuleChangeSaver(
+		400,
+		async () => undefined,
+		() => undefined,
+	);
+
+	await withOwnedFakeTimeoutWindows(async ({ switchActiveWindow, windowA, windowB }) => {
+		saver.schedule('docs/a.md');
+		switchActiveWindow('B');
+		saver.dispose();
+
+		assert.deepEqual(windowA.clearedIds, [1]);
+		assert.deepEqual(windowB.clearedIds, []);
 	});
 });

@@ -39,6 +39,50 @@ function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) =
 	});
 }
 
+function withOwnedFakeTimeoutWindows(
+	callback: (tools: {
+		switchActiveWindow: (name: 'A' | 'B') => void;
+		windowA: { clearedIds: number[] };
+		windowB: { clearedIds: number[] };
+	}) => Promise<void>,
+): Promise<void> {
+	const originalActiveWindow = (globalThis as Record<string, unknown>).activeWindow;
+
+	let nextId = 1;
+	const createWindow = () => {
+		const queue = new Map<number, () => void>();
+		const clearedIds: number[] = [];
+		return {
+			queue,
+			clearedIds,
+			setTimeout: ((handler: TimerHandler) => {
+				const callbackHandler = typeof handler === 'function' ? handler : () => undefined;
+				const id = nextId++;
+				queue.set(id, callbackHandler as () => void);
+				return id as unknown as ReturnType<typeof setTimeout>;
+			}) as typeof setTimeout,
+			clearTimeout: ((timeoutId: ReturnType<typeof setTimeout>) => {
+				clearedIds.push(Number(timeoutId));
+				queue.delete(Number(timeoutId));
+			}) as typeof clearTimeout,
+		};
+	};
+
+	const windowA = createWindow();
+	const windowB = createWindow();
+	(globalThis as Record<string, unknown>).activeWindow = windowA;
+
+	return callback({
+		switchActiveWindow: (name) => {
+			(globalThis as Record<string, unknown>).activeWindow = name === 'A' ? windowA : windowB;
+		},
+		windowA,
+		windowB,
+	}).finally(() => {
+		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
+	});
+}
+
 test('workspace event controller uses targeted strategy for active leaf/file-open bursts', async () => {
 	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
 	const fullReasons: string[] = [];
@@ -177,4 +221,22 @@ test('workspace event controller stop clears pending timers and queued events', 
 	});
 
 	assert.deepEqual(fullReasons, []);
+});
+
+test('workspace event controller stop clears pending timer through original owner window', async () => {
+	const controller = new WorkspaceEventController({
+		logDebug: () => undefined,
+		applyAllOpenMarkdownLeaves: async () => undefined,
+		applyReadOnlyForLeaf: async () => undefined,
+		formatLeafPathForDebug: () => null,
+	});
+
+	await withOwnedFakeTimeoutWindows(async ({ switchActiveWindow, windowA, windowB }) => {
+		controller.schedule('file-open');
+		switchActiveWindow('B');
+		controller.stop();
+
+		assert.deepEqual(windowA.clearedIds, [1]);
+		assert.deepEqual(windowB.clearedIds, []);
+	});
 });

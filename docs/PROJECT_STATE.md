@@ -1,8 +1,22 @@
 # PROJECT_STATE
 
-Last updated: 2026-05-18
+Last updated: 2026-05-28
 
 This document is a living system map for the `read-only-view` Obsidian plugin.
+
+## 0) Development workflow
+
+- Local vault installation uses `just link-plugin`.
+- The default local QA target is the repo-local `./demo-vault`; `VAULT=...` can override it for a different vault.
+- The workflow symlinks `main.js` and optional `styles.css` into the target vault plugin directory.
+- `manifest.json` is generated as a vault-local DEV copy so the installed test build is visibly marked without mutating the repo release manifest.
+- `just unlink-plugin` removes only that local dev install from the vault and also removes the plugin id from `.obsidian/community-plugins.json`; vault notes remain intact.
+- Synthetic QA vault generation uses `python3 scripts/create_demo_vault.py` or the wrapper recipes `just demo-vault`, `just demo-vault-reset`, and `just demo-vault-no-plugin`.
+- The demo vault lives at `./demo-vault`, is ignored by git, and contains only synthetic Markdown notes plus optional linked plugin files for safe screenshots and recordings.
+- When plugin linking is enabled, the generator copies `manifest.json`, links `main.js`, links optional `styles.css`, writes plugin `data.json`, and enables the plugin in `.obsidian/community-plugins.json`.
+- Demo vault default rules use prefix mode and configure:
+  - include: `Read Only/`, `Archive/`
+  - exclude: `Read Only/Drafts/`
 
 ## 1) Architecture
 
@@ -26,6 +40,7 @@ High-level modules:
   - Typed enforcement service (`createEnforcementService`)
   - Enforcement loop, lock/pending queue, and per-leaf preview throttle
   - Leaf-level preview forcing with fallback logging
+  - Explicit `stop()` cleanup for deferred layout-change retry timers
 - `src/editor-readonly.ts`
   - CodeMirror 6 read-only extension for markdown editors
   - Path-aware `EditorState.readOnly` and `EditorView.editable` gating via `editorInfoField`
@@ -155,6 +170,7 @@ Loop protection:
 - Per-leaf throttle (`WeakMap<WorkspaceLeaf, number>`) to reduce repeated `setViewState` calls.
 - Layout-change bursts use an extended per-leaf throttle window to reduce repeated reflow-prone mode flips during heavy UI relayouts.
 - Throttled layout-change attempts schedule one trailing retry per leaf so a note is not left in source mode after the burst ends.
+- Pending layout-change retry timers are cleared during plugin unload through `EnforcementService.stop()`.
 
 Command entry points:
 
@@ -202,8 +218,8 @@ UI module split:
   - flush on `blur` and `change`
   - status text: `Saving...`, `Saved.`, `Save failed.`
 - Diagnostics list per line:
-  - `✅` healthy
-  - `⚠️` suspicious (empty lines, wildcard in prefix mode, normalization/folder-hint changes)
+  - `✅` healthy, marked `aria-hidden` with adjacent text status for screen readers
+  - `⚠️` suspicious (empty lines, wildcard in prefix mode, normalization/folder-hint changes), marked `aria-hidden` with adjacent text status for screen readers
   - ignored line marker (`Ignored`) and inline warning (`Ignored due to rule limit.`) for rules truncated by caps
   - empty lines render as `(empty line)` and do not receive synthetic `/` normalization
   - warning details are rendered inline in nested semantic lists (`ul/li`) and announced via `aria-live`

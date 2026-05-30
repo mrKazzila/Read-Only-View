@@ -7,7 +7,7 @@ import {
 	createEditorReadOnlyExtension,
 	notifyReadOnlyInteraction,
 } from '../src/editor-readonly.js';
-import { DEFAULT_SETTINGS, type ForceReadModeSettings } from '../src/matcher.js';
+import { createCompiledRuleMatcher, DEFAULT_SETTINGS, type ForceReadModeSettings } from '../src/matcher.js';
 
 type ObsidianRuntime = {
 	__setEditorInfo: (value: unknown) => void;
@@ -30,11 +30,12 @@ async function createStateForInfo(
 	};
 
 	runtime.__setEditorInfo(info);
+	const matcher = createCompiledRuleMatcher(settings);
 	return EditorState.create({
 		extensions: [
 			runtime.editorInfoField as never,
 			createEditorReadOnlyExtension({
-				getSettings: () => settings,
+				shouldForceReadOnlyPath: (path) => matcher.shouldForceReadOnly(path),
 			}),
 		],
 	});
@@ -89,7 +90,7 @@ test('editor read-only interaction callback fires only for matching read-only pa
 		file: { path: 'notes/file.md', extension: 'md' },
 	});
 	const dependencies = {
-		getSettings: () => ({
+		shouldForceReadOnlyPath: createCompiledRuleMatcher({
 			...DEFAULT_SETTINGS,
 			enabled: true,
 			useGlobPatterns: true,
@@ -98,7 +99,7 @@ test('editor read-only interaction callback fires only for matching read-only pa
 			excludeRules: [],
 			debug: false,
 			debugVerbosePaths: false,
-		}),
+		}).shouldForceReadOnly,
 		onReadOnlyInteraction: (_info: unknown, reason: string) => {
 			calls.push(reason);
 		},

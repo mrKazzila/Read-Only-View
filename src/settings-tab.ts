@@ -1,4 +1,5 @@
-import { App, PluginSettingTab } from 'obsidian';
+import { App, Plugin, PluginSettingTab } from 'obsidian';
+import type { PathTesterController } from './settings-path-tester';
 import {
 	splitRulesFromText,
 	stringifyRules,
@@ -8,19 +9,23 @@ import { renderPathTester } from './settings-path-tester';
 import { renderRuleEditor } from './settings-rule-editor';
 import { computeRuleLimitsUiState } from './settings-ui-state';
 import type { SettingsTabPlugin } from './plugin-types';
+import type { RuleEditorController } from './settings-rule-editor';
 
 export { computeRuleLimitsUiState } from './settings-ui-state';
 export { DebouncedRuleChangeSaver } from './settings-rule-editor';
 
 export class ForceReadModeSettingTab extends PluginSettingTab {
 	plugin: SettingsTabPlugin;
+	private ruleEditors: RuleEditorController[] = [];
+	private pathTesterController: PathTesterController | null = null;
 
-	constructor(app: App, plugin: SettingsTabPlugin) {
-		super(app, plugin as never);
+	constructor(app: App, plugin: Plugin & SettingsTabPlugin) {
+		super(app, plugin);
 		this.plugin = plugin;
 	}
 
 	display(): void {
+		this.disposeUiControllers();
 		const { containerEl } = this;
 		containerEl.empty();
 
@@ -68,6 +73,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 				renderRuleLimitsState();
 			},
 		});
+		this.ruleEditors = [includeEditor, excludeEditor];
 
 		const renderRuleLimitsState = () => {
 			const uiState = computeRuleLimitsUiState(includeRulesText, excludeRulesText);
@@ -94,6 +100,22 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 
 		renderRuleLimitsState();
 
-		renderPathTester(containerEl, this.plugin.settings);
+		this.pathTesterController = renderPathTester(containerEl, {
+			settings: this.plugin.settings,
+			getCompiledRuleMatcher: this.plugin.getCompiledRuleMatcher?.bind(this.plugin),
+		});
+	}
+
+	hide(): void {
+		this.disposeUiControllers();
+	}
+
+	private disposeUiControllers(): void {
+		for (const editor of this.ruleEditors) {
+			editor.dispose();
+		}
+		this.ruleEditors = [];
+		this.pathTesterController?.dispose();
+		this.pathTesterController = null;
 	}
 }

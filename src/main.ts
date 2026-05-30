@@ -6,7 +6,9 @@ import {
 	type Editor,
 } from 'obsidian';
 import {
-	shouldForceReadOnly,
+	createCompiledRuleMatcher,
+	getCompiledRuleMatcherKey,
+	type CompiledRuleMatcher,
 } from './matcher';
 import { shouldReapplyAfterEnabledChange } from './command-controls';
 import { formatPathForDebug } from './debug-log';
@@ -27,11 +29,13 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	private enforcementService: EnforcementService | null = null;
 	private popoverObserverService: PopoverObserverService | null = null;
 	private workspaceEventController: WorkspaceEventController | null = null;
+	private compiledRuleMatcher: CompiledRuleMatcher = createCompiledRuleMatcher(this.settings);
+	private compiledRuleMatcherKey = getCompiledRuleMatcherKey(this.settings);
 
 	async onload(): Promise<void> {
 		await this.loadSettings();
 		this.registerEditorExtension(createEditorReadOnlyExtension({
-			getSettings: () => this.settings,
+			shouldForceReadOnlyPath: (path) => this.shouldForceReadOnlyPath(path),
 			onReadOnlyInteraction: (info, reason) => {
 				void this.handleProtectedEditorInput(info, reason);
 			},
@@ -45,13 +49,16 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		});
 
 		this.registerEvent(this.app.workspace.on('file-open', () => {
+			this.reconcileMutationObservers();
 			this.getWorkspaceEventController().schedule('file-open');
 		}));
 		this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf: WorkspaceLeaf | null) => {
+			this.reconcileMutationObservers();
 			this.getWorkspaceEventController().schedule('active-leaf-change', leaf ?? null);
 		}));
 		this.registerEvent(this.app.workspace.on('layout-change', () => {
 			this.invalidateLeafContainerCache();
+			this.reconcileMutationObservers();
 			this.getWorkspaceEventController().schedule('layout-change');
 		}));
 		this.registerEvent(this.app.workspace.on('editor-paste', (evt: ClipboardEvent, _editor: Editor, info: MarkdownView | MarkdownFileInfo) => {
@@ -59,7 +66,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 				return;
 			}
 			const file = info.file;
-			if (!file || !shouldForceReadOnly(file.path, this.settings)) {
+			if (!file || !this.shouldForceReadOnlyPath(file.path)) {
 				return;
 			}
 			evt.preventDefault();
@@ -70,7 +77,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 				return;
 			}
 			const file = info.file;
-			if (!file || !shouldForceReadOnly(file.path, this.settings)) {
+			if (!file || !this.shouldForceReadOnlyPath(file.path)) {
 				return;
 			}
 			evt.preventDefault();
@@ -89,7 +96,10 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			this.workspaceEventController = null;
 		}
 		this.invalidateLeafContainerCache();
-		this.enforcementService = null;
+		if (this.enforcementService) {
+			this.enforcementService.stop();
+			this.enforcementService = null;
+		}
 		if (this.popoverObserverService) {
 			this.popoverObserverService.stop();
 			this.popoverObserverService = null;
@@ -97,11 +107,13 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	}
 
 	async loadSettings(): Promise<void> {
-		const loaded = await this.loadData() as Partial<ForceReadModeSettings> | null;
+		const loaded: unknown = await this.loadData();
 		this.settings = mergeLoadedSettings(loaded);
+		this.rebuildCompiledRuleMatcher();
 	}
 
 	async saveSettings(): Promise<void> {
+		this.rebuildCompiledRuleMatcher();
 		await this.saveData(this.settings);
 	}
 
@@ -126,6 +138,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 				getMarkdownLeaves: () => this.app.workspace.getLeavesOfType('markdown'),
 				logDebug: (message, payload) => this.logDebug(message, payload),
 				formatPathForDebug,
+				shouldForceReadOnlyPath: (path) => this.shouldForceReadOnlyPath(path),
 			});
 		}
 		return this.enforcementService;
@@ -135,9 +148,12 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		if (!this.popoverObserverService) {
 			this.popoverObserverService = createPopoverObserverService({
 				isEnabled: () => this.settings.enabled,
+				isDebugLoggingEnabled: () => this.settings.debug,
 				getMarkdownLeaves: () => this.app.workspace.getLeavesOfType('markdown'),
-				shouldForceReadOnlyPath: (path) => shouldForceReadOnly(path, this.settings),
+				getRelevantDocuments: () => this.getRelevantDocumentsForPopoverObservers(),
+				shouldForceReadOnlyPath: (path) => this.shouldForceReadOnlyPath(path),
 				ensurePreview: (leaf, reason) => this.getEnforcementService().ensurePreview(leaf, reason),
+				logDebug: (message, payload) => this.logDebug(message, payload),
 			});
 		}
 		return this.popoverObserverService;
@@ -167,12 +183,33 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		}
 	}
 
+	shouldForceReadOnlyPath(path: string): boolean {
+		return this.getCompiledRuleMatcher().shouldForceReadOnly(path);
+	}
+
+	getCompiledRuleMatcher(): CompiledRuleMatcher {
+		const nextKey = getCompiledRuleMatcherKey(this.settings);
+		if (nextKey !== this.compiledRuleMatcherKey) {
+			this.rebuildCompiledRuleMatcher();
+		}
+		return this.compiledRuleMatcher;
+	}
+
+	private rebuildCompiledRuleMatcher(): void {
+		this.compiledRuleMatcher = createCompiledRuleMatcher(this.settings);
+		this.compiledRuleMatcherKey = getCompiledRuleMatcherKey(this.settings);
+	}
+
 	private invalidateLeafContainerCache(): void {
 		this.getPopoverObserverService().invalidateLeafCache();
 	}
 
 	private installMutationObserver(): void {
 		this.getPopoverObserverService().start();
+	}
+
+	private reconcileMutationObservers(): void {
+		this.getPopoverObserverService().reconcileDocuments();
 	}
 
 	private findLeafByNode(node: HTMLElement): WorkspaceLeaf | null {
@@ -226,6 +263,26 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			}
 		}
 		return null;
+	}
+
+	private getRelevantDocumentsForPopoverObservers(): Document[] {
+		const documents = new Set<Document>();
+		if (typeof activeDocument === 'object' && activeDocument) {
+			documents.add(activeDocument);
+		}
+
+		const leaves = this.app.workspace.getLeavesOfType('markdown');
+		for (const leaf of leaves) {
+			if (!(leaf.view instanceof MarkdownView)) {
+				continue;
+			}
+			const ownerDocument = leaf.view.containerEl.ownerDocument;
+			if (ownerDocument) {
+				documents.add(ownerDocument);
+			}
+		}
+
+		return Array.from(documents);
 	}
 
 	logDebug(message: string, payload?: Record<string, unknown>): void {

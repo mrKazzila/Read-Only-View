@@ -1,10 +1,19 @@
 import { MarkdownView, WorkspaceLeaf, type ViewState } from 'obsidian';
-import { shouldForceReadOnly } from './matcher';
 import type { ForceReadModeSettings } from './plugin-types';
+import {
+	cancelOwnedAnimationFrame,
+	clearOwnedTimeout,
+	requestOwnedAnimationFrame,
+	resolveAnimationFrameWindow,
+	scheduleOwnedTimeout,
+	type AnimationFrameWindow,
+	type OwnedTimeout,
+} from './window-ownership';
 
 export interface EnforcementDependencies {
 	getSettings: () => ForceReadModeSettings;
 	getMarkdownLeaves: () => WorkspaceLeaf[];
+	shouldForceReadOnlyPath: (path: string) => boolean;
 	logDebug: (message: string, payload?: Record<string, unknown>) => void;
 	formatPathForDebug: (path: string, verbosePaths: boolean) => string;
 	now?: () => number;
@@ -14,30 +23,35 @@ export interface EnforcementService {
 	applyAllOpenMarkdownLeaves: (reason: string) => Promise<void>;
 	applyReadOnlyForLeaf: (leaf: WorkspaceLeaf, reason: string) => Promise<void>;
 	ensurePreview: (leaf: WorkspaceLeaf, reason: string) => Promise<void>;
+	stop: () => void;
 }
 
 const LEAF_FORCE_PREVIEW_THROTTLE_MS = 120;
 const LAYOUT_CHANGE_FORCE_PREVIEW_THROTTLE_MS = 700;
 
-function waitForNextFrame(): Promise<void> {
-	if (typeof requestAnimationFrame === 'function') {
-		return new Promise((resolve) => {
-			requestAnimationFrame(() => resolve());
-		});
-	}
-	return Promise.resolve();
+type PendingAnimationFrame = {
+	cancel: () => void;
+};
+
+export function requestAnimationFrameSafe(
+	callback: FrameRequestCallback,
+	ownerWindow?: AnimationFrameWindow | null,
+): number | null {
+	return requestOwnedAnimationFrame(callback, ownerWindow)?.id ?? null;
 }
 
-function getTimerWindow(): Pick<Window, 'setTimeout'> {
-	if (typeof activeWindow === 'object' && activeWindow) {
-		return activeWindow;
+export function cancelAnimationFrameSafe(
+	frameId: number,
+	ownerWindow?: AnimationFrameWindow | null,
+): void {
+	const frameWindow = resolveAnimationFrameWindow(ownerWindow);
+	if (frameWindow) {
+		frameWindow.cancelAnimationFrame(frameId);
+		return;
 	}
-	if (typeof window === 'object' && window) {
-		return window;
+	if (typeof cancelAnimationFrame === 'function') {
+		cancelAnimationFrame(frameId);
 	}
-	return {
-		setTimeout,
-	};
 }
 
 function isLayoutChangeReason(reason: string): boolean {
@@ -59,16 +73,36 @@ function describeError(error: unknown): { errorType: string; errorMessage: strin
 
 class DefaultEnforcementService implements EnforcementService {
 	private enforcing = false;
+	private stopped = false;
 	private pendingReapply: string | null = null;
 	private lastForcedAt = new WeakMap<WorkspaceLeaf, number>();
-	private pendingLayoutRetry = new WeakMap<WorkspaceLeaf, ReturnType<Window['setTimeout']>>();
+	private pendingLayoutRetry = new WeakMap<WorkspaceLeaf, OwnedTimeout>();
+	private pendingLayoutRetryTimers = new Set<OwnedTimeout>();
+	private pendingAnimationFrames = new Set<PendingAnimationFrame>();
 	private readonly now: () => number;
 
 	constructor(private readonly dependencies: EnforcementDependencies) {
 		this.now = dependencies.now ?? (() => Date.now());
 	}
 
+	stop(): void {
+		this.stopped = true;
+		for (const timer of this.pendingLayoutRetryTimers) {
+			clearOwnedTimeout(timer);
+		}
+		for (const pendingFrame of this.pendingAnimationFrames) {
+			pendingFrame.cancel();
+		}
+		this.pendingLayoutRetryTimers.clear();
+		this.pendingAnimationFrames.clear();
+		this.pendingLayoutRetry = new WeakMap<WorkspaceLeaf, OwnedTimeout>();
+		this.pendingReapply = null;
+	}
+
 	async applyAllOpenMarkdownLeaves(reason: string): Promise<void> {
+		if (this.stopped) {
+			return;
+		}
 		const settings = this.dependencies.getSettings();
 		if (!settings.enabled) {
 			return;
@@ -86,7 +120,9 @@ class DefaultEnforcementService implements EnforcementService {
 			}
 		} finally {
 			this.enforcing = false;
-			if (this.pendingReapply) {
+			if (this.stopped) {
+				this.pendingReapply = null;
+			} else if (this.pendingReapply) {
 				const nextReason = this.pendingReapply;
 				this.pendingReapply = null;
 				await this.applyAllOpenMarkdownLeaves(`pending:${nextReason}`);
@@ -95,6 +131,9 @@ class DefaultEnforcementService implements EnforcementService {
 	}
 
 	async applyReadOnlyForLeaf(leaf: WorkspaceLeaf, reason: string): Promise<void> {
+		if (this.stopped) {
+			return;
+		}
 		if (!(leaf.view instanceof MarkdownView)) {
 			return;
 		}
@@ -110,8 +149,7 @@ class DefaultEnforcementService implements EnforcementService {
 			return;
 		}
 
-		const settings = this.dependencies.getSettings();
-		if (!shouldForceReadOnly(file.path, settings)) {
+		if (!this.dependencies.shouldForceReadOnlyPath(file.path)) {
 			return;
 		}
 
@@ -133,6 +171,9 @@ class DefaultEnforcementService implements EnforcementService {
 	}
 
 	async ensurePreview(leaf: WorkspaceLeaf, reason: string): Promise<void> {
+		if (this.stopped) {
+			return;
+		}
 		if (!(leaf.view instanceof MarkdownView)) {
 			return;
 		}
@@ -195,7 +236,15 @@ class DefaultEnforcementService implements EnforcementService {
 		this.lastForcedAt.set(leaf, now);
 		// Defer the actual mode write to the next frame to avoid forcing it
 		// in the middle of CodeMirror measurement/layout work.
-		await waitForNextFrame();
+		const frameCompleted = await this.waitForNextFrame();
+		if (!frameCompleted || this.stopped) {
+			this.dependencies.logDebug('ensure-preview-skip', {
+				reason,
+				filePath,
+				skipReason: 'stopped-after-frame',
+			});
+			return;
+		}
 
 		const refreshedState = leaf.getViewState();
 		if (refreshedState.type !== 'markdown') {
@@ -242,15 +291,98 @@ class DefaultEnforcementService implements EnforcementService {
 	}
 
 	private scheduleLayoutRetry(leaf: WorkspaceLeaf, reason: string, delayMs: number): void {
-		if (this.pendingLayoutRetry.has(leaf)) {
+		if (this.stopped || this.pendingLayoutRetry.has(leaf)) {
 			return;
 		}
-		const timerWindow = getTimerWindow();
-		const timer = timerWindow.setTimeout(() => {
+		const timer = scheduleOwnedTimeout(() => {
 			this.pendingLayoutRetry.delete(leaf);
+			this.pendingLayoutRetryTimers.delete(timer);
+			if (this.stopped) {
+				return;
+			}
 			void this.applyReadOnlyForLeaf(leaf, `deferred:${reason}`);
 		}, Math.max(delayMs, 0));
 		this.pendingLayoutRetry.set(leaf, timer);
+		this.pendingLayoutRetryTimers.add(timer);
+	}
+
+	private waitForNextFrame(): Promise<boolean> {
+		if (this.stopped) {
+			return Promise.resolve(false);
+		}
+
+		const frameWindow = resolveAnimationFrameWindow();
+		if (frameWindow) {
+			return new Promise((resolve) => {
+				let settled = false;
+				let pendingFrame: PendingAnimationFrame | null = null;
+				const ownedFrame = requestOwnedAnimationFrame(() => {
+					if (settled) {
+						return;
+					}
+					settled = true;
+					if (pendingFrame) {
+						this.pendingAnimationFrames.delete(pendingFrame);
+					}
+					resolve(true);
+				}, frameWindow);
+				if (!ownedFrame) {
+					resolve(true);
+					return;
+				}
+				pendingFrame = {
+					cancel: () => {
+						if (settled) {
+							return;
+						}
+						settled = true;
+						cancelOwnedAnimationFrame(ownedFrame);
+						if (pendingFrame) {
+							this.pendingAnimationFrames.delete(pendingFrame);
+						}
+						resolve(false);
+					},
+				};
+				this.pendingAnimationFrames.add(pendingFrame);
+			});
+		}
+
+		if (typeof requestAnimationFrame === 'function') {
+			return new Promise((resolve) => {
+				let settled = false;
+				let pendingFrame: PendingAnimationFrame | null = null;
+				const ownedFrame = requestOwnedAnimationFrame(() => {
+					if (settled) {
+						return;
+					}
+					settled = true;
+					if (pendingFrame) {
+						this.pendingAnimationFrames.delete(pendingFrame);
+					}
+					resolve(true);
+				});
+				if (!ownedFrame) {
+					resolve(true);
+					return;
+				}
+				pendingFrame = {
+					cancel: () => {
+						if (settled) {
+							return;
+						}
+						settled = true;
+						cancelOwnedAnimationFrame(ownedFrame);
+						if (pendingFrame) {
+							this.pendingAnimationFrames.delete(pendingFrame);
+						}
+						resolve(false);
+					},
+				};
+				this.pendingAnimationFrames.add(pendingFrame);
+			});
+		}
+
+		return Promise.resolve(true);
 	}
 }
 

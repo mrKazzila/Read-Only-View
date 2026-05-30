@@ -55,11 +55,23 @@ This plugin can be loaded from a vault folder.
    * required files: `main.js`, `manifest.json`
    * optional: `styles.css`
 
-**Option B: Symlink (recommended)**
-Symlink the repository into your vault plugin folder so rebuilds land in place:
+**Option B: Local dev install (recommended)**
+Use the repo-supported `just` workflow so rebuilds land in place while the vault gets a dev-marked manifest copy:
 
 ```bash
-ln -s /absolute/path/to/read-only-view <Vault>/.obsidian/plugins/read-only-view
+just link-plugin
+```
+
+This workflow:
+
+* symlinks `main.js`
+* symlinks `styles.css` when present
+* generates a vault-local `manifest.json` marked as a DEV build, leaving the repo release manifest unchanged
+
+You can override the dev manifest version if needed:
+
+```bash
+DEV_PLUGIN_VERSION=999.1.0 just link-plugin
 ```
 
 Then run watch mode:
@@ -69,6 +81,14 @@ npm run dev
 ```
 
 Restart Obsidian or reload plugins when needed.
+
+To remove the local dev install later:
+
+```bash
+just unlink-plugin
+```
+
+Dev and release builds share the same plugin ID `read-only-view`, so they cannot coexist in one vault. After unlinking, reinstall the release build from Obsidian Community Plugins if needed.
 
 ### 2) Make changes
 

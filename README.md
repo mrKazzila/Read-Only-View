@@ -109,6 +109,42 @@ Use this only as a fallback for local development or manual testing.
    - `styles.css`
 5. Restart Obsidian or reload plugins, then enable **Read Only View**.
 
+### Local dev install with `just`
+
+Use this to install a clearly marked local dev build into the repo demo vault by default without changing the repo `manifest.json`.
+
+```bash
+just link-plugin
+DEV_PLUGIN_VERSION=999.1.0 just link-plugin
+just unlink-plugin
+```
+
+- `just link-plugin` symlinks `main.js` and optional `styles.css`, then generates a vault-local `manifest.json` with a DEV label.
+- By default, `just link-plugin` and `just unlink-plugin` target `./demo-vault` in the repository root.
+- Use `VAULT=/path/to/vault just link-plugin` or `VAULT=/path/to/vault just unlink-plugin` to target a different vault.
+- `DEV_PLUGIN_VERSION=... just link-plugin` overrides the default dev manifest version `999.0.0`.
+- `just unlink-plugin` removes only the local dev plugin install from the target vault after confirmation and leaves the vault notes intact.
+- Dev and release builds use the same plugin ID `read-only-view`, so they cannot coexist in the same vault.
+- If `./demo-vault` does not exist yet, run `just demo-vault` or `just demo-vault-no-plugin` first.
+
+### Demo vault for QA and media
+
+Use the synthetic demo vault when you need manual QA, screenshots, or short videos without opening real notes.
+
+```bash
+just demo-vault
+just demo-vault-reset
+just demo-vault-no-plugin
+```
+
+- `just demo-vault` creates or refreshes `./demo-vault` and links the current local plugin build by default.
+- `just demo-vault-reset` recreates the vault from scratch.
+- `just demo-vault-no-plugin` creates the same synthetic notes without linking plugin files.
+- The generated vault preconfigures `Include rules` for `Read Only/` and `Archive/`, plus an `Exclude rule` for `Read Only/Drafts/`.
+- If `main.js` is missing, the generator stops with a clear build-first message instead of creating a broken plugin install.
+
+See [docs/DEMO_VAULT.md](docs/DEMO_VAULT.md) for setup details and recommended recording scenarios.
+
 ## How matching works
 
 - Only Markdown files (`.md`) are affected.
@@ -256,6 +292,8 @@ npm run lint
 npm test
 npm run build
 ```
+
+For installing the plugin into a local test vault, use `just link-plugin`; remove it later with `just unlink-plugin`.
 
 Repository guidance and contributor workflow live in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 

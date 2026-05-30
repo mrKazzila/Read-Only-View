@@ -12,21 +12,37 @@ export const DEFAULT_POPOVER_OBSERVER_SELECTORS: PopoverObserverSelectors = {
 
 export interface PopoverObserverDependencies {
 	isEnabled: () => boolean;
+	isDebugLoggingEnabled?: () => boolean;
 	getMarkdownLeaves: () => WorkspaceLeaf[];
+	getRelevantDocuments: () => Document[];
 	shouldForceReadOnlyPath: (path: string) => boolean;
 	ensurePreview: (leaf: WorkspaceLeaf, reason: string) => Promise<void>;
+	logDebug?: (message: string, payload?: Record<string, unknown>) => void;
 }
 
 export interface PopoverObserverService {
 	start: () => void;
 	stop: () => void;
+	reconcileDocuments: () => void;
 	invalidateLeafCache: () => void;
 	findLeafByNode: (node: HTMLElement) => WorkspaceLeaf | null;
 }
 
+function isHtmlElement(node: Node): node is HTMLElement {
+	if (typeof node.instanceOf !== 'function') {
+		return false;
+	}
+	return node.instanceOf(HTMLElement);
+}
+
 class DefaultPopoverObserverService implements PopoverObserverService {
-	private mutationObserver: MutationObserver | null = null;
+	private static readonly UNRESOLVED_DEBUG_THROTTLE_MS = 2_000;
+
+	private mutationObservers = new Map<Document, MutationObserver>();
 	private leafByContainer = new WeakMap<HTMLElement, WorkspaceLeaf>();
+	private readonly unresolvedCandidateLoggedAt = new Map<string, number>();
+	private readonly documentIds = new WeakMap<Document, number>();
+	private nextDocumentId = 1;
 
 	constructor(
 		private readonly dependencies: PopoverObserverDependencies,
@@ -34,34 +50,27 @@ class DefaultPopoverObserverService implements PopoverObserverService {
 	) {}
 
 	start(): void {
-		if (this.mutationObserver) {
-			return;
-		}
-		if (!activeDocument.body) {
-			return;
-		}
-
-		this.mutationObserver = new MutationObserver((mutations) => {
-			if (!this.dependencies.isEnabled()) {
-				return;
-			}
-			const candidateNodes = this.collectPopoverCandidates(mutations);
-			if (candidateNodes.length === 0) {
-				return;
-			}
-			void this.handlePotentialPopoverBatch(candidateNodes);
-		});
-
-		this.mutationObserver.observe(activeDocument.body, {
-			childList: true,
-			subtree: true,
-		});
+		this.reconcileDocuments();
 	}
 
 	stop(): void {
-		if (this.mutationObserver) {
-			this.mutationObserver.disconnect();
-			this.mutationObserver = null;
+		for (const observer of this.mutationObservers.values()) {
+			observer.disconnect();
+		}
+		this.mutationObservers.clear();
+	}
+
+	reconcileDocuments(): void {
+		const relevantDocuments = new Set(this.dependencies.getRelevantDocuments());
+		for (const document of Array.from(this.mutationObservers.keys())) {
+			if (relevantDocuments.has(document)) {
+				continue;
+			}
+			this.mutationObservers.get(document)?.disconnect();
+			this.mutationObservers.delete(document);
+		}
+		for (const document of relevantDocuments) {
+			this.attachObserver(document);
 		}
 	}
 
@@ -108,7 +117,10 @@ class DefaultPopoverObserverService implements PopoverObserverService {
 			}
 			for (let index = 0; index < mutation.addedNodes.length; index++) {
 				const node = mutation.addedNodes[index];
-				if (!(node instanceof HTMLElement)) {
+				if (!node) {
+					continue;
+				}
+				if (!isHtmlElement(node)) {
 					continue;
 				}
 				if (!this.isPotentialPopoverNode(node)) {
@@ -118,6 +130,29 @@ class DefaultPopoverObserverService implements PopoverObserverService {
 			}
 		}
 		return candidates;
+	}
+
+	private attachObserver(document: Document): void {
+		if (this.mutationObservers.has(document) || !document.body) {
+			return;
+		}
+
+		const observer = new MutationObserver((mutations) => {
+			if (!this.dependencies.isEnabled()) {
+				return;
+			}
+			const candidateNodes = this.collectPopoverCandidates(mutations);
+			if (candidateNodes.length === 0) {
+				return;
+			}
+			void this.handlePotentialPopoverBatch(candidateNodes);
+		});
+
+		observer.observe(document.body, {
+			childList: true,
+			subtree: true,
+		});
+		this.mutationObservers.set(document, observer);
 	}
 
 	private async handlePotentialPopoverBatch(nodes: HTMLElement[]): Promise<void> {
@@ -142,6 +177,7 @@ class DefaultPopoverObserverService implements PopoverObserverService {
 
 		const leaf = this.findLeafByNode(node);
 		if (!leaf) {
+			this.logUnresolvedCandidate(node);
 			return null;
 		}
 
@@ -159,6 +195,53 @@ class DefaultPopoverObserverService implements PopoverObserverService {
 		}
 
 		return leaf;
+	}
+
+	private logUnresolvedCandidate(node: HTMLElement): void {
+		if (!this.dependencies.isDebugLoggingEnabled?.()) {
+			return;
+		}
+
+		const ownerDocument = node.ownerDocument;
+		const documentId = ownerDocument ? this.getDocumentDebugId(ownerDocument) : 0;
+		const candidateKind = node.matches(this.selectors.popoverCandidate)
+			? 'popover-root'
+			: 'popover-descendant';
+		const signature = `${documentId}:${node.tagName.toLowerCase()}:${candidateKind}`;
+		const now = Date.now();
+		const previousLoggedAt = this.unresolvedCandidateLoggedAt.get(signature);
+		if (
+			typeof previousLoggedAt === 'number' &&
+			now - previousLoggedAt < DefaultPopoverObserverService.UNRESOLVED_DEBUG_THROTTLE_MS
+		) {
+			return;
+		}
+		this.unresolvedCandidateLoggedAt.set(signature, now);
+
+		const markdownLeaves = this.dependencies.getMarkdownLeaves();
+		const sameDocumentLeafCount = ownerDocument
+			? markdownLeaves.filter((leaf) => leaf.view instanceof MarkdownView && leaf.view.containerEl.ownerDocument === ownerDocument).length
+			: 0;
+		this.dependencies.logDebug?.('popover-candidate-unresolved', {
+			candidateTag: node.tagName.toLowerCase(),
+			candidateKind,
+			documentId,
+			documentHasActiveContext:
+				typeof activeDocument === 'object' &&
+				activeDocument !== null &&
+				ownerDocument === activeDocument,
+			sameDocumentLeafCount,
+		});
+	}
+
+	private getDocumentDebugId(document: Document): number {
+		const existingId = this.documentIds.get(document);
+		if (typeof existingId === 'number') {
+			return existingId;
+		}
+		const nextId = this.nextDocumentId++;
+		this.documentIds.set(document, nextId);
+		return nextId;
 	}
 }
 
