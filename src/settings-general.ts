@@ -1,4 +1,4 @@
-import { Setting } from 'obsidian';
+import { ToggleComponent } from 'obsidian';
 import type { ForceReadModeSettings, SettingsTabPlugin } from './plugin-types';
 
 type BooleanSettingKey = {
@@ -18,6 +18,12 @@ const TOGGLE_SETTINGS: ToggleSettingConfig[] = [
 		description: 'Enable or disable read-only enforcement globally.',
 		settingKey: 'enabled',
 		reapplyReason: 'settings-enabled',
+	},
+	{
+		name: 'All Markdown files read-only',
+		description: 'Force every Markdown file into reading view. Saved path rules are ignored while this preset is enabled.',
+		settingKey: 'forceAllMarkdownReadOnly',
+		reapplyReason: 'settings-force-all-markdown-read-only',
 	},
 	{
 		name: 'Use glob patterns',
@@ -43,6 +49,84 @@ const TOGGLE_SETTINGS: ToggleSettingConfig[] = [
 	},
 ];
 
+const PRIMARY_TOGGLE_SETTING_KEYS: BooleanSettingKey[] = [
+	'enabled',
+	'forceAllMarkdownReadOnly',
+];
+
+const MATCHING_TOGGLE_SETTING_KEYS: BooleanSettingKey[] = [
+	'useGlobPatterns',
+	'caseSensitive',
+];
+
+const DEBUG_TOGGLE_SETTING_KEYS: BooleanSettingKey[] = [
+	'debug',
+	'debugVerbosePaths',
+];
+
+function renderToggleSettings(
+	containerEl: HTMLElement,
+	plugin: SettingsTabPlugin,
+	refresh: () => void,
+	allowedSettingKeys: BooleanSettingKey[],
+): void {
+	for (const toggleSetting of TOGGLE_SETTINGS) {
+		if (!allowedSettingKeys.includes(toggleSetting.settingKey)) {
+			continue;
+		}
+
+		const settingEl = containerEl.createDiv({ cls: 'read-only-view-setting-item' });
+		const infoEl = settingEl.createDiv({ cls: 'read-only-view-setting-info' });
+		infoEl.createDiv({
+			text: toggleSetting.name,
+			cls: 'read-only-view-setting-name',
+		});
+		infoEl.createDiv({
+			text: toggleSetting.description,
+			cls: 'read-only-view-setting-description',
+		});
+
+		const controlEl = settingEl.createDiv({ cls: 'read-only-view-setting-control' });
+		const toggle = new ToggleComponent(controlEl);
+		toggle.toggleEl.addClass('read-only-view-setting-toggle');
+		toggle
+			.setValue(plugin.settings[toggleSetting.settingKey])
+			.onChange(async (value) => {
+				await updateBooleanSetting(
+					plugin,
+					toggleSetting.settingKey,
+					value,
+					refresh,
+					toggleSetting.reapplyReason,
+				);
+			});
+	}
+}
+
+export function renderPrimarySettings(
+	containerEl: HTMLElement,
+	plugin: SettingsTabPlugin,
+	refresh: () => void,
+): void {
+	renderToggleSettings(containerEl, plugin, refresh, PRIMARY_TOGGLE_SETTING_KEYS);
+}
+
+export function renderMatchingSettings(
+	containerEl: HTMLElement,
+	plugin: SettingsTabPlugin,
+	refresh: () => void,
+): void {
+	renderToggleSettings(containerEl, plugin, refresh, MATCHING_TOGGLE_SETTING_KEYS);
+}
+
+export function renderDebugSettings(
+	containerEl: HTMLElement,
+	plugin: SettingsTabPlugin,
+	refresh: () => void,
+): void {
+	renderToggleSettings(containerEl, plugin, refresh, DEBUG_TOGGLE_SETTING_KEYS);
+}
+
 export async function updateBooleanSetting(
 	plugin: SettingsTabPlugin,
 	settingKey: BooleanSettingKey,
@@ -59,31 +143,4 @@ export async function updateBooleanSetting(
 		await plugin.applyAllOpenMarkdownLeaves(reapplyReason);
 	}
 	refresh();
-}
-
-export function renderGeneralSettings(
-	containerEl: HTMLElement,
-	plugin: SettingsTabPlugin,
-	refresh: () => void,
-): void {
-	new Setting(containerEl).setName('Read-only view').setHeading();
-
-	for (const toggleSetting of TOGGLE_SETTINGS) {
-		new Setting(containerEl)
-			.setName(toggleSetting.name)
-			.setDesc(toggleSetting.description)
-			.addToggle((toggle) => {
-				toggle
-					.setValue(plugin.settings[toggleSetting.settingKey])
-					.onChange(async (value) => {
-						await updateBooleanSetting(
-							plugin,
-							toggleSetting.settingKey,
-							value,
-							refresh,
-							toggleSetting.reapplyReason,
-						);
-					});
-			});
-	}
 }

@@ -1,4 +1,3 @@
-import { Setting } from 'obsidian';
 import { DebouncedRenderScheduler } from './debounced-render';
 import { normalizeVaultPath } from './matcher';
 import { buildPathTesterResult } from './rule-diagnostics';
@@ -27,7 +26,6 @@ export function renderPathTester(
 ): PathTesterController {
 	const ownerWindow = containerEl.ownerDocument?.defaultView;
 	const wrapperEl = containerEl.createDiv({ cls: 'read-only-view-path-tester' });
-	new Setting(wrapperEl).setName('Path tester').setHeading();
 	wrapperEl.createEl('p', {
 		text: 'Enter a path exactly as file.path in Obsidian. Shows include/exclude matches and final read-only result.',
 		cls: 'setting-item-description',
@@ -41,7 +39,7 @@ export function renderPathTester(
 
 	const renderResult = () => {
 		const matcher = options.getCompiledRuleMatcher?.();
-		const { testPath, includeMatches, excludeMatches, finalReadOnly } = matcher
+		const { testPath, includeMatches, excludeMatches, finalReadOnly, presetApplied } = matcher
 			? buildPathTesterResult(normalizeVaultPath(inputEl.value), options.settings, matcher)
 			: buildPathTesterResult(normalizeVaultPath(inputEl.value), options.settings);
 		resultEl.empty();
@@ -57,6 +55,11 @@ export function renderPathTester(
 		resultEl.createDiv({
 			text: `Matched exclude: ${excludeMatches.length > 0 ? excludeMatches.join(', ') : 'none'}`,
 		});
+		if (presetApplied) {
+			resultEl.createDiv({
+				text: 'Preset override: all Markdown files are currently read-only. Saved path rules are ignored.',
+			});
+		}
 		resultEl.createDiv({
 			text: `Result: ${finalReadOnly ? 'READ-ONLY ON' : 'READ-ONLY OFF'}`,
 		});
