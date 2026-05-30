@@ -29,6 +29,7 @@ test('plugin reuses compiled matcher until rule settings change, then rebuilds i
 	const settings: ForceReadModeSettings = {
 		...DEFAULT_SETTINGS,
 		enabled: true,
+		forceAllMarkdownReadOnly: false,
 		useGlobPatterns: true,
 		caseSensitive: true,
 		includeRules: ['docs/**'],
@@ -49,4 +50,24 @@ test('plugin reuses compiled matcher until rule settings change, then rebuilds i
 	assert.notEqual(rebuiltMatcher, firstMatcher);
 	assert.equal(rebuiltMatcher.shouldForceReadOnly('docs/private/secret.md'), false);
 	assert.equal(plugin.getCompiledRuleMatcher(), rebuiltMatcher);
+});
+
+test('plugin rebuilds compiled matcher until preset setting change, then rebuilds it', () => {
+	const settings: ForceReadModeSettings = {
+		...DEFAULT_SETTINGS,
+		enabled: true,
+		forceAllMarkdownReadOnly: false,
+		useGlobPatterns: true,
+		caseSensitive: true,
+		includeRules: [],
+		excludeRules: [],
+	};
+	const plugin = createPlugin(settings);
+
+	const firstMatcher = plugin.getCompiledRuleMatcher();
+	plugin.settings.forceAllMarkdownReadOnly = true;
+	const rebuiltMatcher = plugin.getCompiledRuleMatcher();
+
+	assert.notEqual(rebuiltMatcher, firstMatcher);
+	assert.equal(rebuiltMatcher.shouldForceReadOnly('notes/file.md'), true);
 });

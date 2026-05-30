@@ -30,6 +30,7 @@ function createPluginWithLeaf() {
 	state.settings = {
 		...DEFAULT_SETTINGS,
 		enabled: true,
+		forceAllMarkdownReadOnly: false,
 		useGlobPatterns: true,
 		caseSensitive: true,
 		includeRules: ['**/*.md'],

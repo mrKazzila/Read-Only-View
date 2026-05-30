@@ -96,6 +96,7 @@ export function buildPathTesterResult(filePathInput: string, settings: ForceRead
 	includeMatches: string[];
 	excludeMatches: string[];
 	finalReadOnly: boolean;
+	presetApplied: boolean;
 };
 export function buildPathTesterResult(
 	filePathInput: string,
@@ -106,6 +107,7 @@ export function buildPathTesterResult(
 	includeMatches: string[];
 	excludeMatches: string[];
 	finalReadOnly: boolean;
+	presetApplied: boolean;
 };
 export function buildPathTesterResult(
 	filePathInput: string,
@@ -116,12 +118,16 @@ export function buildPathTesterResult(
 	includeMatches: string[];
 	excludeMatches: string[];
 	finalReadOnly: boolean;
+	presetApplied: boolean;
 } {
 	const testPath = normalizeVaultPath(filePathInput);
 	const includeMatches = matcher.matchIncludeRules(testPath);
 	const excludeMatches = matcher.matchExcludeRules(testPath);
 	const finalReadOnly = matcher.shouldForceReadOnly(testPath);
-	return { testPath, includeMatches, excludeMatches, finalReadOnly };
+	const presetApplied = settings.enabled
+		&& settings.forceAllMarkdownReadOnly
+		&& testPath.toLowerCase().endsWith('.md');
+	return { testPath, includeMatches, excludeMatches, finalReadOnly, presetApplied };
 }
 
 export function getRuleVolumeWarningMessage(warningLevel: RuleVolumeWarningLevel): string | null {

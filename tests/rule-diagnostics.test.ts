@@ -54,6 +54,7 @@ test('path tester helper returns include/exclude matches and final read-only sta
 	const settings = {
 		...DEFAULT_SETTINGS,
 		enabled: true,
+		forceAllMarkdownReadOnly: false,
 		useGlobPatterns: true,
 		caseSensitive: true,
 		includeRules: ['docs/**'],
@@ -77,6 +78,7 @@ test('path tester uses effective rules and does not match ignored tail rules', (
 	const settings = {
 		...DEFAULT_SETTINGS,
 		enabled: true,
+		forceAllMarkdownReadOnly: false,
 		useGlobPatterns: true,
 		caseSensitive: true,
 		includeRules,
@@ -92,6 +94,7 @@ test('path tester helper preserves diagnostics result when reusing a compiled ma
 	const settings = {
 		...DEFAULT_SETTINGS,
 		enabled: true,
+		forceAllMarkdownReadOnly: false,
 		useGlobPatterns: true,
 		caseSensitive: true,
 		includeRules: ['docs/**'],

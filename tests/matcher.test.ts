@@ -20,10 +20,12 @@ const fileNoMatch = 'project_a/project_a.md';
 function createSettings(overrides: Partial<ForceReadModeSettings>): ForceReadModeSettings {
     return {
         enabled: true,
+        forceAllMarkdownReadOnly: false,
         useGlobPatterns: true,
         caseSensitive: true,
         debug: false,
         debugVerbosePaths: false,
+        dismissedWelcomeVersion: 0,
         includeRules: [],
         excludeRules: [],
         ...overrides,
@@ -188,6 +190,27 @@ test('K) shouldForceReadOnly ignores non-markdown files and disabled plugin', ()
 	assert.equal(shouldForceReadOnly('docs/file.md', { ...settings, enabled: false }), false);
 });
 
+test('K2) all-Markdown preset makes any Markdown path read-only', () => {
+	const settings = createSettings({
+		forceAllMarkdownReadOnly: true,
+		includeRules: [],
+		excludeRules: ['project_a/patterns/**'],
+	});
+
+	assert.equal(shouldForceReadOnly('project_a/patterns/saga.md', settings), true);
+	assert.equal(shouldForceReadOnly('notes/file.md', settings), true);
+});
+
+test('K3) all-Markdown preset does not affect non-Markdown files', () => {
+	const settings = createSettings({
+		forceAllMarkdownReadOnly: true,
+		includeRules: [],
+		excludeRules: [],
+	});
+
+	assert.equal(shouldForceReadOnly('notes/file.png', settings), false);
+});
+
 test('L) shouldForceReadOnly requires include match and supports case-insensitive prefix mode', () => {
 	const noIncludeSettings = createSettings({
 		useGlobPatterns: true,
@@ -273,6 +296,20 @@ test('T) compiled matcher key changes when matching settings change', () => {
 	assert.notEqual(firstKey, secondKey);
 	assert.equal(firstMatcher.shouldForceReadOnly('docs/private/file.md'), true);
 	assert.equal(secondMatcher.shouldForceReadOnly('docs/private/file.md'), false);
+});
+
+test('T2) compiled matcher key changes when all-Markdown preset changes', () => {
+	const settings = createSettings({
+		useGlobPatterns: true,
+		includeRules: [],
+		excludeRules: [],
+		forceAllMarkdownReadOnly: false,
+	});
+	const firstKey = getCompiledRuleMatcherKey(settings);
+
+	settings.forceAllMarkdownReadOnly = true;
+
+	assert.notEqual(firstKey, getCompiledRuleMatcherKey(settings));
 });
 
 test('U) shouldForceReadOnly preserves exact include path behavior in prefix mode', () => {

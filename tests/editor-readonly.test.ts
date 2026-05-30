@@ -22,6 +22,7 @@ async function createStateForInfo(
 	const settings: ForceReadModeSettings = {
 		...DEFAULT_SETTINGS,
 		enabled: true,
+		forceAllMarkdownReadOnly: false,
 		useGlobPatterns: true,
 		caseSensitive: true,
 		includeRules: ['docs/**'],
@@ -93,6 +94,7 @@ test('editor read-only interaction callback fires only for matching read-only pa
 		shouldForceReadOnlyPath: createCompiledRuleMatcher({
 			...DEFAULT_SETTINGS,
 			enabled: true,
+			forceAllMarkdownReadOnly: false,
 			useGlobPatterns: true,
 			caseSensitive: true,
 			includeRules: ['docs/**'],

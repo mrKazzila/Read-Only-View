@@ -67,6 +67,23 @@ test('general settings update re-applies for matching-related toggles', async ()
 	assert.equal(plugin.refreshCalls, 1);
 });
 
+test('general settings update re-applies for all-Markdown preset toggle', async () => {
+	const plugin = createPlugin();
+
+	await updateBooleanSetting(
+		plugin,
+		'forceAllMarkdownReadOnly',
+		false,
+		() => undefined,
+		'settings-force-all-markdown-read-only',
+	);
+
+	assert.equal(plugin.settings.forceAllMarkdownReadOnly, false);
+	assert.equal(plugin.saveCalls, 1);
+	assert.deepEqual(plugin.applyReasons, ['settings-force-all-markdown-read-only']);
+	assert.equal(plugin.refreshCalls, 1);
+});
+
 test('general settings update re-applies for case-sensitive toggle and refreshes after save', async () => {
 	const plugin = createPlugin();
 	const callOrder: string[] = [];

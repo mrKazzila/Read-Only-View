@@ -130,6 +130,7 @@ export function matchPath(filePath: string, pattern: string, options: MatchPathO
 export function getCompiledRuleMatcherKey(settings: ForceReadModeSettings): string {
 	return [
 		settings.enabled ? '1' : '0',
+		settings.forceAllMarkdownReadOnly ? '1' : '0',
 		settings.useGlobPatterns ? '1' : '0',
 		settings.caseSensitive ? '1' : '0',
 		settings.includeRules.join('\u0000'),
@@ -177,6 +178,10 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 		const normalizedFilePath = normalizeFilePathForMatch(filePath, options.caseSensitive);
 		if (!normalizedFilePath.toLowerCase().endsWith('.md')) {
 			return false;
+		}
+
+		if (settings.forceAllMarkdownReadOnly) {
+			return true;
 		}
 
 		const hasIncludeMatch = preparedIncludeRules.some((rule) => rule.matches(normalizedFilePath));

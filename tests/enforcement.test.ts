@@ -20,6 +20,7 @@ function createService(options: CreateServiceOptions = {}) {
 	const settings: ForceReadModeSettings = {
 		...DEFAULT_SETTINGS,
 		enabled: true,
+		forceAllMarkdownReadOnly: false,
 		useGlobPatterns: true,
 		caseSensitive: true,
 		includeRules: ['**/*.md'],

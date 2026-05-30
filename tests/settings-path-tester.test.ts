@@ -45,6 +45,13 @@ function collectTexts(root: MockHTMLElement): string[] {
 		.filter((value) => value.length > 0);
 }
 
+function createSettings() {
+	return {
+		...DEFAULT_SETTINGS,
+		forceAllMarkdownReadOnly: false,
+	};
+}
+
 function withOwnedFakeTimeoutWindows(
 	callback: (tools: {
 		switchActiveWindow: (name: 'A' | 'B') => void;
@@ -93,7 +100,7 @@ test('path tester renders empty-state prompt before input', () => {
 	const container = new MockHTMLElement();
 
 	try {
-		renderPathTester(container as unknown as HTMLElement, { settings: { ...DEFAULT_SETTINGS } });
+		renderPathTester(container as unknown as HTMLElement, { settings: createSettings() });
 
 		assert.ok(collectTexts(container).includes('Enter a file path to test.'));
 	} finally {
@@ -108,7 +115,7 @@ test('path tester normalizes input path and renders include-only read-only resul
 	try {
 		renderPathTester(container as unknown as HTMLElement, {
 			settings: {
-				...DEFAULT_SETTINGS,
+				...createSettings(),
 				enabled: true,
 				useGlobPatterns: true,
 				includeRules: ['docs/**'],
@@ -137,7 +144,7 @@ test('path tester renders exclude override as read-only off', () => {
 	try {
 		renderPathTester(container as unknown as HTMLElement, {
 			settings: {
-				...DEFAULT_SETTINGS,
+				...createSettings(),
 				enabled: true,
 				useGlobPatterns: true,
 				includeRules: ['docs/**'],
@@ -172,7 +179,7 @@ test('path tester uses supplied compiled matcher instead of rebuilding from raw 
 
 		renderPathTester(container as unknown as HTMLElement, {
 			settings: {
-				...DEFAULT_SETTINGS,
+				...createSettings(),
 				enabled: true,
 				useGlobPatterns: true,
 				includeRules: [],
@@ -212,7 +219,7 @@ test('path tester reflects matcher invalidation after rule changes', () => {
 
 		renderPathTester(container as unknown as HTMLElement, {
 			settings: {
-				...DEFAULT_SETTINGS,
+				...createSettings(),
 				enabled: true,
 				useGlobPatterns: true,
 				includeRules: ['docs/**'],
@@ -243,6 +250,34 @@ test('path tester reflects matcher invalidation after rule changes', () => {
 	}
 });
 
+test('path tester shows preset override for Markdown paths when all-Markdown preset is enabled', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		renderPathTester(container as unknown as HTMLElement, {
+			settings: {
+				...DEFAULT_SETTINGS,
+				enabled: true,
+				forceAllMarkdownReadOnly: true,
+				includeRules: [],
+				excludeRules: ['docs/private/**'],
+			},
+		});
+
+		const input = container.querySelector('input');
+		assert.ok(input);
+		input.value = 'docs/private/secret.md';
+		input.trigger('change');
+
+		const texts = collectTexts(container);
+		assert.ok(texts.includes('Preset override: all Markdown files are currently read-only. Saved path rules are ignored.'));
+		assert.ok(texts.includes('Result: READ-ONLY ON'));
+	} finally {
+		dom.restore();
+	}
+});
+
 test('path tester debounces input and eventually renders only the latest result', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
@@ -251,7 +286,7 @@ test('path tester debounces input and eventually renders only the latest result'
 		await withFakeTimeouts(async ({ flushAll }) => {
 			renderPathTester(container as unknown as HTMLElement, {
 				settings: {
-					...DEFAULT_SETTINGS,
+					...createSettings(),
 					enabled: true,
 					useGlobPatterns: true,
 					includeRules: ['docs/**', 'notes/**'],
@@ -289,7 +324,7 @@ test('path tester blur flushes pending input render immediately', async () => {
 		await withFakeTimeouts(async () => {
 			renderPathTester(container as unknown as HTMLElement, {
 				settings: {
-					...DEFAULT_SETTINGS,
+					...createSettings(),
 					enabled: true,
 					useGlobPatterns: true,
 					includeRules: ['docs/**'],
@@ -321,7 +356,7 @@ test('path tester dispose cancels pending render', async () => {
 		await withFakeTimeouts(async ({ flushAll }) => {
 			const controller = renderPathTester(container as unknown as HTMLElement, {
 				settings: {
-					...DEFAULT_SETTINGS,
+					...createSettings(),
 					enabled: true,
 					useGlobPatterns: true,
 					includeRules: ['docs/**'],
@@ -355,7 +390,7 @@ test('path tester dispose clears pending render through owner window after focus
 			container.ownerDocument = { defaultView: windowA } as unknown as typeof container.ownerDocument;
 			const controller = renderPathTester(container as unknown as HTMLElement, {
 				settings: {
-					...DEFAULT_SETTINGS,
+					...createSettings(),
 					enabled: true,
 					useGlobPatterns: true,
 					includeRules: ['docs/**'],

@@ -32,7 +32,11 @@ export function __setEditorInfo(value) {
   editorInfoValue = value;
 }
 
-export class App {}
+export class App {
+  constructor() {
+    this.setting = undefined;
+  }
+}
 export class WorkspaceLeaf {}
 export class MarkdownView {}
 export const editorInfoField = StateField.define({
@@ -44,8 +48,9 @@ export const editorInfoField = StateField.define({
   },
 });
 export class Plugin {
-  constructor(app = new App()) {
+  constructor(app = new App(), manifest = { id: 'read-only-view' }) {
     this.app = app;
+    this.manifest = manifest;
     this.editorExtensions = [];
   }
   addCommand() {}
@@ -61,19 +66,97 @@ export class PluginSettingTab {
     this.plugin = plugin;
     this.containerEl = {
       empty() {},
-      createDiv() { return this.containerEl; },
-      createEl() { return this.containerEl; },
+      addClass() {},
+      createDiv() { return this; },
+      createEl() { return this; },
       querySelectorAll() { return []; },
     };
   }
 }
+export class Modal {
+  constructor(app) {
+    this.app = app;
+    this.contentEl = typeof document !== 'undefined' && document?.body?.createDiv
+      ? document.body.createDiv()
+      : {
+        empty() {},
+        addClass() {},
+        createEl() { return this; },
+        createDiv() { return this; },
+      };
+    this.opened = false;
+  }
+  onOpen() {}
+  onClose() {}
+  open() {
+    this.opened = true;
+    this.onOpen();
+  }
+  close() {
+    this.opened = false;
+    this.onClose();
+  }
+}
 export class Setting {
-  constructor() {}
-  setName() { return this; }
+  constructor(containerEl) {
+    this.containerEl = containerEl;
+    this.settingEl = containerEl?.createDiv ? containerEl.createDiv({ cls: 'setting-item' }) : containerEl;
+  }
+  setName(name) {
+    this.settingEl?.createEl?.('div', { text: name, cls: 'setting-item-name' });
+    return this;
+  }
   setHeading() { return this; }
-  setDesc() { return this; }
-  addToggle() { return this; }
+  setDesc(desc) {
+    this.settingEl?.createEl?.('div', { text: desc, cls: 'setting-item-description' });
+    return this;
+  }
+  addToggle(cb) {
+    const toggle = {
+      value: false,
+      onChangeHandler: () => undefined,
+      setValue(value) {
+        this.value = value;
+        return this;
+      },
+      onChange(handler) {
+        this.onChangeHandler = handler;
+        return this;
+      },
+    };
+    cb(toggle);
+    this.settingEl?.createEl?.('div', { text: String(toggle.value), cls: 'setting-item-toggle' });
+    return this;
+  }
   addTextArea() { return this; }
+}
+export class ToggleComponent {
+  constructor(containerEl) {
+    this.containerEl = containerEl;
+    this.value = false;
+    this.onChangeHandler = () => undefined;
+    this.toggleEl = containerEl?.createDiv ? containerEl.createDiv({ cls: 'checkbox-container' }) : containerEl;
+  }
+  setValue(value) {
+    this.value = value;
+    return this;
+  }
+  getValue() {
+    return this.value;
+  }
+  setDisabled() {
+    return this;
+  }
+  setTooltip() {
+    return this;
+  }
+  onClick() {
+    this.onChangeHandler(!this.value);
+  }
+  onChange(handler) {
+    this.onChangeHandler = handler;
+    return this;
+  }
 }
 `;
 
