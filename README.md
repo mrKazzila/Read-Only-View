@@ -1,6 +1,6 @@
 # Read Only View
 
-Keep selected Markdown notes in Obsidian Reading view by matching their vault paths against simple include and exclude rules.
+Keep Markdown notes in Obsidian Reading view with either a global all-Markdown preset or include/exclude path rules.
 
 [![Obsidian Downloads](https://img.shields.io/badge/dynamic/json?label=downloads&query=%24%5B%22read-only-view%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&color=8c79de&logo=obsidian&logoColor=8c79de)](https://community.obsidian.md/plugins/read-only-view)
 
@@ -14,10 +14,11 @@ Privacy: no network requests, all rule matching stays local.
 
 ## What it does
 
-Read Only View forces matched `.md` notes to stay in Reading view.
+Read Only View forces `.md` notes to stay in Reading view.
 
-- Use include rules to choose which notes should stay read-only.
-- Use exclude rules to carve out exceptions.
+- Use the top-level preset to make all Markdown files read-only at once.
+- Use include rules to limit read-only mode to selected paths when the preset is off.
+- Use exclude rules to carve out exceptions from matching include rules.
 - Match one folder, one file, or a broader pattern set.
 - Use built-in diagnostics and the Path tester when a rule does not behave as expected.
 
@@ -34,6 +35,7 @@ This additional editor layer is intended to cover contexts such as Page Preview 
 
 By default:
 
+- `All Markdown files read-only` is on, so every `.md` note is protected immediately.
 - `Use glob patterns` is off, so rules are matched as plain path prefixes.
 - `Case sensitive` is on.
 - `Exclude` rules override matching include rules.
@@ -43,15 +45,17 @@ First working setup in default mode:
 1. Open **Settings → Community plugins → Browse**.
 2. Search for `Read Only View`, then **Install** and **Enable** it.
 3. Open **Settings → Read Only View**.
-4. Make sure `Enabled` is on.
-5. In **Include rules**, add a folder rule such as:
+4. Review the welcome modal once, then open the settings page if needed.
+5. Make sure `Enabled` is on in the always-visible **Plugin** section.
+6. If you want path-based behavior instead of the global preset, turn `All Markdown files read-only` off.
+7. In the **Path rules** section, add an include rule such as:
 
 ```text
 projects/
 ```
 
-6. Open a note inside that folder, for example `projects/plan.md`.
-7. The note should stay in Reading view.
+8. Open a note inside that folder, for example `projects/plan.md`.
+9. The note should stay in Reading view.
 
 If it does not apply:
 
@@ -148,7 +152,8 @@ See [docs/DEMO_VAULT.md](docs/DEMO_VAULT.md) for setup details and recommended r
 ## How matching works
 
 - Only Markdown files (`.md`) are affected.
-- A note becomes read-only only if at least one include rule matches it.
+- When `All Markdown files read-only` is on, every Markdown note becomes read-only and saved path rules are ignored.
+- When that preset is off, a note becomes read-only only if at least one include rule matches it.
 - If an include rule and an `Exclude` rule both match, the `Exclude` rule wins.
 - With `Use glob patterns` off, rules are treated as plain path prefixes.
 - With `Use glob patterns` on, rules may use `*`, `**`, and `?`.
@@ -226,13 +231,21 @@ Available from the Command Palette:
 
 In **Settings → Read Only View**, you can configure:
 
-- `Enabled`
-- `Use glob patterns`
-- `Case sensitive`
-- `Debug logging`
-- `Debug: verbose paths`
-- `Include rules`
-- `Exclude rules`
+- `Plugin`
+  - `Enabled`
+- `Matching`
+  - `Use glob patterns`
+  - `Case sensitive`
+- `Path rules`
+  - `Include rules`
+  - `Exclude rules`
+  - inline diagnostics and rule-volume warnings
+- `Path tester`
+- `Debug flags`
+  - `Debug logging`
+  - `Debug: verbose paths`
+
+On first enable for a new onboarding version, the plugin shows a small welcome modal with setup steps and a shortcut to open the settings.
 
 While editing rules:
 

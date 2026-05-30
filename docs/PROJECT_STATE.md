@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Last updated: 2026-05-28
+Last updated: 2026-05-31
 
 This document is a living system map for the `read-only-view` Obsidian plugin.
 
@@ -45,15 +45,17 @@ High-level modules:
   - CodeMirror 6 read-only extension for markdown editors
   - Path-aware `EditorState.readOnly` and `EditorView.editable` gating via `editorInfoField`
 - `src/settings-tab.ts`
-  - `ForceReadModeSettingTab` composition entrypoint for settings UI sections
+  - `ForceReadModeSettingTab` composition entrypoint for sectioned settings UI
 - `src/settings-general.ts`
-  - General toggle settings rendering and shared save/re-apply side-effect helper
+  - General/debug toggle rendering with plugin-owned toggle rows and shared save/re-apply side-effect helper
 - `src/settings-rule-editor.ts`
   - Rules editor section rendering, diagnostics list UI, and `DebouncedRuleChangeSaver`
 - `src/settings-ui-state.ts`
   - Pure settings summary/warning state computation for rule-limit banners
 - `src/settings-path-tester.ts`
   - Path tester section rendering
+- `src/settings-welcome.ts`
+  - Versioned onboarding modal and best-effort settings opening helper
 - `src/constants.ts`
   - Rule volume thresholds and hard limits (`50/150`, `200/300/400`)
 - `src/rule-limits.ts`
@@ -117,6 +119,7 @@ High-level modules:
 Design intent:
 
 - Read-only policy is enforced by editor-level input blocking first, with view mode (`preview`) as a fallback/UX layer.
+- Optional global preset can force all Markdown notes into read-only before include/exclude rules are considered.
 - Exclude rules always override include rules.
 - Only markdown files are in scope.
 
@@ -190,21 +193,47 @@ Command entry points:
    - include is capped first (`200`)
    - exclude is capped second (`300`)
    - if total still exceeds `400`, exclude tail is trimmed first (include priority)
-5. Include must match, then exclude must *not* match.
+5. If `forceAllMarkdownReadOnly=true`, every `.md` path is immediately treated as read-only.
+6. Otherwise include must match, then exclude must *not* match.
 
 ### D. Settings UX flow
 
 UI module split:
 
 - `src/settings-tab.ts` owns only top-level composition of settings UI sections.
-- `src/settings-general.ts` owns toggle rendering and persistence side effects.
+- `src/settings-general.ts` owns general/debug toggle rendering and persistence side effects.
 - `src/settings-rule-editor.ts` owns the include/exclude editor sections and debounced save helper.
 - `src/settings-ui-state.ts` owns the pure summary/warning calculation used by the rules section.
 - `src/settings-path-tester.ts` owns the path tester section.
+- `src/settings-welcome.ts` owns the versioned onboarding modal shown for undismissed onboarding versions.
 - `src/rule-diagnostics.ts` provides pure helpers used by settings UI (rule diagnostics + path tester computations).
 
-- Toggles: `Enabled`, `Use glob patterns`, `Case sensitive`, `Debug logging`
-- Settings toggles are rendered with standard Obsidian `Setting.addToggle()` controls; there are no plugin-owned toggle keyboard handlers.
+- Welcome modal:
+  - shown only when `dismissedWelcomeVersion < WELCOME_VERSION`
+  - dismissing or using `Open settings` saves the current onboarding version
+- Settings layout uses one always-visible plugin block plus plugin-owned collapsible sections with ephemeral open state
+- Plugin block:
+  - short behavior summary
+  - `Enabled`
+  - `All Markdown files read-only`
+- Matching section:
+  - `Use glob patterns`
+  - `Case sensitive`
+- Path rules section:
+  - include/exclude editors
+  - preset override note while the all-Markdown preset is enabled
+  - rule usage summary
+  - warning banners and diagnostics
+- Path tester section:
+  - include matches
+  - exclude matches
+  - preset override note when the all-Markdown preset is driving the final result
+  - final `READ-ONLY ON/OFF`
+- Debug flags section:
+  - `Debug logging`
+  - `Debug: verbose paths`
+  - warning text about full path exposure in console logs
+- Settings toggles are rendered with plugin-owned layout rows backed by `ToggleComponent`.
 - `Debug: verbose paths` toggle allows full file paths in debug logs; default keeps paths redacted
 - Rule textareas: include/exclude (one rule per line)
 - Rule usage summary:
@@ -217,6 +246,7 @@ UI module split:
   - save on `input` with 400 ms debounce
   - flush on `blur` and `change`
   - status text: `Saving...`, `Saved.`, `Save failed.`
+  - any successfully saved include/exclude rules change disables `All Markdown files read-only`
 - Diagnostics list per line:
   - `✅` healthy, marked `aria-hidden` with adjacent text status for screen readers
   - `⚠️` suspicious (empty lines, wildcard in prefix mode, normalization/folder-hint changes), marked `aria-hidden` with adjacent text status for screen readers
@@ -224,11 +254,7 @@ UI module split:
   - empty lines render as `(empty line)` and do not receive synthetic `/` normalization
   - warning details are rendered inline in nested semantic lists (`ul/li`) and announced via `aria-live`
   - diagnostics panel is capped with local scroll for mobile/tablet readability
-- Path tester:
-  - include matches
-  - exclude matches
-  - final `READ-ONLY ON/OFF`
-  - long strings wrap to avoid horizontal overflow on narrow screens
+- Path tester long strings wrap to avoid horizontal overflow on narrow screens
 - Keyboard QA note:
   - if pressing `Space` scrolls the settings pane during toggle testing, inspect `document.activeElement` before treating it as a toggle bug
   - only classify it as a plugin defect when the focused element is the toggle control and keyboard activation still fails
