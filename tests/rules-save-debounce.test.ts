@@ -3,6 +3,13 @@ import test from 'node:test';
 
 import { DebouncedRuleChangeSaver } from '../src/settings-tab.js';
 
+type RuleEditorUiState = {
+	includeRules: string[];
+	excludeRules: string[];
+	includeText: string;
+	excludeText: string;
+};
+
 function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) => Promise<void>): Promise<void> {
 	const originalSetTimeout = globalThis.setTimeout;
 	const originalClearTimeout = globalThis.clearTimeout;
@@ -81,11 +88,21 @@ function withOwnedFakeTimeoutWindows(
 	});
 }
 
+function makeState(includeText: string, excludeText = ''): RuleEditorUiState {
+	return {
+		includeRules: includeText ? [includeText] : [],
+		excludeRules: excludeText ? [excludeText] : [],
+		includeText,
+		excludeText,
+	};
+}
+
 test('debounced rule saver collapses burst input into one save with latest value', async () => {
-	const savedValues: string[] = [];
+	const savedValues: RuleEditorUiState[] = [];
 	const states: string[] = [];
 	const saver = new DebouncedRuleChangeSaver(
 		400,
+		makeState(''),
 		async (value) => {
 			savedValues.push(value);
 		},
@@ -95,13 +112,13 @@ test('debounced rule saver collapses burst input into one save with latest value
 	);
 
 	await withFakeTimeouts(async ({ flushAll }) => {
-		saver.schedule('docs/a.md');
-		saver.schedule('docs/b.md');
-		saver.schedule('docs/c.md');
+		saver.schedule(makeState('docs/a.md'));
+		saver.schedule(makeState('docs/b.md'));
+		saver.schedule(makeState('docs/c.md'));
 
 		assert.deepEqual(savedValues, []);
 		await flushAll();
-		assert.deepEqual(savedValues, ['docs/c.md']);
+		assert.deepEqual(savedValues, [makeState('docs/c.md')]);
 	});
 
 	assert.ok(states.includes('saving'));
@@ -109,9 +126,10 @@ test('debounced rule saver collapses burst input into one save with latest value
 });
 
 test('debounced rule saver flush runs immediate save and cancels pending timer', async () => {
-	const savedValues: string[] = [];
+	const savedValues: RuleEditorUiState[] = [];
 	const saver = new DebouncedRuleChangeSaver(
 		400,
+		makeState(''),
 		async (value) => {
 			savedValues.push(value);
 		},
@@ -119,19 +137,20 @@ test('debounced rule saver flush runs immediate save and cancels pending timer',
 	);
 
 	await withFakeTimeouts(async ({ flushAll }) => {
-		saver.schedule('first');
-		await saver.flush('second');
-		assert.deepEqual(savedValues, ['second']);
+		saver.schedule(makeState('first'));
+		await saver.flush(makeState('second'));
+		assert.deepEqual(savedValues, [makeState('second')]);
 
 		await flushAll();
-		assert.deepEqual(savedValues, ['second']);
+		assert.deepEqual(savedValues, [makeState('second')]);
 	});
 });
 
 test('debounced rule saver keeps latest edit even without blur/change flush', async () => {
-	const savedValues: string[] = [];
+	const savedValues: RuleEditorUiState[] = [];
 	const saver = new DebouncedRuleChangeSaver(
 		400,
+		makeState(''),
 		async (value) => {
 			savedValues.push(value);
 		},
@@ -139,17 +158,18 @@ test('debounced rule saver keeps latest edit even without blur/change flush', as
 	);
 
 	await withFakeTimeouts(async ({ flushAll }) => {
-		saver.schedule('include/docs/**');
+		saver.schedule(makeState('include/docs/**'));
 		assert.deepEqual(savedValues, []);
 		await flushAll();
-		assert.deepEqual(savedValues, ['include/docs/**']);
+		assert.deepEqual(savedValues, [makeState('include/docs/**')]);
 	});
 });
 
 test('debounced rule saver dispose cancels pending save', async () => {
-	const savedValues: string[] = [];
+	const savedValues: RuleEditorUiState[] = [];
 	const saver = new DebouncedRuleChangeSaver(
 		400,
+		makeState(''),
 		async (value) => {
 			savedValues.push(value);
 		},
@@ -157,7 +177,7 @@ test('debounced rule saver dispose cancels pending save', async () => {
 	);
 
 	await withFakeTimeouts(async ({ flushAll }) => {
-		saver.schedule('docs/cancelled.md');
+		saver.schedule(makeState('docs/cancelled.md'));
 		saver.dispose();
 		await flushAll();
 		assert.deepEqual(savedValues, []);
@@ -165,9 +185,10 @@ test('debounced rule saver dispose cancels pending save', async () => {
 });
 
 test('debounced rule saver dispose is idempotent and blocks later saves', async () => {
-	const savedValues: string[] = [];
+	const savedValues: RuleEditorUiState[] = [];
 	const saver = new DebouncedRuleChangeSaver(
 		400,
+		makeState(''),
 		async (value) => {
 			savedValues.push(value);
 		},
@@ -177,8 +198,8 @@ test('debounced rule saver dispose is idempotent and blocks later saves', async 
 	await withFakeTimeouts(async ({ flushAll }) => {
 		saver.dispose();
 		saver.dispose();
-		saver.schedule('docs/ignored.md');
-		await saver.flush('docs/ignored-again.md');
+		saver.schedule(makeState('docs/ignored.md'));
+		await saver.flush(makeState('docs/ignored-again.md'));
 		await flushAll();
 		assert.deepEqual(savedValues, []);
 	});
@@ -187,12 +208,13 @@ test('debounced rule saver dispose is idempotent and blocks later saves', async 
 test('debounced rule saver dispose clears pending timer through owner window', async () => {
 	const saver = new DebouncedRuleChangeSaver(
 		400,
+		makeState(''),
 		async () => undefined,
 		() => undefined,
 	);
 
 	await withOwnedFakeTimeoutWindows(async ({ switchActiveWindow, windowA, windowB }) => {
-		saver.schedule('docs/a.md');
+		saver.schedule(makeState('docs/a.md'));
 		switchActiveWindow('B');
 		saver.dispose();
 
