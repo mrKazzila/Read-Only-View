@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { updateBooleanSetting } from '../src/settings-general.js';
+import {
+	renderModeSelector,
+	updateBooleanSetting,
+} from '../src/settings-general.js';
 import { DEFAULT_SETTINGS } from '../src/plugin-settings.js';
 import type { SettingsTabPlugin } from '../src/plugin-types.js';
+import { installDomMocks, MockHTMLElement } from './helpers/dom-mocks.js';
 
 function createPlugin(): SettingsTabPlugin & {
 	saveCalls: number;
@@ -27,6 +31,11 @@ function createPlugin(): SettingsTabPlugin & {
 	};
 
 	return plugin;
+}
+
+function collectTexts(root: MockHTMLElement): string[] {
+	return [root.textContent, ...root.getChildren().flatMap((child) => collectTexts(child))]
+		.filter((value) => value.length > 0);
 }
 
 test('general settings update saves and re-applies when enabling the plugin', async () => {
@@ -121,4 +130,42 @@ test('general settings update saves debug toggle without re-applying leaves', as
 	assert.equal(plugin.saveCalls, 1);
 	assert.deepEqual(plugin.applyReasons, []);
 	assert.equal(plugin.refreshCalls, 0);
+});
+
+test('mode selector renders priority copy and highlights the selected mode', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const plugin = createPlugin();
+
+	try {
+		renderModeSelector(container as unknown as HTMLElement, plugin, () => undefined);
+
+		const texts = collectTexts(container);
+		assert.ok(texts.includes('Mode'));
+		assert.ok(texts.includes('Only matched paths'));
+		assert.ok(texts.includes('All Markdown files'));
+		assert.ok(texts.includes('Exclude rules always win.'));
+		assert.ok(texts.includes('Priority: Exclude rules → all Markdown files mode → include rules.'));
+
+		const selectedOption = container.querySelector('.is-selected');
+		assert.ok(selectedOption);
+		assert.ok(collectTexts(selectedOption).includes('All Markdown files'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('mode selector shows the global warning when all-Markdown mode is enabled', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const plugin = createPlugin();
+
+	try {
+		plugin.settings.forceAllMarkdownReadOnly = true;
+		renderModeSelector(container as unknown as HTMLElement, plugin, () => undefined);
+
+		assert.ok(collectTexts(container).includes('All Markdown files mode is enabled'));
+	} finally {
+		dom.restore();
+	}
 });

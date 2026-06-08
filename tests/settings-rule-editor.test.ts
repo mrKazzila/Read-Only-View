@@ -87,59 +87,56 @@ function withOwnedFakeTimeoutWindows(
 	});
 }
 
-test('rules editor renders ignored-line warning after ignored indexes are updated', async () => {
+test('rules editor renders table rows, help copy, and inline warnings', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 
 	try {
 		await withFakeTimeouts(async ({ flushAll }) => {
-			const controller = renderRuleEditor({
+			renderRuleEditor({
 				containerEl: container as unknown as HTMLElement,
-				title: 'Include rules',
-				description: 'desc',
-				initialText: 'docs/a.md\ndocs/b.md',
-				useGlobPatterns: true,
+				includeRules: ['docs/a.md'],
+				excludeRules: ['drafts/*'],
+				useGlobPatterns: false,
 				onChange: async () => undefined,
 			});
 
-			controller.setIgnoredLineIndexes([1]);
 			await flushAll();
 		});
 
 		const texts = collectTexts(container);
-		assert.ok(texts.includes('⚠️'));
-		assert.ok(texts.includes(' Warning [2] docs/b.md'));
-		assert.ok(texts.includes(' Ignored'));
-		assert.ok(texts.includes('Ignored due to rule limit.'));
-		assert.ok(container.querySelector('.read-only-view-diagnostics-item-ignored'));
+		assert.ok(texts.includes('Exclude rules always win. Enabled is visual-only in this version.'));
+		assert.ok(texts.includes('Rule examples in readme'));
+		assert.ok(texts.includes('Examples: Notes/Summaries/ · Notes/Summaries/file.md · Archive/**/*.md · !Drafts/'));
+		assert.ok(texts.includes('Contains wildcard in prefix mode. It is treated as a literal character.'));
+		assert.equal(container.querySelectorAll('.read-only-view-rule-row').length, 2);
 	} finally {
 		dom.restore();
 	}
 });
 
-test('rules editor exposes textarea description and live save status to assistive tech', () => {
+test('rules editor exposes input description and live save status to assistive tech', () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 
 	try {
 		renderRuleEditor({
 			containerEl: container as unknown as HTMLElement,
-			title: 'Include rules',
-			description: 'One rule per line.',
-			initialText: 'docs/a.md',
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
 			useGlobPatterns: true,
 			onChange: async () => undefined,
 		});
 
-		const textarea = container.querySelector('textarea');
-		const saveStatus = container.querySelector('#read-only-view-include-rules-save-status');
-		const diagnostics = container.querySelector('#read-only-view-include-rules-diagnostics');
+		const input = container.querySelector('.read-only-view-rule-input');
+		const saveStatus = container.querySelector('#read-only-view-path-rules-save-status');
+		const diagnostics = container.querySelector('#read-only-view-path-rules-diagnostics');
 
-		assert.ok(textarea);
-		assert.equal(textarea.getAttr('aria-label'), 'Include rules');
+		assert.ok(input);
+		assert.equal(input.getAttr('aria-label'), 'Include rule value');
 		assert.equal(
-			textarea.getAttr('aria-describedby'),
-			'read-only-view-include-rules-description read-only-view-include-rules-save-status read-only-view-include-rules-diagnostics',
+			input.getAttr('aria-describedby'),
+			'read-only-view-path-rules-description read-only-view-path-rules-save-status read-only-view-path-rules-diagnostics',
 		);
 		assert.ok(saveStatus);
 		assert.equal(saveStatus.getAttr('role'), 'status');
@@ -155,32 +152,33 @@ test('rules editor exposes textarea description and live save status to assistiv
 test('rules editor save status moves through saving to saved on committed input', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
-	const committed: string[] = [];
+	const committed: Array<{ includeRules: string[]; excludeRules: string[]; reason: string }> = [];
 
 	try {
 		renderRuleEditor({
 			containerEl: container as unknown as HTMLElement,
-			title: 'Include rules',
-			description: 'desc',
-			initialText: 'docs/a.md',
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
 			useGlobPatterns: true,
-			onChange: async (value) => {
-				committed.push(value);
+			onChange: async (state, reason) => {
+				committed.push({ includeRules: state.includeRules, excludeRules: state.excludeRules, reason });
 			},
 		});
 
-		const textarea = container.querySelector('textarea');
-		assert.ok(textarea);
+		const input = container.querySelector('.read-only-view-rule-input');
+		assert.ok(input);
 
 		await withFakeTimeouts(async ({ flushAll }) => {
-			textarea.value = 'docs/updated.md';
-			textarea.trigger('input');
+			input.value = 'docs/updated.md';
+			input.trigger('input');
 
 			assert.ok(collectTexts(container).includes('Saving...'));
 			await flushAll();
 		});
 
-		assert.deepEqual(committed, ['docs/updated.md']);
+		assert.deepEqual(committed, [
+			{ includeRules: ['docs/updated.md'], excludeRules: [], reason: 'settings-include-rules' },
+		]);
 		assert.ok(collectTexts(container).includes('Saved.'));
 	} finally {
 		dom.restore();
@@ -194,21 +192,20 @@ test('rules editor save status shows failure when commit rejects', async () => {
 	try {
 		renderRuleEditor({
 			containerEl: container as unknown as HTMLElement,
-			title: 'Include rules',
-			description: 'desc',
-			initialText: 'docs/a.md',
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
 			useGlobPatterns: true,
 			onChange: async () => {
 				throw new Error('save failed');
 			},
 		});
 
-		const textarea = container.querySelector('textarea');
-		assert.ok(textarea);
+		const input = container.querySelector('.read-only-view-rule-input');
+		assert.ok(input);
 
 		await withFakeTimeouts(async ({ flushAll }) => {
-			textarea.value = 'docs/b.md';
-			textarea.trigger('input');
+			input.value = 'docs/b.md';
+			input.trigger('input');
 			await flushAll();
 		});
 
@@ -218,36 +215,37 @@ test('rules editor save status shows failure when commit rejects', async () => {
 	}
 });
 
-test('rules editor debounces diagnostics input and eventually renders latest state once', async () => {
+test('rules editor add rule button creates a new row and flushes combined save state', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
+	const committed: Array<{ includeRules: string[]; excludeRules: string[]; reason: string }> = [];
 
 	try {
-		await withFakeTimeouts(async ({ flushAll }) => {
-			renderRuleEditor({
-				containerEl: container as unknown as HTMLElement,
-				title: 'Include rules',
-				description: 'desc',
-				initialText: 'docs/a.md',
-				useGlobPatterns: true,
-				onChange: async () => undefined,
-			});
+		renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
+			useGlobPatterns: true,
+			onChange: async (state, reason) => {
+				committed.push({ includeRules: state.includeRules, excludeRules: state.excludeRules, reason });
+			},
+		});
 
-			const textarea = container.querySelector('textarea');
-			assert.ok(textarea);
-			textarea.value = 'docs/first.md';
-			textarea.trigger('input');
-			textarea.value = 'docs/latest.md';
-			textarea.trigger('input');
+		const addButton = container.querySelector('.read-only-view-add-rule-button');
+		assert.ok(addButton);
+		addButton.trigger('click');
 
-			const textsBeforeFlush = collectTexts(container);
-			assert.ok(!textsBeforeFlush.includes(' OK [1] docs/latest.md'));
+		const inputs = container.querySelectorAll('.read-only-view-rule-input');
+		assert.equal(inputs.length, 2);
+		inputs[1]!.value = 'docs/b.md';
+		inputs[1]!.trigger('change');
+		await Promise.resolve();
+		await Promise.resolve();
 
-			await flushAll();
-
-			const textsAfterFlush = collectTexts(container);
-			assert.ok(textsAfterFlush.includes(' OK [1] docs/latest.md'));
-			assert.ok(!textsAfterFlush.includes(' OK [1] docs/first.md'));
+		assert.deepEqual(committed.at(-1), {
+			includeRules: ['docs/a.md', 'docs/b.md'],
+			excludeRules: [],
+			reason: 'settings-path-rules',
 		});
 	} finally {
 		dom.restore();
@@ -257,65 +255,35 @@ test('rules editor debounces diagnostics input and eventually renders latest sta
 test('rules editor blur flushes pending diagnostics render immediately', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
+	const committed: string[] = [];
 
 	try {
 		await withFakeTimeouts(async () => {
 			renderRuleEditor({
 				containerEl: container as unknown as HTMLElement,
-				title: 'Include rules',
-				description: 'desc',
-				initialText: 'docs/a.md',
+				includeRules: ['docs/a.md'],
+				excludeRules: [],
 				useGlobPatterns: true,
-				onChange: async () => undefined,
+				onChange: async (state) => {
+					committed.push(state.includeRules.join(','));
+				},
 			});
 
-			const textarea = container.querySelector('textarea');
-			assert.ok(textarea);
-			textarea.value = 'docs/blurred.md';
-			textarea.trigger('input');
-			assert.ok(!collectTexts(container).includes(' OK [1] docs/blurred.md'));
+			const input = container.querySelector('.read-only-view-rule-input');
+			assert.ok(input);
+			input.value = 'docs/blurred.md';
+			input.trigger('input');
 
-			textarea.trigger('blur');
-			assert.ok(collectTexts(container).includes(' OK [1] docs/blurred.md'));
+			input.trigger('blur');
+			await Promise.resolve();
+			assert.deepEqual(committed, ['docs/blurred.md']);
 		});
 	} finally {
 		dom.restore();
 	}
 });
 
-test('rules editor dispose cancels pending diagnostics render', async () => {
-	const dom = installDomMocks();
-	const container = new MockHTMLElement();
-
-	try {
-		await withFakeTimeouts(async ({ flushAll }) => {
-			const controller = renderRuleEditor({
-				containerEl: container as unknown as HTMLElement,
-				title: 'Include rules',
-				description: 'desc',
-				initialText: 'docs/a.md',
-				useGlobPatterns: true,
-				onChange: async () => undefined,
-			});
-
-			const textarea = container.querySelector('textarea');
-			assert.ok(textarea);
-			textarea.value = 'docs/cancelled.md';
-			textarea.trigger('input');
-			controller.dispose();
-
-			await flushAll();
-
-			const texts = collectTexts(container);
-			assert.ok(!texts.includes(' OK [1] docs/cancelled.md'));
-			assert.ok(texts.includes(' OK [1] docs/a.md'));
-		});
-	} finally {
-		dom.restore();
-	}
-});
-
-test('rules editor dispose clears diagnostics debounce through owner window after focus switch', async () => {
+test('rules editor dispose cancels pending work through owner window after focus switch', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 
@@ -324,21 +292,20 @@ test('rules editor dispose clears diagnostics debounce through owner window afte
 			container.ownerDocument = { defaultView: windowA } as unknown as typeof container.ownerDocument;
 			const controller = renderRuleEditor({
 				containerEl: container as unknown as HTMLElement,
-				title: 'Include rules',
-				description: 'desc',
-				initialText: 'docs/a.md',
+				includeRules: ['docs/a.md'],
+				excludeRules: [],
 				useGlobPatterns: true,
 				onChange: async () => undefined,
 			});
 
-			const textarea = container.querySelector('textarea');
-			assert.ok(textarea);
-			textarea.value = 'docs/cancelled.md';
-			textarea.trigger('input');
+			const input = container.querySelector('.read-only-view-rule-input');
+			assert.ok(input);
+			input.value = 'docs/cancelled.md';
+			input.trigger('input');
 			switchActiveWindow('B');
 			controller.dispose();
 
-			assert.deepEqual(windowA.clearedIds, [2, 1]);
+			assert.deepEqual([...windowA.clearedIds].sort((left, right) => left - right), [1, 2]);
 			assert.deepEqual(windowB.clearedIds, []);
 		});
 	} finally {

@@ -47,17 +47,17 @@ function createPlugin() {
 	}> = [];
 	const applyReasons: string[] = [];
 	const plugin = {
-			settings: {
-				enabled: true,
-				forceAllMarkdownReadOnly: false,
-				useGlobPatterns: true,
-				caseSensitive: false,
-				debug: false,
-				debugVerbosePaths: false,
-				dismissedWelcomeVersion: 0,
-				includeRules: ['docs/a.md'],
-				excludeRules: [],
-			},
+		settings: {
+			enabled: true,
+			forceAllMarkdownReadOnly: false,
+			useGlobPatterns: true,
+			caseSensitive: false,
+			debug: false,
+			debugVerbosePaths: false,
+			dismissedWelcomeVersion: 0,
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
+		},
 		saveSettings: async () => {
 			saveCalls.push({
 				forceAllMarkdownReadOnly: plugin.settings.forceAllMarkdownReadOnly,
@@ -79,7 +79,7 @@ function collectTexts(root: MockHTMLElement): string[] {
 		.filter((value) => value.length > 0);
 }
 
-test('settings tab rerender disposes previous rule editors and cancels pending saves', async () => {
+test('settings tab rerender disposes previous rule editor and cancels pending saves', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 	const { plugin, saveCalls, applyReasons } = createPlugin();
@@ -89,11 +89,11 @@ test('settings tab rerender disposes previous rule editors and cancels pending s
 	try {
 		await withFakeTimeouts(async ({ flushAll }) => {
 			tab.display();
-			const initialTextareas = container.querySelectorAll('textarea');
-			assert.equal(initialTextareas.length, 2);
+			const initialInputs = container.querySelectorAll('.read-only-view-rule-input');
+			assert.equal(initialInputs.length, 1);
 
-			initialTextareas[0]!.value = 'docs/pending.md';
-			initialTextareas[0]!.trigger('input');
+			initialInputs[0]!.value = 'docs/pending.md';
+			initialInputs[0]!.trigger('input');
 
 			tab.display();
 			await flushAll();
@@ -101,10 +101,10 @@ test('settings tab rerender disposes previous rule editors and cancels pending s
 			assert.deepEqual(saveCalls, []);
 			assert.deepEqual(applyReasons, []);
 
-			const rerenderedTextareas = container.querySelectorAll('textarea');
-			assert.equal(rerenderedTextareas.length, 2);
-			rerenderedTextareas[0]!.value = 'docs/committed.md';
-			rerenderedTextareas[0]!.trigger('input');
+			const rerenderedInputs = container.querySelectorAll('.read-only-view-rule-input');
+			assert.equal(rerenderedInputs.length, 1);
+			rerenderedInputs[0]!.value = 'docs/committed.md';
+			rerenderedInputs[0]!.trigger('input');
 
 			await flushAll();
 
@@ -118,7 +118,7 @@ test('settings tab rerender disposes previous rule editors and cancels pending s
 	}
 });
 
-test('settings tab hide disposes rule editors and repeated hide is safe', async () => {
+test('settings tab hide disposes rule editor and repeated hide is safe', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 	const { plugin, saveCalls, applyReasons } = createPlugin();
@@ -128,11 +128,11 @@ test('settings tab hide disposes rule editors and repeated hide is safe', async 
 	try {
 		await withFakeTimeouts(async ({ flushAll }) => {
 			tab.display();
-			const textareas = container.querySelectorAll('textarea');
-			assert.equal(textareas.length, 2);
+			const inputs = container.querySelectorAll('.read-only-view-rule-input');
+			assert.equal(inputs.length, 1);
 
-			textareas[0]!.value = 'docs/hidden.md';
-			textareas[0]!.trigger('input');
+			inputs[0]!.value = 'docs/hidden.md';
+			inputs[0]!.trigger('input');
 
 			tab.hide();
 			tab.hide();
@@ -156,7 +156,7 @@ test('settings tab rerender cancels pending path tester render work', async () =
 	try {
 		await withFakeTimeouts(async ({ flushAll }) => {
 			tab.display();
-			const initialInput = container.querySelector('input');
+			const initialInput = container.querySelector('.read-only-view-path-tester input, input');
 			assert.ok(initialInput);
 
 			initialInput.value = 'docs/a.md';
@@ -168,14 +168,13 @@ test('settings tab rerender cancels pending path tester render work', async () =
 			const texts = collectTexts(container);
 			assert.ok(!texts.includes('Matched include: docs/a.md'));
 			assert.ok(texts.includes('Enter a file path to test.'));
-			assert.ok(container.querySelector('input'));
 		});
 	} finally {
 		dom.restore();
 	}
 });
 
-test('settings tab renders collapsible sections with expected default open state', () => {
+test('settings tab renders workflow-first sections with expected default open state', () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 	const { plugin } = createPlugin();
@@ -185,47 +184,31 @@ test('settings tab renders collapsible sections with expected default open state
 	try {
 		tab.display();
 
-		const staticTitle = container.querySelector('.read-only-view-section-title');
-		assert.equal(staticTitle?.textContent, 'Plugin');
+		const texts = collectTexts(container);
+		assert.ok(texts.includes('Read Only View'));
+		assert.ok(texts.includes('Read-only behavior'));
+		assert.ok(texts.includes('Keep selected Markdown notes in Reading view'));
+		assert.ok(texts.includes('Active rules: 1'));
+		assert.ok(texts.includes('Mode'));
+		assert.ok(texts.includes('Advanced'));
 
 		const disclosureTitles = container.querySelectorAll('.read-only-view-disclosure-title').map((el) => el.textContent);
 		assert.deepEqual(disclosureTitles, [
-			'Matching',
 			'Path rules',
 			'Path tester',
+			'Matching',
 			'Debug flags',
 		]);
 
-		const disclosures = container.querySelectorAll('.read-only-view-disclosure');
-		assert.ok(disclosures[0]?.matches('.read-only-view-disclosure'));
+		const disclosures = container.querySelectorAll('.read-only-view-disclosure-row');
+		assert.equal(disclosures.length, 2);
 		assert.ok(!disclosures[0]?.matches('.is-open'));
 		assert.ok(!disclosures[1]?.matches('.is-open'));
-		assert.ok(!disclosures[2]?.matches('.is-open'));
 
-		const texts = collectTexts(container);
-		assert.ok(texts.includes('Enabled'));
-		assert.ok(texts.includes('Choose how paths are compared before any include or exclude rule is evaluated.'));
-		assert.ok(texts.includes('Configure include and exclude path rules. Exclude rules always win over matching include rules.'));
-		assert.ok(texts.includes('Test a vault path against the current rules before you change matching settings or rule text.'));
-		assert.ok(texts.includes('Enable extra logging only when diagnosing rule behavior. Verbose path logging may expose full file paths in developer console logs.'));
-	} finally {
-		dom.restore();
-	}
-});
-
-test('rules section stays collapsed by default even when no include rules are configured', () => {
-	const dom = installDomMocks();
-	const container = new MockHTMLElement();
-	const { plugin } = createPlugin();
-	plugin.settings.includeRules = [];
-	const tab = new ForceReadModeSettingTab({} as never, plugin as never);
-	tab.containerEl = container as unknown as HTMLElement;
-
-	try {
-		tab.display();
-
-		const disclosures = container.querySelectorAll('.read-only-view-disclosure');
-		assert.ok(!disclosures[1]?.matches('.is-open'));
+		assert.ok(texts.includes('1 include · 0 exclude'));
+		assert.ok(texts.includes('Glob matching · Case-insensitive'));
+		assert.ok(texts.includes('Ready to test'));
+		assert.ok(texts.includes('Off'));
 	} finally {
 		dom.restore();
 	}
@@ -241,13 +224,14 @@ test('collapsible section opens on click without rerender', () => {
 	try {
 		tab.display();
 
-		const matchingToggle = container.querySelector('button');
-		assert.ok(matchingToggle);
-		matchingToggle.trigger('click');
+		const disclosureButtons = container.querySelectorAll('.read-only-view-disclosure-toggle');
+		const pathTesterToggle = disclosureButtons[1];
+		assert.ok(pathTesterToggle);
+		pathTesterToggle.trigger('click');
 
-		const disclosures = container.querySelectorAll('.read-only-view-disclosure');
-		assert.ok(disclosures[0]?.matches('.is-open'));
-		assert.equal(matchingToggle.getAttr('aria-expanded'), 'true');
+		const disclosures = container.querySelectorAll('.read-only-view-disclosure-row');
+		assert.ok(disclosures[1]?.matches('.is-open'));
+		assert.equal(pathTesterToggle.getAttr('aria-expanded'), 'true');
 	} finally {
 		dom.restore();
 	}
@@ -263,15 +247,16 @@ test('collapsible section stays open across settings tab rerender', () => {
 	try {
 		tab.display();
 
-		const matchingToggle = container.querySelector('button');
-		assert.ok(matchingToggle);
-		matchingToggle.trigger('click');
+		const disclosureButtons = container.querySelectorAll('.read-only-view-disclosure-toggle');
+		const pathTesterToggle = disclosureButtons[1];
+		assert.ok(pathTesterToggle);
+		pathTesterToggle.trigger('click');
 
 		tab.display();
 
-		const disclosures = container.querySelectorAll('.read-only-view-disclosure');
-		assert.ok(disclosures[0]?.matches('.is-open'));
-		const rerenderedToggle = container.querySelector('button');
+		const disclosures = container.querySelectorAll('.read-only-view-disclosure-row');
+		assert.ok(disclosures[1]?.matches('.is-open'));
+		const rerenderedToggle = container.querySelectorAll('.read-only-view-disclosure-toggle')[1];
 		assert.equal(rerenderedToggle?.getAttr('aria-expanded'), 'true');
 	} finally {
 		dom.restore();
@@ -288,21 +273,21 @@ test('collapsible section state resets after settings tab hide', () => {
 	try {
 		tab.display();
 
-		const matchingToggle = container.querySelector('button');
-		assert.ok(matchingToggle);
-		matchingToggle.trigger('click');
+		const pathTesterToggle = container.querySelectorAll('.read-only-view-disclosure-toggle')[1];
+		assert.ok(pathTesterToggle);
+		pathTesterToggle.trigger('click');
 
 		tab.hide();
 		tab.display();
 
-		const disclosures = container.querySelectorAll('.read-only-view-disclosure');
-		assert.ok(!disclosures[0]?.matches('.is-open'));
+		const disclosures = container.querySelectorAll('.read-only-view-disclosure-row');
+		assert.ok(!disclosures[1]?.matches('.is-open'));
 	} finally {
 		dom.restore();
 	}
 });
 
-test('saved rule change disables all-Markdown preset automatically', async () => {
+test('saved rule change disables all-Markdown preset automatically and updates active rules badge', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 	const { plugin, saveCalls, applyReasons } = createPlugin();
@@ -313,11 +298,11 @@ test('saved rule change disables all-Markdown preset automatically', async () =>
 	try {
 		await withFakeTimeouts(async ({ flushAll }) => {
 			tab.display();
-			const textareas = container.querySelectorAll('textarea');
-			assert.equal(textareas.length, 2);
+			const inputs = container.querySelectorAll('.read-only-view-rule-input');
+			assert.equal(inputs.length, 1);
 
-			textareas[0]!.value = 'docs/changed.md';
-			textareas[0]!.trigger('input');
+			inputs[0]!.value = 'docs/changed.md';
+			inputs[0]!.trigger('input');
 			await flushAll();
 
 			assert.equal(plugin.settings.forceAllMarkdownReadOnly, false);
@@ -325,6 +310,14 @@ test('saved rule change disables all-Markdown preset automatically', async () =>
 				{ forceAllMarkdownReadOnly: false, includeRules: ['docs/changed.md'], excludeRules: [] },
 			]);
 			assert.deepEqual(applyReasons, ['settings-include-rules']);
+			const texts = collectTexts(container);
+			assert.ok(texts.includes('Active rules: 1'));
+			assert.ok(!texts.includes('All Markdown files mode is enabled'));
+			const selectedOption = container
+				.querySelectorAll('.read-only-view-mode-option')
+				.find((option) => option.matches('.is-selected'));
+			assert.ok(selectedOption);
+			assert.ok(collectTexts(selectedOption).includes('Only matched paths'));
 		});
 	} finally {
 		dom.restore();

@@ -217,30 +217,51 @@ UI module split:
   - shown only when `dismissedWelcomeVersion < WELCOME_VERSION`
   - dismissing or using `Open settings` saves the current onboarding version
 - Settings layout uses one always-visible plugin block plus plugin-owned collapsible sections with ephemeral open state
-- Plugin block:
-  - short behavior summary
+- Header card:
+  - title `Read Only View`
+  - subtitle `Read-only behavior`
+  - support copy for the primary workflow
+  - `Active rules: N` badge
+  - global warning pill when all-Markdown mode is enabled
+- Mode card:
   - `Enabled`
-  - `All Markdown files read-only`
-- Matching section:
-  - `Use glob patterns`
-  - `Case sensitive`
+  - radio-style mode selector backed by persisted `forceAllMarkdownReadOnly`
+  - visible priority copy:
+    - exclude rules always win
+    - priority order is exclude -> all-Markdown mode -> include
 - Path rules section:
-  - include/exclude editors
-  - preset override note while the all-Markdown preset is enabled
+  - expanded by default
+  - compact disclosure summary (`X include · Y exclude`)
+  - table-style rule rows with columns:
+    - enabled (visual-only, always on in this schema version)
+    - type
+    - value
+    - delete
+  - add-rule button
+  - inline syntax help and README link
   - rule usage summary
   - warning banners and diagnostics
 - Path tester section:
+  - compact disclosure summary
   - include matches
   - exclude matches
   - preset override note when the all-Markdown preset is driving the final result
   - final `READ-ONLY ON/OFF`
-- Debug flags section:
-  - `Debug logging`
-  - `Debug: verbose paths`
-  - warning text about full path exposure in console logs
+  - visible `Read-only` / `Editable` status pill
+- Advanced section:
+  - `Matching`
+    - `Use glob patterns`
+    - `Case sensitive`
+  - `Debug flags`
+    - `Debug logging`
+    - `Debug: verbose paths`
+    - warning text about full path exposure in console logs
 - Settings toggles are rendered with plugin-owned layout rows backed by `ToggleComponent`.
 - `Debug: verbose paths` toggle allows full file paths in debug logs; default keeps paths redacted
-- Rule textareas: include/exclude (one rule per line)
+- Persisted settings schema remains unchanged:
+  - `forceAllMarkdownReadOnly: boolean`
+  - `includeRules: string[]`
+  - `excludeRules: string[]`
 - Rule usage summary:
   - `Include: X rules · Exclude: Y rules · Total: Z` (`+N ignored` when capped)
 - Rule volume warnings (inline banner, no toast):
@@ -252,13 +273,10 @@ UI module split:
   - flush on `blur` and `change`
   - status text: `Saving...`, `Saved.`, `Save failed.`
   - any successfully saved include/exclude rules change disables `All Markdown files read-only`
-- Diagnostics list per line:
-  - `✅` healthy, marked `aria-hidden` with adjacent text status for screen readers
-  - `⚠️` suspicious (empty lines, wildcard in prefix mode, normalization/folder-hint changes), marked `aria-hidden` with adjacent text status for screen readers
-  - ignored line marker (`Ignored`) and inline warning (`Ignored due to rule limit.`) for rules truncated by caps
-  - empty lines render as `(empty line)` and do not receive synthetic `/` normalization
-  - warning details are rendered inline in nested semantic lists (`ul/li`) and announced via `aria-live`
-  - diagnostics panel is capped with local scroll for mobile/tablet readability
+- Diagnostics rendering:
+  - warnings are attached inline to each rule row where practical
+  - aggregate diagnostics still render in a local scrolling panel
+  - ignored line marker (`Ignored due to rule limit.`) still comes from the same cap logic
 - Path tester long strings wrap to avoid horizontal overflow on narrow screens
 - Keyboard QA note:
   - if pressing `Space` scrolls the settings pane during toggle testing, inspect `document.activeElement` before treating it as a toggle bug

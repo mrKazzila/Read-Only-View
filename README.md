@@ -16,7 +16,7 @@ Privacy: no network requests, all rule matching stays local.
 
 Read Only View forces `.md` notes to stay in Reading view.
 
-- Use the top-level preset to make all Markdown files read-only at once.
+- Use the mode selector to choose between matched paths and all-Markdown behavior.
 - Use include rules to limit read-only mode to selected paths when the preset is off.
 - Use exclude rules to carve out exceptions from matching include rules.
 - Match one folder, one file, or a broader pattern set.
@@ -35,10 +35,10 @@ This additional editor layer is intended to cover contexts such as Page Preview 
 
 By default:
 
-- `All Markdown files read-only` is on, so every `.md` note is protected immediately.
+- `Mode` starts on `All Markdown files`, so every `.md` note is protected immediately.
 - `Use glob patterns` is off, so rules are matched as plain path prefixes.
 - `Case sensitive` is on.
-- `Exclude` rules override matching include rules.
+- `Exclude` rules always override matching include rules.
 
 First working setup in default mode:
 
@@ -46,9 +46,9 @@ First working setup in default mode:
 2. Search for `Read Only View`, then **Install** and **Enable** it.
 3. Open **Settings → Read Only View**.
 4. Review the welcome modal once, then open the settings page if needed.
-5. Make sure `Enabled` is on in the always-visible **Plugin** section.
-6. If you want path-based behavior instead of the global preset, turn `All Markdown files read-only` off.
-7. In the **Path rules** section, add an include rule such as:
+5. Make sure `Enabled` is on near the top of the settings screen.
+6. If you want path-based behavior instead of the global preset, change `Mode` to `Only matched paths`.
+7. In the expanded **Path rules** section, add an include rule such as:
 
 ```text
 projects/
@@ -167,9 +167,10 @@ See [docs/E2E_TESTING.md](docs/E2E_TESTING.md) for setup details and known limit
 ## How matching works
 
 - Only Markdown files (`.md`) are affected.
-- When `All Markdown files read-only` is on, every Markdown note becomes read-only and saved path rules are ignored.
-- When that preset is off, a note becomes read-only only if at least one include rule matches it.
+- When `All Markdown files` mode is on, every Markdown note becomes read-only and include rules are ignored.
+- When `Only matched paths` mode is on, a note becomes read-only only if at least one include rule matches it.
 - If an include rule and an `Exclude` rule both match, the `Exclude` rule wins.
+- Priority is always: `Exclude rules` → `All Markdown files` mode → `Include rules`.
 - With `Use glob patterns` off, rules are treated as plain path prefixes.
 - With `Use glob patterns` on, rules may use `*`, `**`, and `?`.
 - Matching is case-sensitive unless you turn `Case sensitive` off.
@@ -246,16 +247,21 @@ Available from the Command Palette:
 
 In **Settings → Read Only View**, you can configure:
 
-- `Plugin`
+- header summary
+  - `Active rules: N`
+  - warning when `All Markdown files` mode is enabled
+- `Mode`
   - `Enabled`
-- `Matching`
-  - `Use glob patterns`
-  - `Case sensitive`
+  - `Only matched paths`
+  - `All Markdown files`
 - `Path rules`
-  - `Include rules`
-  - `Exclude rules`
+  - table-style include/exclude rules
   - inline diagnostics and rule-volume warnings
 - `Path tester`
+- `Advanced`
+  - `Matching`
+    - `Use glob patterns`
+    - `Case sensitive`
 - `Debug flags`
   - `Debug logging`
   - `Debug: verbose paths`
@@ -266,14 +272,16 @@ While editing rules:
 
 - settings are saved automatically after a short delay
 - status text shows `Saving...`, `Saved.`, or `Save failed.`
-- diagnostics show suspicious or non-effective lines inline
+- diagnostics show suspicious or non-effective rows inline
 - very large rule sets may cause extra lines to be ignored
+- rule syntax help links to the [rule examples](https://github.com/mrKazzila/Read-Only-View#rule-examples)
 
 Use **Path tester** to paste the exact note path and confirm:
 
 - which include rules matched
 - which exclude rules matched
 - whether the final result is `READ-ONLY ON` or `READ-ONLY OFF`
+- whether the path is shown as `Read-only` or `Editable`
 
 ![Screenshot of matching rules in the settings tab](docs/images/Read-Only-View-rules.png)
 

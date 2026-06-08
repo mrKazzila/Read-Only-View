@@ -20,6 +20,10 @@ export type PathTesterController = {
 	dispose: () => void;
 };
 
+export function getPathTesterSummary(): string {
+	return 'Ready to test';
+}
+
 export function renderPathTester(
 	containerEl: HTMLElement,
 	options: PathTesterRenderOptions,
@@ -27,13 +31,14 @@ export function renderPathTester(
 	const ownerWindow = containerEl.ownerDocument?.defaultView;
 	const wrapperEl = containerEl.createDiv({ cls: 'read-only-view-path-tester' });
 	wrapperEl.createEl('p', {
-		text: 'Enter a path exactly as file.path in Obsidian. Shows include/exclude matches and final read-only result.',
+		text: 'Enter a path exactly as file.path in Obsidian. Review include and exclude matches before changing rules or matching settings.',
 		cls: 'setting-item-description',
 	});
 
 	const inputEl = wrapperEl.createEl('input', { type: 'text' });
 	inputEl.placeholder = 'project_a/subfolder/file_1.md';
 	inputEl.addClass('read-only-view-full-width');
+	inputEl.setAttr('aria-label', 'Path to test');
 
 	const resultEl = wrapperEl.createDiv({ cls: 'read-only-view-path-tester-result' });
 
@@ -49,18 +54,33 @@ export function renderPathTester(
 			return;
 		}
 
-		resultEl.createDiv({
+		const statusEl = resultEl.createDiv({ cls: 'read-only-view-path-status-row' });
+		statusEl.createSpan({
+			text: finalReadOnly ? 'Read-only' : 'Editable',
+			cls: `read-only-view-path-status-pill ${finalReadOnly ? 'is-read-only' : 'is-editable'}`,
+		});
+		statusEl.createSpan({
+			text: finalReadOnly
+				? 'This path resolves to Reading view.'
+				: excludeMatches.length > 0
+					? 'This path is excluded and stays editable.'
+					: 'This path stays editable with the current settings.',
+			cls: 'read-only-view-path-status-copy',
+		});
+
+		const detailsEl = resultEl.createDiv({ cls: 'read-only-view-path-result-details' });
+		detailsEl.createDiv({
 			text: `Matched include: ${includeMatches.length > 0 ? includeMatches.join(', ') : 'none'}`,
 		});
-		resultEl.createDiv({
+		detailsEl.createDiv({
 			text: `Matched exclude: ${excludeMatches.length > 0 ? excludeMatches.join(', ') : 'none'}`,
 		});
 		if (presetApplied) {
-			resultEl.createDiv({
+			detailsEl.createDiv({
 				text: 'Preset override: all Markdown files are currently read-only. Saved path rules are ignored.',
 			});
 		}
-		resultEl.createDiv({
+		detailsEl.createDiv({
 			text: `Result: ${finalReadOnly ? 'READ-ONLY ON' : 'READ-ONLY OFF'}`,
 		});
 	};
