@@ -33,6 +33,7 @@ dist/
 build/
 build-tests/
 coverage/
+.tmp/
 *.tsbuildinfo
 
 # logs

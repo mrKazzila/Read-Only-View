@@ -10,21 +10,31 @@
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"test": "tsc -p tsconfig.test.json && node tests/helpers/prepare-obsidian-runtime.mjs && node --test build-tests/**/*.test.js",
-		"lint": "eslint ."
+		"lint": "eslint .",
+		"test:e2e": "npm run build && python3 scripts/create_demo_vault.py --force && wdio run wdio.conf.mjs",
+		"test:e2e:debug": "npm run build && python3 scripts/create_demo_vault.py --force && wdio run wdio.conf.mjs --logLevel info"
 	},
 	"keywords": [],
 	"license": "0BSD",
 	"devDependencies": {
 		"@eslint/js": "9.30.1",
 		"@types/node": "^16.11.6",
+		"@wdio/cli": "^9.27.2",
+		"@wdio/electron-service": "^10.0.0",
+		"@wdio/local-runner": "^9.27.2",
+		"@wdio/mocha-framework": "^9.27.2",
+		"@wdio/spec-reporter": "^9.27.2",
+		"electron": "^32.2.5",
 		"esbuild": "0.25.5",
 		"eslint-plugin-obsidianmd": "0.2.8",
+		"expect-webdriverio": "^5.6.7",
 		"globals": "14.0.0",
 		"jiti": "2.6.1",
 		"obsidian": "1.10.3",
 		"tslib": "2.4.0",
 		"typescript": "^5.8.3",
-		"typescript-eslint": "8.35.1"
+		"typescript-eslint": "8.35.1",
+		"webdriverio": "^9.27.2"
 	},
 	"dependencies": {
 		"@codemirror/state": "^6.5.0",

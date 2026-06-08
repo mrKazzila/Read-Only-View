@@ -15,6 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_VAULT_DIR = REPO_ROOT / "demo-vault"
 PLUGIN_SETTINGS = {
     "enabled": True,
+    "forceAllMarkdownReadOnly": False,
     "useGlobPatterns": False,
     "caseSensitive": True,
     "debug": False,

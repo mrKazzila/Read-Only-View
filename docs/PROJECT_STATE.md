@@ -17,6 +17,9 @@ This document is a living system map for the `read-only-view` Obsidian plugin.
 - Demo vault default rules use prefix mode and configure:
   - include: `Read Only/`, `Archive/`
   - exclude: `Read Only/Drafts/`
+- Desktop E2E smoke tests also reuse that same repo-local `./demo-vault` fixture instead of creating a second vault generator.
+- The opt-in E2E entrypoint is `npm run test:e2e` (or `npm run test:e2e:debug`), which builds the plugin, recreates `./demo-vault`, and launches Obsidian against that synthetic vault through WebdriverIO.
+- The E2E workflow defaults to macOS binary path `/Applications/Obsidian.app/Contents/MacOS/Obsidian` and accepts `OBSIDIAN_PATH` for override.
 
 ## 1) Architecture
 
@@ -115,6 +118,8 @@ High-level modules:
   - Debug logging privacy coverage for path redaction/verbose mode and fallback error diagnostics
 - `tests/workspace-events.test.ts`
   - Workspace-event controller coverage for targeted bursts, full-scan fallback, and timer cleanup
+- `tests/e2e/specs/read-only-smoke.e2e.mjs`
+  - Desktop smoke coverage for real Obsidian startup, demo-vault loading, protected-note Reading view enforcement, and editable behavior for excluded/non-matching notes
 
 Design intent:
 

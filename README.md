@@ -149,6 +149,21 @@ just demo-vault-no-plugin
 
 See [docs/DEMO_VAULT.md](docs/DEMO_VAULT.md) for setup details and recommended recording scenarios.
 
+### Desktop E2E smoke tests
+
+Use the repo-local synthetic `demo-vault` for desktop Obsidian smoke tests as well.
+
+```bash
+npm run test:e2e
+npm run test:e2e:debug
+```
+
+- `npm run test:e2e` builds the plugin, recreates `./demo-vault`, and runs the opt-in WebdriverIO smoke suite.
+- The suite never uses a personal vault. It launches Obsidian only against the generated repo-local `demo-vault`.
+- Set `OBSIDIAN_PATH` if your Obsidian binary is not at the default macOS path `/Applications/Obsidian.app/Contents/MacOS/Obsidian`.
+
+See [docs/E2E_TESTING.md](docs/E2E_TESTING.md) for setup details and known limitations, and [docs/TEST_COVERAGE_AUDIT.md](docs/TEST_COVERAGE_AUDIT.md) for the current automation coverage audit.
+
 ## How matching works
 
 - Only Markdown files (`.md`) are affected.
@@ -304,6 +319,7 @@ npm install
 npm run lint
 npm test
 npm run build
+npm run test:e2e
 ```
 
 For installing the plugin into a local test vault, use `just link-plugin`; remove it later with `just unlink-plugin`.
