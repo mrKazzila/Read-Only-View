@@ -289,7 +289,7 @@ test('collapsible section state resets after settings tab hide', () => {
 	}
 });
 
-test('saved rule change disables all-Markdown preset automatically and updates active rules badge', async () => {
+test('saved rule change preserves all-Markdown preset and updates active rules badge', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 	const { plugin, saveCalls, applyReasons } = createPlugin();
@@ -307,19 +307,19 @@ test('saved rule change disables all-Markdown preset automatically and updates a
 			inputs[0]!.trigger('input');
 			await flushAll();
 
-			assert.equal(plugin.settings.forceAllMarkdownReadOnly, false);
+			assert.equal(plugin.settings.forceAllMarkdownReadOnly, true);
 			assert.deepEqual(saveCalls, [
-				{ forceAllMarkdownReadOnly: false, includeRules: ['docs/changed.md'], excludeRules: [] },
+				{ forceAllMarkdownReadOnly: true, includeRules: ['docs/changed.md'], excludeRules: [] },
 			]);
 			assert.deepEqual(applyReasons, ['settings-include-rules']);
 			const texts = collectTexts(container);
-			assert.ok(texts.includes('Active rules: 1'));
-			assert.ok(!texts.includes('All Markdown files mode is enabled'));
+			assert.ok(texts.includes('Active rules: 0'));
+			assert.ok(texts.includes('All Markdown files mode is enabled'));
 			const selectedOption = container
 				.querySelectorAll('.read-only-view-mode-option')
 				.find((option) => option.matches('.is-selected'));
 			assert.ok(selectedOption);
-			assert.ok(collectTexts(selectedOption).includes('Only matched paths'));
+			assert.ok(collectTexts(selectedOption).includes('All Markdown files'));
 		});
 	} finally {
 		dom.restore();

@@ -39,7 +39,9 @@ type HeaderIndicatorsController = {
 };
 
 function getActiveRulesCount(settings: SettingsTabPlugin['settings']): number {
-	return settings.includeRules.filter((_, index) => settings.includeRuleEnabled[index] !== false).length
+	return (settings.forceAllMarkdownReadOnly
+		? 0
+		: settings.includeRules.filter((_, index) => settings.includeRuleEnabled[index] !== false).length)
 		+ settings.excludeRules.filter((_, index) => settings.excludeRuleEnabled[index] !== false).length;
 }
 
@@ -75,6 +77,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 				this.plugin.settings.excludeRules,
 				this.plugin.settings.includeRuleEnabled,
 				this.plugin.settings.excludeRuleEnabled,
+				!this.plugin.settings.forceAllMarkdownReadOnly,
 			),
 		);
 		this.ruleEditor = renderRuleEditor({
@@ -84,28 +87,22 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 			includeRuleEnabled: this.plugin.settings.includeRuleEnabled,
 			excludeRuleEnabled: this.plugin.settings.excludeRuleEnabled,
 			useGlobPatterns: this.plugin.settings.useGlobPatterns,
+			includeRulesActive: !this.plugin.settings.forceAllMarkdownReadOnly,
 			onChange: async (state, reason) => {
-				const presetWasEnabled = this.plugin.settings.forceAllMarkdownReadOnly;
 				this.plugin.settings.includeRules = state.includeRules;
 				this.plugin.settings.excludeRules = state.excludeRules;
 				this.plugin.settings.includeRuleEnabled = state.includeRuleEnabled;
 				this.plugin.settings.excludeRuleEnabled = state.excludeRuleEnabled;
-				if (presetWasEnabled) {
-					this.plugin.settings.forceAllMarkdownReadOnly = false;
-				}
 				await this.plugin.saveSettings();
 				this.plugin.refreshEditorOptions();
 				await this.plugin.applyAllOpenMarkdownLeaves(reason);
-				if (presetWasEnabled) {
-					this.display();
-					return;
-				}
 				pathRulesSection.setSummary(
 					getPathRulesSummary(
 						state.includeRules,
 						state.excludeRules,
 						state.includeRuleEnabled,
 						state.excludeRuleEnabled,
+						!this.plugin.settings.forceAllMarkdownReadOnly,
 					),
 				);
 			},

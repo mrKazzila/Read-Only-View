@@ -438,7 +438,8 @@
 	min-width: 0;
 }
 
-.read-only-view-rule-row.is-disabled > td:not(:first-child) {
+.read-only-view-rule-row.is-disabled > td:not(:first-child),
+.read-only-view-rule-row.is-inactive-by-mode > td:not(:first-child) {
 	opacity: 0.58;
 }
 

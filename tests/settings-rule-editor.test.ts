@@ -151,6 +151,47 @@ test('rules editor persists enabled checkbox changes', async () => {
 	}
 });
 
+test('all-Markdown mode visually inactivates only include rules without changing enabled state', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			includeRules: ['docs/a.md', 'docs/b.md'],
+			excludeRules: ['docs/private.md', 'docs/archive.md'],
+			includeRuleEnabled: [true, false],
+			excludeRuleEnabled: [true, false],
+			useGlobPatterns: true,
+			includeRulesActive: false,
+			onChange: async () => undefined,
+		});
+
+		const rows = container.querySelectorAll('.read-only-view-rule-row');
+		assert.equal(rows.length, 4);
+		assert.ok(rows[0]?.matches('.is-inactive-by-mode'));
+		assert.ok(rows[1]?.matches('.is-inactive-by-mode'));
+		assert.ok(!rows[2]?.matches('.is-inactive-by-mode'));
+		assert.ok(!rows[3]?.matches('.is-inactive-by-mode'));
+		assert.ok(rows[3]?.matches('.is-disabled'));
+
+		const toggles = container.querySelectorAll('.read-only-view-rule-enabled-toggle');
+		assert.equal(toggles[0]?.checked, true);
+		assert.equal(toggles[1]?.checked, false);
+		assert.equal(toggles[2]?.checked, true);
+		assert.equal(toggles[3]?.checked, false);
+
+		const texts = collectTexts(container);
+		assert.ok(texts.includes('Include rules are inactive while all Markdown files mode is enabled.'));
+		assert.ok(texts.includes('Inactive in all Markdown files mode.'));
+		assert.ok(texts.includes('Include: 0 rules · Exclude: 1 rules · Total: 1'));
+		assert.ok(!texts.includes('Include [1] (empty line)'));
+		assert.ok(!texts.includes('Empty or whitespace-only line.'));
+	} finally {
+		dom.restore();
+	}
+});
+
 test('rules editor exposes input description and live save status to assistive tech', () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();

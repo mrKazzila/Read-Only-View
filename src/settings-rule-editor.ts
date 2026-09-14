@@ -30,6 +30,7 @@ type RuleRowController = {
 	type: RuleType;
 	indexWithinType: number;
 	enabled: boolean;
+	inactiveByMode: boolean;
 	messageEl: HTMLElement;
 };
 
@@ -60,6 +61,7 @@ type RenderRuleEditorOptions = {
 	includeRuleEnabled?: boolean[];
 	excludeRuleEnabled?: boolean[];
 	useGlobPatterns: boolean;
+	includeRulesActive?: boolean;
 	onChange: (state: RuleEditorUiState, reason: string) => Promise<void>;
 	onStateChange?: (state: RuleEditorRenderState) => void;
 };
@@ -85,7 +87,7 @@ function buildRuleCountsSummary(includeCount: number, excludeCount: number): str
 	return `${includeCount} include · ${excludeCount} exclude`;
 }
 
-function buildRulesPayload(rows: RuleRowState[]): RuleEditorUiState {
+function buildRulesPayload(rows: RuleRowState[], includeRulesActive = true): RuleEditorUiState {
 	const includeText = buildRulesText(rows, 'include');
 	const excludeText = buildRulesText(rows, 'exclude');
 	return {
@@ -95,7 +97,9 @@ function buildRulesPayload(rows: RuleRowState[]): RuleEditorUiState {
 		excludeRuleEnabled: buildRuleEnabledStates(rows, 'exclude'),
 		includeText,
 		excludeText,
-		activeIncludeText: buildRulesText(rows.filter((row) => row.enabled), 'include'),
+		activeIncludeText: includeRulesActive
+			? buildRulesText(rows.filter((row) => row.enabled), 'include')
+			: '',
 		activeExcludeText: buildRulesText(rows.filter((row) => row.enabled), 'exclude'),
 	};
 }
@@ -255,14 +259,18 @@ export function getPathRulesSummary(
 	excludeRules: string[],
 	includeRuleEnabled: boolean[],
 	excludeRuleEnabled: boolean[],
+	includeRulesActive = true,
 ): string {
-	const includeCount = includeRules.filter((_, index) => includeRuleEnabled[index] !== false).length;
+	const includeCount = includeRulesActive
+		? includeRules.filter((_, index) => includeRuleEnabled[index] !== false).length
+		: 0;
 	const excludeCount = excludeRules.filter((_, index) => excludeRuleEnabled[index] !== false).length;
 	return buildRuleCountsSummary(includeCount, excludeCount);
 }
 
 export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorController {
 	const { containerEl } = options;
+	const includeRulesActive = options.includeRulesActive ?? true;
 	const ownerWindow = containerEl.ownerDocument?.defaultView;
 	let nextRowId = 1;
 	let rows: RuleRowState[] = [
@@ -294,6 +302,12 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		cls: 'setting-item-description',
 	});
 	descriptionEl.setAttr('id', descriptionId);
+	if (!includeRulesActive) {
+		titleWrapEl.createEl('p', {
+			text: 'Include rules are inactive while all Markdown files mode is enabled.',
+			cls: 'setting-item-description',
+		});
+	}
 	renderHelpLink(rulesHelpRowEl);
 
 	const summaryEl = sectionEl.createDiv({ cls: 'read-only-view-rules-summary' });
@@ -345,7 +359,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		saveStatusEl.setText('Saved.');
 	};
 
-	const getCurrentPayload = (): RuleEditorUiState => buildRulesPayload(rows);
+	const getCurrentPayload = (): RuleEditorUiState => buildRulesPayload(rows, includeRulesActive);
 	let rowControllers = new Map<number, RuleRowController>();
 
 	const saver = new DebouncedRuleChangeSaver(
@@ -377,7 +391,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		}
 
 		options.onStateChange?.({
-			includeCount: payload.includeRuleEnabled.filter(Boolean).length,
+			includeCount: includeRulesActive ? payload.includeRuleEnabled.filter(Boolean).length : 0,
 			excludeCount: payload.excludeRuleEnabled.filter(Boolean).length,
 		});
 
@@ -387,11 +401,13 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	const renderDiagnostics = () => {
 		const payload = getCurrentPayload();
 		const uiState = renderSummaryState();
-		const includeEntries = buildRuleDiagnosticsWithIgnoredLines(
-			payload.activeIncludeText,
-			options.useGlobPatterns,
-			new Set<number>(uiState.ignoredIncludeLineIndexes),
-		);
+		const includeEntries: RuleDiagnosticsEntry[] = includeRulesActive
+			? buildRuleDiagnosticsWithIgnoredLines(
+				payload.activeIncludeText,
+				options.useGlobPatterns,
+				new Set<number>(uiState.ignoredIncludeLineIndexes),
+			)
+			: [];
 		const excludeEntries = buildRuleDiagnosticsWithIgnoredLines(
 			payload.activeExcludeText,
 			options.useGlobPatterns,
@@ -400,6 +416,13 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 
 		for (const controller of rowControllers.values()) {
 			controller.messageEl.empty();
+			if (controller.inactiveByMode) {
+				controller.messageEl.createDiv({
+					text: 'Inactive in all Markdown files mode.',
+					cls: 'read-only-view-rule-inline-message',
+				});
+				continue;
+			}
 			if (!controller.enabled) {
 				continue;
 			}
@@ -470,8 +493,9 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		let excludeIndex = 0;
 
 		for (const row of rows) {
+			const inactiveByMode = row.type === 'include' && !includeRulesActive;
 			const rowEl = tbodyEl.createEl('tr', {
-				cls: `read-only-view-rule-row${row.enabled ? '' : ' is-disabled'}`,
+				cls: `read-only-view-rule-row${row.enabled ? '' : ' is-disabled'}${inactiveByMode ? ' is-inactive-by-mode' : ''}`,
 			});
 
 			const enabledCellEl = rowEl.createEl('td');
@@ -535,6 +559,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 				type: row.type,
 				indexWithinType,
 				enabled: row.enabled,
+				inactiveByMode,
 				messageEl,
 			});
 
