@@ -124,8 +124,8 @@ High-level modules:
 Design intent:
 
 - Read-only policy is enforced by editor-level input blocking first, with view mode (`preview`) as a fallback/UX layer.
-- Optional global preset can force all Markdown notes into read-only before include/exclude rules are considered.
-- Exclude rules always override include rules.
+- Optional global preset can force all Markdown notes into read-only after exclude rules are considered.
+- Exclude rules always override both the global preset and include rules.
 - Only markdown files are in scope.
 
 ## 2) Key Flows
@@ -198,8 +198,9 @@ Command entry points:
    - include is capped first (`200`)
    - exclude is capped second (`300`)
    - if total still exceeds `400`, exclude tail is trimmed first (include priority)
-5. If `forceAllMarkdownReadOnly=true`, every `.md` path is immediately treated as read-only.
-6. Otherwise include must match, then exclude must *not* match.
+5. If an exclude rule matches, the `.md` path remains editable.
+6. Otherwise, if `forceAllMarkdownReadOnly=true`, the `.md` path is treated as read-only.
+7. Otherwise, an include rule must match.
 
 ### D. Settings UX flow
 
@@ -237,6 +238,8 @@ UI module split:
     - type
     - value
     - delete
+  - all-Markdown mode visually marks every include row as inactive, excludes includes from active counts and diagnostics, and preserves each include rule's persisted enabled state
+  - exclude rows remain active in all-Markdown mode unless individually disabled
   - add-rule button
   - inline syntax help and README link
   - rule usage summary
@@ -276,7 +279,7 @@ UI module split:
   - save on `input` with 400 ms debounce
   - flush on `blur` and `change`
   - status text: `Saving...`, `Saved.`, `Save failed.`
-  - any successfully saved include/exclude rules change disables `All Markdown files read-only`
+  - saving include/exclude rule changes preserves the explicitly selected mode
 - Diagnostics rendering:
   - warnings are attached inline to each rule row where practical
   - aggregate diagnostics still render in a local scrolling panel

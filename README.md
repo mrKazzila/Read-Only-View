@@ -18,7 +18,7 @@ Read Only View forces `.md` notes to stay in Reading view.
 
 - Use the mode selector to choose between matched paths and all-Markdown behavior.
 - Use include rules to limit read-only mode to selected paths when the preset is off.
-- Use exclude rules to carve out exceptions from matching include rules.
+- Use exclude rules to carve out exceptions from matching include rules or the all-Markdown preset.
 - Match one folder, one file, or a broader pattern set.
 - Use built-in diagnostics and the Path tester when a rule does not behave as expected.
 
@@ -38,7 +38,7 @@ By default:
 - `Mode` starts on `All Markdown files`, so every `.md` note is protected immediately.
 - `Use glob patterns` is off, so rules are matched as plain path prefixes.
 - `Case sensitive` is on.
-- `Exclude` rules always override matching include rules.
+- `Exclude` rules always override both the all-Markdown preset and matching include rules.
 
 First working setup in default mode:
 
@@ -167,9 +167,11 @@ See [docs/E2E_TESTING.md](docs/E2E_TESTING.md) for setup details and known limit
 ## How matching works
 
 - Only Markdown files (`.md`) are affected.
-- When `All Markdown files` mode is on, every Markdown note becomes read-only and include rules are ignored.
+- When `All Markdown files` mode is on, every Markdown note becomes read-only unless an exclude rule matches; include rules are ignored.
+- In `All Markdown files` mode, saved include rules appear inactive without losing their individual enabled states; exclude rules remain active normally.
 - When `Only matched paths` mode is on, a note becomes read-only only if at least one include rule matches it.
 - If an include rule and an `Exclude` rule both match, the `Exclude` rule wins.
+- Editing path rules does not change the selected mode.
 - Disabled rules stay in the editor but do not participate in matching, diagnostics, or active-rule counts.
 - Priority is always: `Exclude rules` → `All Markdown files` mode → `Include rules`.
 - With `Use glob patterns` off, rules are treated as plain path prefixes.
