@@ -256,6 +256,7 @@ UI module split:
     - `Debug logging`
     - `Debug: verbose paths`
     - warning text about full path exposure in console logs
+- At viewport widths up to `800px`, settings use the stacked narrow-screen layout. This covers portrait tablet settings panes as well as phones, preventing disclosure summaries and rule-table columns from squeezing their neighboring content.
 - Disclosure buttons override mobile host button geometry: they use content-driven height, wrapped text, and the parent card outline instead of a nested pill shape. Open sections add a divider below the disclosure header.
 - Settings toggles are rendered with plugin-owned layout rows backed by `ToggleComponent`.
 - `Debug: verbose paths` toggle allows full file paths in debug logs; default keeps paths redacted
