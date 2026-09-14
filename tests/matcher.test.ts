@@ -192,15 +192,28 @@ test('K) shouldForceReadOnly ignores non-markdown files and disabled plugin', ()
 	assert.equal(shouldForceReadOnly('docs/file.md', { ...settings, enabled: false }), false);
 });
 
-test('K2) all-Markdown preset makes any Markdown path read-only', () => {
+test('K2) exclude rules override the all-Markdown preset', () => {
 	const settings = createSettings({
 		forceAllMarkdownReadOnly: true,
+		useGlobPatterns: false,
+		includeRules: [],
+		excludeRules: ['Read Only/Drafts/Outline.md'],
+	});
+
+	assert.equal(shouldForceReadOnly('Read Only/Drafts/Outline.md', settings), false);
+	assert.equal(shouldForceReadOnly('notes/file.md', settings), true);
+});
+
+test('K2b) glob exclude rules override the all-Markdown preset', () => {
+	const settings = createSettings({
+		forceAllMarkdownReadOnly: true,
+		useGlobPatterns: true,
 		includeRules: [],
 		excludeRules: ['project_a/patterns/**'],
 	});
 
-	assert.equal(shouldForceReadOnly('project_a/patterns/saga.md', settings), true);
-	assert.equal(shouldForceReadOnly('notes/file.md', settings), true);
+	assert.equal(shouldForceReadOnly('project_a/patterns/saga.md', settings), false);
+	assert.equal(shouldForceReadOnly('project_a/other/file.md', settings), true);
 });
 
 test('K3) all-Markdown preset does not affect non-Markdown files', () => {

@@ -77,7 +77,7 @@ export function renderPathTester(
 		});
 		if (presetApplied) {
 			detailsEl.createDiv({
-				text: 'Preset override: all Markdown files are currently read-only. Saved path rules are ignored.',
+				text: 'All Markdown files mode applies because no exclude rule matches.',
 			});
 		}
 		detailsEl.createDiv({

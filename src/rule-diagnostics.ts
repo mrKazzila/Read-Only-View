@@ -126,7 +126,8 @@ export function buildPathTesterResult(
 	const finalReadOnly = matcher.shouldForceReadOnly(testPath);
 	const presetApplied = settings.enabled
 		&& settings.forceAllMarkdownReadOnly
-		&& testPath.toLowerCase().endsWith('.md');
+		&& testPath.toLowerCase().endsWith('.md')
+		&& excludeMatches.length === 0;
 	return { testPath, includeMatches, excludeMatches, finalReadOnly, presetApplied };
 }
 

@@ -203,7 +203,7 @@ test('path tester uses supplied compiled matcher instead of rebuilding from raw 
 	}
 });
 
-test('path tester shows preset override for Markdown paths when all-Markdown preset is enabled', () => {
+test('path tester shows exclude override when all-Markdown preset is enabled', () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 
@@ -213,6 +213,7 @@ test('path tester shows preset override for Markdown paths when all-Markdown pre
 				...DEFAULT_SETTINGS,
 				enabled: true,
 				forceAllMarkdownReadOnly: true,
+				useGlobPatterns: true,
 				includeRules: [],
 				excludeRules: ['docs/private/**'],
 			},
@@ -224,8 +225,9 @@ test('path tester shows preset override for Markdown paths when all-Markdown pre
 		input.trigger('change');
 
 		const texts = collectTexts(container);
-		assert.ok(texts.includes('Preset override: all Markdown files are currently read-only. Saved path rules are ignored.'));
-		assert.ok(texts.includes('Read-only'));
+		assert.ok(texts.includes('This path is excluded and stays editable.'));
+		assert.ok(texts.includes('Editable'));
+		assert.ok(!texts.includes('All Markdown files mode applies because no exclude rule matches.'));
 	} finally {
 		dom.restore();
 	}

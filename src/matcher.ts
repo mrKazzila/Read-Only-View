@@ -189,6 +189,11 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 			return false;
 		}
 
+		const hasExcludeMatch = preparedExcludeRules.some((rule) => rule.matches(normalizedFilePath));
+		if (hasExcludeMatch) {
+			return false;
+		}
+
 		if (settings.forceAllMarkdownReadOnly) {
 			return true;
 		}
@@ -198,8 +203,7 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 			return false;
 		}
 
-		const hasExcludeMatch = preparedExcludeRules.some((rule) => rule.matches(normalizedFilePath));
-		return !hasExcludeMatch;
+		return true;
 	};
 
 	return {
