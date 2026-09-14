@@ -135,7 +135,13 @@ export function getCompiledRuleMatcherKey(settings: ForceReadModeSettings): stri
 		settings.caseSensitive ? '1' : '0',
 		settings.includeRules.join('\u0000'),
 		settings.excludeRules.join('\u0000'),
+		settings.includeRuleEnabled.map((enabled) => enabled ? '1' : '0').join(''),
+		settings.excludeRuleEnabled.map((enabled) => enabled ? '1' : '0').join(''),
 	].join('\u0001');
+}
+
+function getEnabledRules(rules: string[], enabledStates: boolean[]): string[] {
+	return rules.filter((_, index) => enabledStates[index] !== false);
 }
 
 export function createCompiledRuleMatcher(settings: ForceReadModeSettings): CompiledRuleMatcher {
@@ -143,7 +149,10 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 		useGlobPatterns: settings.useGlobPatterns,
 		caseSensitive: settings.caseSensitive,
 	};
-	const effectiveRules = buildEffectiveRules(settings.includeRules, settings.excludeRules);
+	const effectiveRules = buildEffectiveRules(
+		getEnabledRules(settings.includeRules, settings.includeRuleEnabled),
+		getEnabledRules(settings.excludeRules, settings.excludeRuleEnabled),
+	);
 	const prepareRule = (rule: string): PreparedRule => {
 		const normalizedRule = normalizeForCase(normalizeVaultPath(rule), options.caseSensitive);
 		if (options.useGlobPatterns) {

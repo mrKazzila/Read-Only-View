@@ -105,11 +105,47 @@ test('rules editor renders table rows, help copy, and inline warnings', async ()
 		});
 
 		const texts = collectTexts(container);
-		assert.ok(texts.includes('Exclude rules always win. Enabled is visual-only in this version.'));
+		assert.ok(texts.includes('Exclude rules always win. Disable a rule to keep it without applying it.'));
 		assert.ok(texts.includes('Rule examples in readme'));
 		assert.ok(texts.includes('Examples: Notes/Summaries/ · Notes/Summaries/file.md · Archive/**/*.md · !Drafts/'));
 		assert.ok(texts.includes('Contains wildcard in prefix mode. It is treated as a literal character.'));
 		assert.equal(container.querySelectorAll('.read-only-view-rule-row').length, 2);
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor persists enabled checkbox changes', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const committed: Array<{ enabled: boolean[]; reason: string }> = [];
+
+	try {
+		renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
+			includeRuleEnabled: [true],
+			excludeRuleEnabled: [],
+			useGlobPatterns: true,
+			onChange: async (state, reason) => {
+				committed.push({ enabled: state.includeRuleEnabled, reason });
+			},
+		});
+
+		const enabledToggle = container.querySelector('.read-only-view-rule-enabled-toggle');
+		assert.ok(enabledToggle);
+		assert.equal(enabledToggle.checked, true);
+
+		enabledToggle.checked = false;
+		enabledToggle.trigger('change');
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepEqual(committed.at(-1), {
+			enabled: [false],
+			reason: 'settings-rule-enabled',
+		});
 	} finally {
 		dom.restore();
 	}

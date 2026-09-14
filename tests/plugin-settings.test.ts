@@ -44,6 +44,8 @@ test('valid persisted settings are preserved', () => {
 		dismissedWelcomeVersion: 1,
 		includeRules: ['docs/**', 'notes/file.md'],
 		excludeRules: ['docs/private/**'],
+		includeRuleEnabled: [true, false],
+		excludeRuleEnabled: [true],
 	};
 
 	assert.deepEqual(mergeLoadedSettings(loaded), loaded);
@@ -78,6 +80,28 @@ test('rule arrays keep only string entries', () => {
 
 	assert.deepEqual(merged.includeRules, ['docs/**', 'notes/**']);
 	assert.deepEqual(merged.excludeRules, ['docs/private/**']);
+});
+
+test('existing rules without enabled flags migrate as enabled', () => {
+	const merged = mergeLoadedSettings({
+		includeRules: ['docs/**', 'notes/**'],
+		excludeRules: ['private/**'],
+	});
+
+	assert.deepEqual(merged.includeRuleEnabled, [true, true]);
+	assert.deepEqual(merged.excludeRuleEnabled, [true]);
+});
+
+test('rule enabled flags are validated and aligned to rule counts', () => {
+	const merged = mergeLoadedSettings({
+		includeRules: ['docs/**', 'notes/**', 'archive/**'],
+		excludeRules: ['private/**'],
+		includeRuleEnabled: [false, 'invalid'],
+		excludeRuleEnabled: [false, true],
+	});
+
+	assert.deepEqual(merged.includeRuleEnabled, [false, true, true]);
+	assert.deepEqual(merged.excludeRuleEnabled, [false]);
 });
 
 test('invalid boolean fields fall back to defaults', () => {

@@ -10,6 +10,8 @@ export interface ForceReadModeSettings {
 	dismissedWelcomeVersion: number;
 	includeRules: string[];
 	excludeRules: string[];
+	includeRuleEnabled: boolean[];
+	excludeRuleEnabled: boolean[];
 }
 
 export interface SettingsTabPlugin {

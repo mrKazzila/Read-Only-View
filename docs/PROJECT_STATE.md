@@ -233,7 +233,7 @@ UI module split:
   - expanded by default
   - compact disclosure summary (`X include · Y exclude`)
   - table-style rule rows with columns:
-    - enabled (visual-only, always on in this schema version)
+    - enabled (persisted per-rule state; disabled rules are retained but not matched)
     - type
     - value
     - delete
@@ -260,10 +260,12 @@ UI module split:
 - Disclosure buttons override mobile host button geometry: they use content-driven height, wrapped text, and the parent card outline instead of a nested pill shape. Open sections add a divider below the disclosure header.
 - Settings toggles are rendered with plugin-owned layout rows backed by `ToggleComponent`.
 - `Debug: verbose paths` toggle allows full file paths in debug logs; default keeps paths redacted
-- Persisted settings schema remains unchanged:
+- Persisted settings schema:
   - `forceAllMarkdownReadOnly: boolean`
   - `includeRules: string[]`
   - `excludeRules: string[]`
+  - `includeRuleEnabled: boolean[]` (index-aligned; missing entries migrate to `true`)
+  - `excludeRuleEnabled: boolean[]` (index-aligned; missing entries migrate to `true`)
 - Rule usage summary:
   - `Include: X rules · Exclude: Y rules · Total: Z` (`+N ignored` when capped)
 - Rule volume warnings (inline banner, no toast):

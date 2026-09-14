@@ -6,8 +6,12 @@ import { DebouncedRuleChangeSaver } from '../src/settings-tab.js';
 type RuleEditorUiState = {
 	includeRules: string[];
 	excludeRules: string[];
+	includeRuleEnabled: boolean[];
+	excludeRuleEnabled: boolean[];
 	includeText: string;
 	excludeText: string;
+	activeIncludeText: string;
+	activeExcludeText: string;
 };
 
 function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) => Promise<void>): Promise<void> {
@@ -92,8 +96,12 @@ function makeState(includeText: string, excludeText = ''): RuleEditorUiState {
 	return {
 		includeRules: includeText ? [includeText] : [],
 		excludeRules: excludeText ? [excludeText] : [],
+		includeRuleEnabled: includeText ? [true] : [],
+		excludeRuleEnabled: excludeText ? [true] : [],
 		includeText,
 		excludeText,
+		activeIncludeText: includeText,
+		activeExcludeText: excludeText,
 	};
 }
 

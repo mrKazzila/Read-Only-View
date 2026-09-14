@@ -43,6 +43,7 @@ export class MockHTMLElement {
 	placeholder: string;
 	rows: number;
 	type: string;
+	checked: boolean;
 
 	constructor(selectors: string[] = [], tagName = 'div') {
 		this.selectors = new Set(selectors);
@@ -57,6 +58,7 @@ export class MockHTMLElement {
 		this.placeholder = '';
 		this.rows = 0;
 		this.type = '';
+		this.checked = false;
 	}
 
 	addClassSelector(selector: string): void {

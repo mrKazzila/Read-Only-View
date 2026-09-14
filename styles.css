@@ -242,6 +242,7 @@
 
 .read-only-view-disclosure-toggle:focus-visible,
 .read-only-view-help-icon:focus-visible,
+.read-only-view-rule-enabled-toggle:focus-visible,
 .read-only-view-delete-rule-button:focus-visible,
 .read-only-view-add-rule-button:focus-visible {
 	outline: 2px solid var(--interactive-accent);
@@ -435,7 +436,10 @@
 	flex-direction: column;
 	gap: 0.2rem;
 	min-width: 0;
-	min-height: 2.8em;
+}
+
+.read-only-view-rule-row.is-disabled > td:not(:first-child) {
+	opacity: 0.58;
 }
 
 .read-only-view-rule-inline-message.is-ignored {

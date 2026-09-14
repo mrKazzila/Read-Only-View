@@ -28,6 +28,8 @@ function createSettings(overrides: Partial<ForceReadModeSettings>): ForceReadMod
         dismissedWelcomeVersion: 0,
         includeRules: [],
         excludeRules: [],
+		includeRuleEnabled: [],
+		excludeRuleEnabled: [],
         ...overrides,
     };
 }
@@ -344,4 +346,23 @@ test('W) compileGlobToRegex creates a new regex after cache miss via clear', () 
 
 	assert.notEqual(regex1, regex2);
 	assert.equal(getGlobRegexCacheSize(), 1);
+});
+
+test('X) disabled rules are excluded from matching and matcher cache keys', () => {
+	const settings = createSettings({
+		useGlobPatterns: true,
+		includeRules: ['docs/**', 'notes/**'],
+		excludeRules: ['docs/private/**'],
+		includeRuleEnabled: [false, true],
+		excludeRuleEnabled: [false],
+	});
+	const enabledKey = getCompiledRuleMatcherKey(settings);
+	const matcher = createCompiledRuleMatcher(settings);
+
+	assert.equal(matcher.shouldForceReadOnly('docs/file.md'), false);
+	assert.equal(matcher.shouldForceReadOnly('notes/file.md'), true);
+	assert.deepEqual(matcher.matchExcludeRules('docs/private/file.md'), []);
+
+	settings.includeRuleEnabled[0] = true;
+	assert.notEqual(enabledKey, getCompiledRuleMatcherKey(settings));
 });

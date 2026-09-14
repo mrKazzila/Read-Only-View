@@ -23,11 +23,13 @@ type RuleRowState = {
 	id: number;
 	type: RuleType;
 	value: string;
+	enabled: boolean;
 };
 
 type RuleRowController = {
 	type: RuleType;
 	indexWithinType: number;
+	enabled: boolean;
 	messageEl: HTMLElement;
 };
 
@@ -38,8 +40,12 @@ export type RuleEditorController = {
 type RuleEditorUiState = {
 	includeRules: string[];
 	excludeRules: string[];
+	includeRuleEnabled: boolean[];
+	excludeRuleEnabled: boolean[];
 	includeText: string;
 	excludeText: string;
+	activeIncludeText: string;
+	activeExcludeText: string;
 };
 
 type RuleEditorRenderState = {
@@ -51,6 +57,8 @@ type RenderRuleEditorOptions = {
 	containerEl: HTMLElement;
 	includeRules: string[];
 	excludeRules: string[];
+	includeRuleEnabled?: boolean[];
+	excludeRuleEnabled?: boolean[];
 	useGlobPatterns: boolean;
 	onChange: (state: RuleEditorUiState, reason: string) => Promise<void>;
 	onStateChange?: (state: RuleEditorRenderState) => void;
@@ -67,6 +75,12 @@ function buildRulesText(rows: RuleRowState[], type: RuleType): string {
 		.join('\n');
 }
 
+function buildRuleEnabledStates(rows: RuleRowState[], type: RuleType): boolean[] {
+	return rows
+		.filter((row) => row.type === type && splitRulesFromText(row.value).length > 0)
+		.map((row) => row.enabled);
+}
+
 function buildRuleCountsSummary(includeCount: number, excludeCount: number): string {
 	return `${includeCount} include · ${excludeCount} exclude`;
 }
@@ -77,14 +91,23 @@ function buildRulesPayload(rows: RuleRowState[]): RuleEditorUiState {
 	return {
 		includeRules: splitRulesFromText(includeText),
 		excludeRules: splitRulesFromText(excludeText),
+		includeRuleEnabled: buildRuleEnabledStates(rows, 'include'),
+		excludeRuleEnabled: buildRuleEnabledStates(rows, 'exclude'),
 		includeText,
 		excludeText,
+		activeIncludeText: buildRulesText(rows.filter((row) => row.enabled), 'include'),
+		activeExcludeText: buildRulesText(rows.filter((row) => row.enabled), 'exclude'),
 	};
 }
 
 function getRulesChangeReason(previous: RuleEditorUiState, next: RuleEditorUiState): string {
 	const includeChanged = previous.includeText !== next.includeText;
 	const excludeChanged = previous.excludeText !== next.excludeText;
+	const enabledChanged = previous.includeRuleEnabled.join() !== next.includeRuleEnabled.join()
+		|| previous.excludeRuleEnabled.join() !== next.excludeRuleEnabled.join();
+	if (enabledChanged) {
+		return 'settings-rule-enabled';
+	}
 	if (includeChanged && !excludeChanged) {
 		return 'settings-include-rules';
 	}
@@ -106,8 +129,12 @@ export class DebouncedRuleChangeSaver {
 	private lastValue: RuleEditorUiState = {
 		includeRules: [],
 		excludeRules: [],
+		includeRuleEnabled: [],
+		excludeRuleEnabled: [],
 		includeText: '',
 		excludeText: '',
+		activeIncludeText: '',
+		activeExcludeText: '',
 	};
 	private running = false;
 	private pendingRun = false;
@@ -115,8 +142,12 @@ export class DebouncedRuleChangeSaver {
 	private lastCommittedValue: RuleEditorUiState = {
 		includeRules: [],
 		excludeRules: [],
+		includeRuleEnabled: [],
+		excludeRuleEnabled: [],
 		includeText: '',
 		excludeText: '',
+		activeIncludeText: '',
+		activeExcludeText: '',
 	};
 
 	constructor(
@@ -219,8 +250,15 @@ function renderHelpLink(containerEl: HTMLElement): void {
 	linkEl.setAttr('rel', 'noopener noreferrer');
 }
 
-export function getPathRulesSummary(includeRules: string[], excludeRules: string[]): string {
-	return buildRuleCountsSummary(includeRules.length, excludeRules.length);
+export function getPathRulesSummary(
+	includeRules: string[],
+	excludeRules: string[],
+	includeRuleEnabled: boolean[],
+	excludeRuleEnabled: boolean[],
+): string {
+	const includeCount = includeRules.filter((_, index) => includeRuleEnabled[index] !== false).length;
+	const excludeCount = excludeRules.filter((_, index) => excludeRuleEnabled[index] !== false).length;
+	return buildRuleCountsSummary(includeCount, excludeCount);
 }
 
 export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorController {
@@ -228,11 +266,21 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	const ownerWindow = containerEl.ownerDocument?.defaultView;
 	let nextRowId = 1;
 	let rows: RuleRowState[] = [
-		...options.includeRules.map((value) => ({ id: nextRowId++, type: 'include' as const, value })),
-		...options.excludeRules.map((value) => ({ id: nextRowId++, type: 'exclude' as const, value })),
+		...options.includeRules.map((value, index) => ({
+			id: nextRowId++,
+			type: 'include' as const,
+			value,
+			enabled: options.includeRuleEnabled?.[index] !== false,
+		})),
+		...options.excludeRules.map((value, index) => ({
+			id: nextRowId++,
+			type: 'exclude' as const,
+			value,
+			enabled: options.excludeRuleEnabled?.[index] !== false,
+		})),
 	];
 	if (rows.length === 0) {
-		rows = [{ id: nextRowId++, type: 'include', value: '' }];
+		rows = [{ id: nextRowId++, type: 'include', value: '', enabled: true }];
 	}
 
 	const sectionEl = containerEl.createDiv({ cls: 'read-only-view-rule-section' });
@@ -242,7 +290,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	const rulesHelpRowEl = sectionEl.createDiv({ cls: 'read-only-view-rules-header-row' });
 	const titleWrapEl = rulesHelpRowEl.createDiv({ cls: 'read-only-view-rules-header-copy' });
 	const descriptionEl = titleWrapEl.createEl('p', {
-		text: 'Exclude rules always win. Enabled is visual-only in this version.',
+		text: 'Exclude rules always win. Disable a rule to keep it without applying it.',
 		cls: 'setting-item-description',
 	});
 	descriptionEl.setAttr('id', descriptionId);
@@ -310,7 +358,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 
 	const renderSummaryState = () => {
 		const payload = getCurrentPayload();
-		const uiState = computeRuleLimitsUiState(payload.includeText, payload.excludeText);
+		const uiState = computeRuleLimitsUiState(payload.activeIncludeText, payload.activeExcludeText);
 		summaryEl.setText(uiState.summaryText);
 		warningEl.empty();
 		if (uiState.volumeWarningMessage) {
@@ -329,8 +377,8 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		}
 
 		options.onStateChange?.({
-			includeCount: payload.includeRules.length,
-			excludeCount: payload.excludeRules.length,
+			includeCount: payload.includeRuleEnabled.filter(Boolean).length,
+			excludeCount: payload.excludeRuleEnabled.filter(Boolean).length,
 		});
 
 		return uiState;
@@ -340,18 +388,21 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		const payload = getCurrentPayload();
 		const uiState = renderSummaryState();
 		const includeEntries = buildRuleDiagnosticsWithIgnoredLines(
-			payload.includeText,
+			payload.activeIncludeText,
 			options.useGlobPatterns,
 			new Set<number>(uiState.ignoredIncludeLineIndexes),
 		);
 		const excludeEntries = buildRuleDiagnosticsWithIgnoredLines(
-			payload.excludeText,
+			payload.activeExcludeText,
 			options.useGlobPatterns,
 			new Set<number>(uiState.ignoredExcludeLineIndexes),
 		);
 
 		for (const controller of rowControllers.values()) {
 			controller.messageEl.empty();
+			if (!controller.enabled) {
+				continue;
+			}
 			const entry = controller.type === 'include'
 				? includeEntries[controller.indexWithinType]
 				: excludeEntries[controller.indexWithinType];
@@ -419,16 +470,18 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		let excludeIndex = 0;
 
 		for (const row of rows) {
-			const rowEl = tbodyEl.createEl('tr', { cls: 'read-only-view-rule-row' });
+			const rowEl = tbodyEl.createEl('tr', {
+				cls: `read-only-view-rule-row${row.enabled ? '' : ' is-disabled'}`,
+			});
 
 			const enabledCellEl = rowEl.createEl('td');
 			enabledCellEl.setAttr('data-label', 'Enabled');
-			const enabledSlotEl = enabledCellEl.createDiv({ cls: 'read-only-view-rule-cell-slot' });
+			const enabledSlotEl = enabledCellEl.createEl('label', { cls: 'read-only-view-rule-cell-slot' });
 			const enabledEl = enabledSlotEl.createEl('input', { type: 'checkbox' });
-			enabledEl.setAttr('checked', 'checked');
-			enabledEl.setAttr('disabled', 'disabled');
+			enabledEl.addClass('read-only-view-rule-enabled-toggle');
+			enabledEl.checked = row.enabled;
 			enabledEl.setAttr('aria-label', 'Rule enabled');
-			enabledEl.setAttr('title', 'Always enabled in this version');
+			enabledEl.setAttr('title', row.enabled ? 'Disable rule' : 'Enable rule');
 
 			const typeCellEl = rowEl.createEl('td');
 			typeCellEl.setAttr('data-label', 'Type');
@@ -470,11 +523,25 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 			deleteButtonEl.setAttr('aria-label', `Delete ${row.type} rule`);
 			deleteButtonEl.setAttr('title', 'Delete rule');
 
-			const indexWithinType = row.type === 'include' ? includeIndex++ : excludeIndex++;
+			const indexWithinType = row.type === 'include' ? includeIndex : excludeIndex;
+			if (row.enabled) {
+				if (row.type === 'include') {
+					includeIndex++;
+				} else {
+					excludeIndex++;
+				}
+			}
 			rowControllers.set(row.id, {
 				type: row.type,
 				indexWithinType,
+				enabled: row.enabled,
 				messageEl,
+			});
+
+			enabledEl.addEventListener('change', () => {
+				row.enabled = enabledEl.checked;
+				renderRows();
+				syncRows(true);
 			});
 
 			typeSelectEl.addEventListener('change', () => {
@@ -499,7 +566,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 			deleteButtonEl.addEventListener('click', () => {
 				rows = rows.filter((candidate) => candidate.id !== row.id);
 				if (rows.length === 0) {
-					rows = [{ id: nextRowId++, type: 'include', value: '' }];
+					rows = [{ id: nextRowId++, type: 'include', value: '', enabled: true }];
 				}
 				renderRows();
 				syncRows(true);
@@ -509,7 +576,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	};
 
 	addRuleButton.addEventListener('click', () => {
-		rows.push({ id: nextRowId++, type: 'include', value: '' });
+		rows.push({ id: nextRowId++, type: 'include', value: '', enabled: true });
 		renderRows();
 		syncRows(true);
 	});

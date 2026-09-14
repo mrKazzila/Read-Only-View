@@ -39,7 +39,8 @@ type HeaderIndicatorsController = {
 };
 
 function getActiveRulesCount(settings: SettingsTabPlugin['settings']): number {
-	return settings.includeRules.length + settings.excludeRules.length;
+	return settings.includeRules.filter((_, index) => settings.includeRuleEnabled[index] !== false).length
+		+ settings.excludeRules.filter((_, index) => settings.excludeRuleEnabled[index] !== false).length;
 }
 
 export class ForceReadModeSettingTab extends PluginSettingTab {
@@ -69,17 +70,26 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 			containerEl,
 			'Path rules',
 			'Choose folders or notes to keep in Reading view.',
-			getPathRulesSummary(this.plugin.settings.includeRules, this.plugin.settings.excludeRules),
+			getPathRulesSummary(
+				this.plugin.settings.includeRules,
+				this.plugin.settings.excludeRules,
+				this.plugin.settings.includeRuleEnabled,
+				this.plugin.settings.excludeRuleEnabled,
+			),
 		);
 		this.ruleEditor = renderRuleEditor({
 			containerEl: pathRulesSection.bodyEl,
 			includeRules: this.plugin.settings.includeRules,
 			excludeRules: this.plugin.settings.excludeRules,
+			includeRuleEnabled: this.plugin.settings.includeRuleEnabled,
+			excludeRuleEnabled: this.plugin.settings.excludeRuleEnabled,
 			useGlobPatterns: this.plugin.settings.useGlobPatterns,
 			onChange: async (state, reason) => {
 				const presetWasEnabled = this.plugin.settings.forceAllMarkdownReadOnly;
 				this.plugin.settings.includeRules = state.includeRules;
 				this.plugin.settings.excludeRules = state.excludeRules;
+				this.plugin.settings.includeRuleEnabled = state.includeRuleEnabled;
+				this.plugin.settings.excludeRuleEnabled = state.excludeRuleEnabled;
 				if (presetWasEnabled) {
 					this.plugin.settings.forceAllMarkdownReadOnly = false;
 				}
@@ -91,7 +101,12 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 					return;
 				}
 				pathRulesSection.setSummary(
-					getPathRulesSummary(state.includeRules, state.excludeRules),
+					getPathRulesSummary(
+						state.includeRules,
+						state.excludeRules,
+						state.includeRuleEnabled,
+						state.excludeRuleEnabled,
+					),
 				);
 			},
 			onStateChange: ({ includeCount, excludeCount }) => {

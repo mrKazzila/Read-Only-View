@@ -57,6 +57,8 @@ function createPlugin() {
 			dismissedWelcomeVersion: 0,
 			includeRules: ['docs/a.md'],
 			excludeRules: [],
+			includeRuleEnabled: [true],
+			excludeRuleEnabled: [],
 		},
 		saveSettings: async () => {
 			saveCalls.push({

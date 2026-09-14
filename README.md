@@ -170,6 +170,7 @@ See [docs/E2E_TESTING.md](docs/E2E_TESTING.md) for setup details and known limit
 - When `All Markdown files` mode is on, every Markdown note becomes read-only and include rules are ignored.
 - When `Only matched paths` mode is on, a note becomes read-only only if at least one include rule matches it.
 - If an include rule and an `Exclude` rule both match, the `Exclude` rule wins.
+- Disabled rules stay in the editor but do not participate in matching, diagnostics, or active-rule counts.
 - Priority is always: `Exclude rules` → `All Markdown files` mode → `Include rules`.
 - With `Use glob patterns` off, rules are treated as plain path prefixes.
 - With `Use glob patterns` on, rules may use `*`, `**`, and `?`.
@@ -256,6 +257,7 @@ In **Settings → Read Only View**, you can configure:
   - `All Markdown files`
 - `Path rules`
   - table-style include/exclude rules
+  - per-rule enabled checkbox
   - inline diagnostics and rule-volume warnings
 - `Path tester`
 - `Advanced`

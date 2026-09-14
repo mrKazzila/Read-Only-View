@@ -10,6 +10,8 @@ export const DEFAULT_SETTINGS: ForceReadModeSettings = {
 	dismissedWelcomeVersion: 0,
 	includeRules: [],
 	excludeRules: [],
+	includeRuleEnabled: [],
+	excludeRuleEnabled: [],
 };
 
 type BooleanSettingKey =
@@ -52,6 +54,16 @@ function parseRuleList(value: unknown): string[] {
 	return value.filter((entry): entry is string => typeof entry === 'string');
 }
 
+function parseRuleEnabledList(value: unknown, ruleCount: number): boolean[] {
+	if (!Array.isArray(value)) {
+		return Array.from({ length: ruleCount }, () => true);
+	}
+
+	return Array.from({ length: ruleCount }, (_, index) =>
+		typeof value[index] === 'boolean' ? value[index] : true,
+	);
+}
+
 export function mergeLoadedSettings(
 	loaded: unknown,
 ): ForceReadModeSettings {
@@ -60,8 +72,12 @@ export function mergeLoadedSettings(
 			...DEFAULT_SETTINGS,
 			includeRules: [...DEFAULT_SETTINGS.includeRules],
 			excludeRules: [...DEFAULT_SETTINGS.excludeRules],
+			includeRuleEnabled: [...DEFAULT_SETTINGS.includeRuleEnabled],
+			excludeRuleEnabled: [...DEFAULT_SETTINGS.excludeRuleEnabled],
 		};
 	}
+	const includeRules = parseRuleList(loaded.includeRules);
+	const excludeRules = parseRuleList(loaded.excludeRules);
 
 	return {
 		enabled: parseBooleanSetting(loaded, 'enabled'),
@@ -71,7 +87,9 @@ export function mergeLoadedSettings(
 		debug: parseBooleanSetting(loaded, 'debug'),
 		debugVerbosePaths: parseBooleanSetting(loaded, 'debugVerbosePaths'),
 		dismissedWelcomeVersion: parseNumberSetting(loaded, 'dismissedWelcomeVersion'),
-		includeRules: parseRuleList(loaded.includeRules),
-		excludeRules: parseRuleList(loaded.excludeRules),
+		includeRules,
+		excludeRules,
+		includeRuleEnabled: parseRuleEnabledList(loaded.includeRuleEnabled, includeRules.length),
+		excludeRuleEnabled: parseRuleEnabledList(loaded.excludeRuleEnabled, excludeRules.length),
 	};
 }
