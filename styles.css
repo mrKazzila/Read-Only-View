@@ -226,6 +226,20 @@
 	cursor: pointer;
 }
 
+.read-only-view-settings button.read-only-view-disclosure-toggle {
+	appearance: none;
+	height: auto;
+	border: 0;
+	border-radius: 0;
+	background: color-mix(in srgb, var(--background-primary-alt) 42%, transparent);
+	box-shadow: none;
+	white-space: normal;
+}
+
+.read-only-view-settings .read-only-view-disclosure-row.is-open > .read-only-view-disclosure-toggle {
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
 .read-only-view-disclosure-toggle:focus-visible,
 .read-only-view-help-icon:focus-visible,
 .read-only-view-delete-rule-button:focus-visible,

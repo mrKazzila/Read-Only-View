@@ -266,6 +266,8 @@ In **Settings → Read Only View**, you can configure:
   - `Debug logging`
   - `Debug: verbose paths`
 
+On narrow mobile screens, section headings expand to fit wrapped descriptions and use the section card outline instead of a nested pill shape.
+
 On first enable for a new onboarding version, the plugin shows a small welcome modal with setup steps and a shortcut to open the settings.
 
 While editing rules:
