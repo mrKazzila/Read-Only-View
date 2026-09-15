@@ -420,6 +420,15 @@
 	min-width: 0;
 }
 
+.read-only-view-settings input.is-input-error {
+	border-color: var(--text-error);
+	box-shadow: 0 0 0 1px var(--text-error);
+}
+
+.read-only-view-settings input.is-input-error:focus-visible {
+	outline-color: var(--text-error);
+}
+
 .read-only-view-rule-input {
 	overflow-x: auto;
 	white-space: nowrap;
@@ -445,6 +454,14 @@
 
 .read-only-view-rule-inline-message.is-ignored {
 	color: var(--text-warning);
+}
+
+.read-only-view-rule-inline-message.is-error {
+	color: var(--text-error);
+}
+
+.read-only-view-rule-inline-message.is-resolved {
+	color: var(--text-accent);
 }
 
 .read-only-view-rule-inline-message {

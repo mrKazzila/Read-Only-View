@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Last updated: 2026-05-31
+Last updated: 2026-09-15
 
 This document is a living system map for the `read-only-view` Obsidian plugin.
 
@@ -15,7 +15,8 @@ This document is a living system map for the `read-only-view` Obsidian plugin.
 - The demo vault lives at `./demo-vault`, is ignored by git, and contains only synthetic Markdown notes plus optional linked plugin files for safe screenshots and recordings.
 - When plugin linking is enabled, the generator copies `manifest.json`, links `main.js`, links optional `styles.css`, writes plugin `data.json`, and enables the plugin in `.obsidian/community-plugins.json`.
 - Demo vault default rules use prefix mode and configure:
-  - include: `Read Only/`, `Archive/`
+  - vault-path include: `Read Only/`, `Archive/`
+  - exact advanced include: `Inbox/Quick capture.md` (Obsidian URL), `Inbox/Meeting recap.md` (privacy-safe system-path import)
   - exclude: `Read Only/Drafts/`
 - Desktop E2E smoke tests also reuse that same repo-local `./demo-vault` fixture instead of creating a second vault generator.
 - The opt-in E2E entrypoint is `npm run test:e2e` (or `npm run test:e2e:debug`), which builds the plugin, recreates `./demo-vault`, and launches Obsidian against that synthetic vault through WebdriverIO.
@@ -73,6 +74,9 @@ High-level modules:
 - `src/rule-diagnostics.ts`
   - Rule text parsing and diagnostics helpers
   - Path tester matching helpers for include/exclude/result output
+- `src/rule-source.ts`
+  - Auto-detection and resolution for vault paths, `obsidian://open` URLs, and absolute system paths
+  - Exact-file/folder validation, current-vault containment, and privacy-safe absolute-path persistence
 - `src/workspace-events.ts`
   - Workspace-event coalescing controller for targeted-vs-full reapply strategy
   - Timed burst scheduling and cleanup for `file-open`, `active-leaf-change`, and `layout-change`
@@ -194,13 +198,18 @@ Command entry points:
 2. If `useGlobPatterns=true`: anchored regex (`^...$`) using internal glob conversion.
    - Compiled regex entries are cached with fixed FIFO cap (`512`) to bound memory for highly unique rule sets.
 3. If `useGlobPatterns=false`: literal prefix mode with optional folder slash hint.
-4. Build effective rule sets from settings using hard-cap policy:
+4. Advanced sources are resolved before matching:
+   - Obsidian URL entries target one exact existing Markdown file
+   - absolute file entries target one exact existing Markdown file; absolute folder entries retain ordinary vault-path matching semantics
+   - ordinary vault-path entries retain prefix/glob semantics
+   - unresolved entries are retained for correction but omitted from runtime matching and rule limits
+5. Build effective rule sets from settings using hard-cap policy:
    - include is capped first (`200`)
    - exclude is capped second (`300`)
    - if total still exceeds `400`, exclude tail is trimmed first (include priority)
-5. If an exclude rule matches, the `.md` path remains editable.
-6. Otherwise, if `forceAllMarkdownReadOnly=true`, the `.md` path is treated as read-only.
-7. Otherwise, an include rule must match.
+6. If an exclude rule matches, the `.md` path remains editable.
+7. Otherwise, if `forceAllMarkdownReadOnly=true`, the `.md` path is treated as read-only.
+8. Otherwise, an include rule must match.
 
 ### D. Settings UX flow
 
@@ -238,9 +247,13 @@ UI module split:
     - type
     - value
     - delete
+  - one value field auto-detects vault paths, Obsidian URLs, and system paths
+  - input guards allow up to 40,000 characters for paths and 120,000 for percent-encoded Obsidian URLs; overflow is blocked before resolution/persistence and exposed with an accessible invalid state
+  - advanced rows show their resolved vault path or a specific inline error without rewriting the active input
   - all-Markdown mode visually marks every include row as inactive, excludes includes from active counts and diagnostics, and preserves each include rule's persisted enabled state
   - exclude rows remain active in all-Markdown mode unless individually disabled
   - add-rule button
+  - zero rules is a valid editor state; deleting the final row does not create a placeholder or empty-line diagnostic
   - inline syntax help and README link
   - rule usage summary
   - warning banners and diagnostics
@@ -251,6 +264,9 @@ UI module split:
   - preset override note when the all-Markdown preset is driving the final result
   - final `READ-ONLY ON/OFF`
   - visible `Read-only` / `Editable` status pill
+  - accepts all three source formats and displays detected source plus resolved vault path
+  - system-folder inputs show their resolved vault folder and prompt for a concrete note when match diagnostics are needed
+  - long resolved values and matched-rule labels are display-truncated to keep settings usable without changing accepted input
 - Advanced section:
   - `Matching`
     - `Use glob patterns`
@@ -269,6 +285,10 @@ UI module split:
   - `excludeRules: string[]`
   - `includeRuleEnabled: boolean[]` (index-aligned; missing entries migrate to `true`)
   - `excludeRuleEnabled: boolean[]` (index-aligned; missing entries migrate to `true`)
+  - `includeRuleEntries?: RuleEntry[]` and `excludeRuleEntries?: RuleEntry[]` are the source-aware schema
+  - legacy string/enabled arrays remain canonical runtime mirrors and migration/rollback compatibility data
+  - `RuleEntry` contains `sourceKind`, `sourceValue`, `resolvedPath`, and `enabled`
+  - successful absolute file/folder imports store only the resolved vault path in `sourceValue`; full local paths are not persisted
 - Rule usage summary:
   - `Include: X rules · Exclude: Y rules · Total: Z` (`+N ignored` when capped)
 - Rule volume warnings (inline banner, no toast):
@@ -334,6 +354,8 @@ Generated artifacts (not source of truth):
 - `ensurePreview` uses `setViewState` with `{ replace: true }` and fallback call style; API behavior can differ across Obsidian versions.
 - Editor-level protection assumes the target markdown context is CodeMirror-backed and exposes `editorInfoField`.
 - Matching is intentionally limited to `.md`; attachments and other extensions are untouched.
+- New absolute paths can be resolved only with desktop `FileSystemAdapter`; already resolved entries remain portable on mobile.
+- Advanced imports require the target note or folder to exist when first imported and do not track later renames.
 - Prefix mode treats `*` and `?` as literal characters, which can surprise users.
 - Rule diagnostics are advisory; they do not block saving rules.
 - Debug logs use path redaction by default; full path output is opt-in via `Debug: verbose paths`.

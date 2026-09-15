@@ -10,7 +10,7 @@ Keep Markdown notes in Obsidian Reading view with either a global all-Markdown p
 - License: `0BSD`
 - Support: [GitHub Issues](https://github.com/mrKazzila/Read-Only-View/issues)
 
-Privacy: no network requests, all rule matching stays local.
+Privacy: no network requests, all rule matching stays local. Imported absolute paths are reduced to paths inside the vault before settings are persisted.
 
 ## What it does
 
@@ -20,6 +20,7 @@ Read Only View forces `.md` notes to stay in Reading view.
 - Use include rules to limit read-only mode to selected paths when the preset is off.
 - Use exclude rules to carve out exceptions from matching include rules or the all-Markdown preset.
 - Match one folder, one file, or a broader pattern set.
+- Paste an Obsidian URL or a desktop system path to import one exact note or a folder.
 - Use built-in diagnostics and the Path tester when a rule does not behave as expected.
 
 This plugin changes Obsidian view behavior only. It does not change file-system permissions.
@@ -144,7 +145,7 @@ just demo-vault-no-plugin
 - `just demo-vault` creates or refreshes `./demo-vault` and links the current local plugin build by default.
 - `just demo-vault-reset` recreates the vault from scratch.
 - `just demo-vault-no-plugin` creates the same synthetic notes without linking plugin files.
-- The generated vault preconfigures `Include rules` for `Read Only/` and `Archive/`, plus an `Exclude rule` for `Read Only/Drafts/`.
+- The generated vault preconfigures folder rules for `Read Only/` and `Archive/`, exact imported rules for two Inbox notes, and an exclude rule for `Read Only/Drafts/`.
 - If `main.js` is missing, the generator stops with a clear build-first message instead of creating a broken plugin install.
 
 See [docs/DEMO_VAULT.md](docs/DEMO_VAULT.md) for setup details and recommended recording scenarios.
@@ -172,11 +173,13 @@ See [docs/E2E_TESTING.md](docs/E2E_TESTING.md) for setup details and known limit
 - When `Only matched paths` mode is on, a note becomes read-only only if at least one include rule matches it.
 - If an include rule and an `Exclude` rule both match, the `Exclude` rule wins.
 - Editing path rules does not change the selected mode.
+- The path rules list may be empty; deleting the final rule leaves no placeholder rule or empty-rule warning.
 - Disabled rules stay in the editor but do not participate in matching, diagnostics, or active-rule counts.
 - Priority is always: `Exclude rules` → `All Markdown files` mode → `Include rules`.
 - With `Use glob patterns` off, rules are treated as plain path prefixes.
 - With `Use glob patterns` on, rules may use `*`, `**`, and `?`.
 - Matching is case-sensitive unless you turn `Case sensitive` off.
+- Obsidian URLs resolve to one exact existing Markdown file. System paths can resolve to an exact Markdown file or an existing folder; imported folders retain ordinary vault-path glob/prefix semantics.
 
 Default mode examples:
 
@@ -184,6 +187,23 @@ Default mode examples:
 - `notes/policies/security.md` matches that exact file path
 
 If a rule surprises you, test the exact path in **Path tester** before changing several rules at once.
+
+### Import a note or folder
+
+The rule value field also accepts formats copied from Obsidian's **Copy path** menu:
+
+```text
+Inbox/Quick capture.md
+obsidian://open?vault=demo-vault&file=Inbox%2FQuick%20capture
+/Users/name/vaults/demo-vault/Inbox/Quick capture.md
+/Users/name/vaults/demo-vault/Knowledge Base/Productivity/
+```
+
+An Obsidian URL must use the `open` action, name the current vault, and point to an existing Markdown file. The `.md` extension may be omitted, and heading or block locators are ignored for matching. URLs using the `path` parameter are also supported.
+
+System paths must point to an existing Markdown file or folder inside the current vault. They can be imported only on desktop; after import, the portable vault-relative path works on desktop and mobile. Imported files remain exact rules, while imported folders behave like ordinary vault folder rules. The full system path is not saved. Invalid advanced inputs remain visible for correction but do not count as active rules or participate in matching.
+
+Path and system-path inputs are limited to 40,000 characters. Obsidian URLs are limited to 120,000 characters to allow for percent encoding. An over-limit value is blocked, marked invalid, and not saved. Long values are shortened only in diagnostic output; the accepted input itself remains unchanged.
 
 ## Rule examples
 
@@ -261,6 +281,7 @@ In **Settings → Read Only View**, you can configure:
   - table-style include/exclude rules
   - per-rule enabled checkbox
   - inline diagnostics and rule-volume warnings
+  - automatic detection and resolution of Obsidian URLs and desktop system paths
 - `Path tester`
 - `Advanced`
   - `Matching`
@@ -282,12 +303,13 @@ While editing rules:
 - very large rule sets may cause extra lines to be ignored
 - rule syntax help links to the [rule examples](https://github.com/mrKazzila/Read-Only-View#rule-examples)
 
-Use **Path tester** to paste the exact note path and confirm:
+Use **Path tester** to paste a vault path, Obsidian URL, or system path and confirm:
 
 - which include rules matched
 - which exclude rules matched
 - whether the final result is `READ-ONLY ON` or `READ-ONLY OFF`
 - whether the path is shown as `Read-only` or `Editable`
+- which source type was detected and which vault path it resolved to
 
 ![Screenshot of matching rules in the settings tab](docs/images/Read-Only-View-rules.png)
 
@@ -304,6 +326,8 @@ Use **Path tester** to paste the exact note path and confirm:
   - copy the exact note path into **Path tester**
   - check path casing if `Case sensitive` is on
   - check whether `Use glob patterns` is off and wildcard characters are being treated literally
+  - for an Obsidian URL, confirm that its `vault` parameter names the current vault
+  - for a system path, confirm that it points to an existing `.md` file or folder inside this vault and that you are importing it on desktop
 - A folder rule matches too broadly:
   - in default mode, remember that matching uses plain path prefixes
   - keep a trailing `/` for folder rules

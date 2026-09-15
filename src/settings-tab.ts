@@ -18,6 +18,7 @@ import {
 	type RuleEditorController,
 } from './settings-rule-editor';
 import type { SettingsTabPlugin } from './plugin-types';
+import { createRuleResolverContext, type RuleResolverContext } from './rule-source';
 
 export { computeRuleLimitsUiState } from './settings-ui-state';
 export { DebouncedRuleChangeSaver } from './settings-rule-editor';
@@ -37,6 +38,18 @@ type StaticSectionController = {
 type HeaderIndicatorsController = {
 	setActiveRulesCount: (count: number) => void;
 };
+
+function getRuleResolverContext(app: App): RuleResolverContext {
+	if (!app.vault) {
+		return {
+			vaultName: '',
+			vaultBasePath: null,
+			isMarkdownFile: () => false,
+			isFolder: () => false,
+		};
+	}
+	return createRuleResolverContext(app.vault);
+}
 
 function getActiveRulesCount(settings: SettingsTabPlugin['settings']): number {
 	return (settings.forceAllMarkdownReadOnly
@@ -86,6 +99,9 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 			excludeRules: this.plugin.settings.excludeRules,
 			includeRuleEnabled: this.plugin.settings.includeRuleEnabled,
 			excludeRuleEnabled: this.plugin.settings.excludeRuleEnabled,
+			includeRuleEntries: this.plugin.settings.includeRuleEntries,
+			excludeRuleEntries: this.plugin.settings.excludeRuleEntries,
+			resolverContext: getRuleResolverContext(this.app),
 			useGlobPatterns: this.plugin.settings.useGlobPatterns,
 			includeRulesActive: !this.plugin.settings.forceAllMarkdownReadOnly,
 			onChange: async (state, reason) => {
@@ -93,6 +109,8 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 				this.plugin.settings.excludeRules = state.excludeRules;
 				this.plugin.settings.includeRuleEnabled = state.includeRuleEnabled;
 				this.plugin.settings.excludeRuleEnabled = state.excludeRuleEnabled;
+				this.plugin.settings.includeRuleEntries = state.includeRuleEntries ?? [];
+				this.plugin.settings.excludeRuleEntries = state.excludeRuleEntries ?? [];
 				await this.plugin.saveSettings();
 				this.plugin.refreshEditorOptions();
 				await this.plugin.applyAllOpenMarkdownLeaves(reason);
@@ -121,6 +139,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 		this.pathTesterController = renderPathTester(pathTesterSection.bodyEl, {
 			settings: this.plugin.settings,
 			getCompiledRuleMatcher: this.plugin.getCompiledRuleMatcher?.bind(this.plugin),
+			resolverContext: getRuleResolverContext(this.app),
 		});
 
 		const advancedSectionEl = this.createCardSection(containerEl, 'Advanced');

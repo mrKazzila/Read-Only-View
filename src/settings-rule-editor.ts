@@ -2,9 +2,20 @@ import { DebouncedRenderScheduler } from './debounced-render';
 import {
 	buildRuleDiagnosticsWithIgnoredLines,
 	type RuleDiagnosticsEntry,
-	splitRulesFromText,
 } from './rule-diagnostics';
 import { computeRuleLimitsUiState } from './settings-ui-state';
+import {
+	resolveRuleSource,
+	resolutionToRuleEntry,
+	type RuleResolution,
+	type RuleResolverContext,
+} from './rule-source';
+import type { RuleEntry } from './plugin-types';
+import {
+	buildSourceInputLimitMessage,
+	formatSourceValueForDisplay,
+	limitSourceInput,
+} from './source-input-limits';
 import {
 	clearOwnedTimeout,
 	scheduleOwnedTimeout,
@@ -23,16 +34,36 @@ type RuleRowState = {
 	id: number;
 	type: RuleType;
 	value: string;
+	acceptedValue: string;
 	enabled: boolean;
+	storedEntry?: RuleEntry;
+	inputLimitExceeded: boolean;
+	inputLimit: number;
 };
 
 type RuleRowController = {
+	row: RuleRowState;
 	type: RuleType;
 	indexWithinType: number;
 	enabled: boolean;
 	inactiveByMode: boolean;
 	messageEl: HTMLElement;
+	resolution: RuleResolution;
 };
+
+function createRuleRow(entry: RuleEntry, type: RuleType, id: number): RuleRowState {
+	const limited = limitSourceInput(entry.sourceValue);
+	return {
+		id,
+		type,
+		value: limited.value,
+		acceptedValue: limited.exceeded ? '' : limited.value,
+		enabled: entry.enabled,
+		storedEntry: limited.exceeded ? undefined : entry,
+		inputLimitExceeded: limited.exceeded,
+		inputLimit: limited.limit,
+	};
+}
 
 export type RuleEditorController = {
 	dispose: () => void;
@@ -43,6 +74,8 @@ type RuleEditorUiState = {
 	excludeRules: string[];
 	includeRuleEnabled: boolean[];
 	excludeRuleEnabled: boolean[];
+	includeRuleEntries?: RuleEntry[];
+	excludeRuleEntries?: RuleEntry[];
 	includeText: string;
 	excludeText: string;
 	activeIncludeText: string;
@@ -60,6 +93,9 @@ type RenderRuleEditorOptions = {
 	excludeRules: string[];
 	includeRuleEnabled?: boolean[];
 	excludeRuleEnabled?: boolean[];
+	includeRuleEntries?: RuleEntry[];
+	excludeRuleEntries?: RuleEntry[];
+	resolverContext?: RuleResolverContext;
 	useGlobPatterns: boolean;
 	includeRulesActive?: boolean;
 	onChange: (state: RuleEditorUiState, reason: string) => Promise<void>;
@@ -70,37 +106,61 @@ function buildElementId(suffix: string): string {
 	return `read-only-view-path-rules-${suffix}`;
 }
 
-function buildRulesText(rows: RuleRowState[], type: RuleType): string {
-	return rows
-		.filter((row) => row.type === type)
-		.map((row) => row.value)
-		.join('\n');
-}
+const FALLBACK_RESOLVER_CONTEXT: RuleResolverContext = {
+	vaultName: '',
+	vaultBasePath: null,
+	isMarkdownFile: () => false,
+	isFolder: () => false,
+};
 
-function buildRuleEnabledStates(rows: RuleRowState[], type: RuleType): boolean[] {
-	return rows
-		.filter((row) => row.type === type && splitRulesFromText(row.value).length > 0)
-		.map((row) => row.enabled);
+function resolveRow(row: RuleRowState, context: RuleResolverContext): RuleResolution {
+	const value = row.inputLimitExceeded ? row.acceptedValue : row.value;
+	if (row.storedEntry?.resolvedPath && value === row.storedEntry.sourceValue) {
+		return {
+			sourceKind: row.storedEntry.sourceKind,
+			sourceValue: row.storedEntry.sourceValue,
+			resolvedPath: row.storedEntry.resolvedPath,
+			error: null,
+		};
+	}
+	return resolveRuleSource(value, context);
 }
 
 function buildRuleCountsSummary(includeCount: number, excludeCount: number): string {
 	return `${includeCount} include · ${excludeCount} exclude`;
 }
 
-function buildRulesPayload(rows: RuleRowState[], includeRulesActive = true): RuleEditorUiState {
-	const includeText = buildRulesText(rows, 'include');
-	const excludeText = buildRulesText(rows, 'exclude');
+function buildRulesPayload(
+	rows: RuleRowState[],
+	includeRulesActive = true,
+	context: RuleResolverContext = FALLBACK_RESOLVER_CONTEXT,
+): RuleEditorUiState {
+	const buildEntries = (type: RuleType) => rows
+		.filter((row) => row.type === type && row.acceptedValue.trim().length > 0)
+		.map((row) => resolutionToRuleEntry(resolveRow(row, context), row.enabled));
+	const includeRuleEntries = buildEntries('include');
+	const excludeRuleEntries = buildEntries('exclude');
+	const resolved = (entries: RuleEntry[]) => entries
+		.filter((entry): entry is RuleEntry & { resolvedPath: string } => !!entry.resolvedPath);
+	const resolvedInclude = resolved(includeRuleEntries);
+	const resolvedExclude = resolved(excludeRuleEntries);
+	const includeRules = resolvedInclude.map((entry) => entry.resolvedPath);
+	const excludeRules = resolvedExclude.map((entry) => entry.resolvedPath);
+	const includeText = includeRules.join('\n');
+	const excludeText = excludeRules.join('\n');
 	return {
-		includeRules: splitRulesFromText(includeText),
-		excludeRules: splitRulesFromText(excludeText),
-		includeRuleEnabled: buildRuleEnabledStates(rows, 'include'),
-		excludeRuleEnabled: buildRuleEnabledStates(rows, 'exclude'),
+		includeRules,
+		excludeRules,
+		includeRuleEnabled: resolvedInclude.map((entry) => entry.enabled),
+		excludeRuleEnabled: resolvedExclude.map((entry) => entry.enabled),
+		includeRuleEntries,
+		excludeRuleEntries,
 		includeText,
 		excludeText,
 		activeIncludeText: includeRulesActive
-			? buildRulesText(rows.filter((row) => row.enabled), 'include')
+			? resolvedInclude.filter((entry) => entry.enabled).map((entry) => entry.resolvedPath).join('\n')
 			: '',
-		activeExcludeText: buildRulesText(rows.filter((row) => row.enabled), 'exclude'),
+		activeExcludeText: resolvedExclude.filter((entry) => entry.enabled).map((entry) => entry.resolvedPath).join('\n'),
 	};
 }
 
@@ -135,6 +195,8 @@ export class DebouncedRuleChangeSaver {
 		excludeRules: [],
 		includeRuleEnabled: [],
 		excludeRuleEnabled: [],
+		includeRuleEntries: [],
+		excludeRuleEntries: [],
 		includeText: '',
 		excludeText: '',
 		activeIncludeText: '',
@@ -148,6 +210,8 @@ export class DebouncedRuleChangeSaver {
 		excludeRules: [],
 		includeRuleEnabled: [],
 		excludeRuleEnabled: [],
+		includeRuleEntries: [],
+		excludeRuleEntries: [],
 		includeText: '',
 		excludeText: '',
 		activeIncludeText: '',
@@ -273,23 +337,23 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	const includeRulesActive = options.includeRulesActive ?? true;
 	const ownerWindow = containerEl.ownerDocument?.defaultView;
 	let nextRowId = 1;
-	let rows: RuleRowState[] = [
-		...options.includeRules.map((value, index) => ({
-			id: nextRowId++,
-			type: 'include' as const,
-			value,
+	const resolverContext = options.resolverContext ?? FALLBACK_RESOLVER_CONTEXT;
+	const initialIncludeEntries = options.includeRuleEntries && options.includeRuleEntries.length > 0
+		? options.includeRuleEntries
+		: options.includeRules.map((value, index): RuleEntry => ({
+			sourceKind: 'vault-path', sourceValue: value, resolvedPath: value,
 			enabled: options.includeRuleEnabled?.[index] !== false,
-		})),
-		...options.excludeRules.map((value, index) => ({
-			id: nextRowId++,
-			type: 'exclude' as const,
-			value,
+		}));
+	const initialExcludeEntries = options.excludeRuleEntries && options.excludeRuleEntries.length > 0
+		? options.excludeRuleEntries
+		: options.excludeRules.map((value, index): RuleEntry => ({
+			sourceKind: 'vault-path', sourceValue: value, resolvedPath: value,
 			enabled: options.excludeRuleEnabled?.[index] !== false,
-		})),
+		}));
+	let rows: RuleRowState[] = [
+		...initialIncludeEntries.map((entry) => createRuleRow(entry, 'include', nextRowId++)),
+		...initialExcludeEntries.map((entry) => createRuleRow(entry, 'exclude', nextRowId++)),
 	];
-	if (rows.length === 0) {
-		rows = [{ id: nextRowId++, type: 'include', value: '', enabled: true }];
-	}
 
 	const sectionEl = containerEl.createDiv({ cls: 'read-only-view-rule-section' });
 	const descriptionId = buildElementId('description');
@@ -359,7 +423,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		saveStatusEl.setText('Saved.');
 	};
 
-	const getCurrentPayload = (): RuleEditorUiState => buildRulesPayload(rows, includeRulesActive);
+	const getCurrentPayload = (): RuleEditorUiState => buildRulesPayload(rows, includeRulesActive, resolverContext);
 	let rowControllers = new Map<number, RuleRowController>();
 
 	const saver = new DebouncedRuleChangeSaver(
@@ -401,21 +465,36 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	const renderDiagnostics = () => {
 		const payload = getCurrentPayload();
 		const uiState = renderSummaryState();
-		const includeEntries: RuleDiagnosticsEntry[] = includeRulesActive
+		const includeEntries: RuleDiagnosticsEntry[] = includeRulesActive && payload.activeIncludeText.length > 0
 			? buildRuleDiagnosticsWithIgnoredLines(
 				payload.activeIncludeText,
 				options.useGlobPatterns,
 				new Set<number>(uiState.ignoredIncludeLineIndexes),
 			)
 			: [];
-		const excludeEntries = buildRuleDiagnosticsWithIgnoredLines(
-			payload.activeExcludeText,
-			options.useGlobPatterns,
-			new Set<number>(uiState.ignoredExcludeLineIndexes),
-		);
+		const excludeEntries = payload.activeExcludeText.length > 0
+			? buildRuleDiagnosticsWithIgnoredLines(
+				payload.activeExcludeText,
+				options.useGlobPatterns,
+				new Set<number>(uiState.ignoredExcludeLineIndexes),
+			)
+			: [];
 
+		let hasSourceError = false;
 		for (const controller of rowControllers.values()) {
+			controller.resolution = resolveRow(controller.row, resolverContext);
+			controller.indexWithinType = rows
+				.filter((row) => row.type === controller.type && row.enabled && resolveRow(row, resolverContext).resolvedPath)
+				.findIndex((row) => row.id === controller.row.id);
 			controller.messageEl.empty();
+			if (controller.row.inputLimitExceeded) {
+				hasSourceError = true;
+				controller.messageEl.createDiv({
+					text: buildSourceInputLimitMessage(controller.row.inputLimit),
+					cls: 'read-only-view-rule-inline-message is-error',
+				});
+				continue;
+			}
 			if (controller.inactiveByMode) {
 				controller.messageEl.createDiv({
 					text: 'Inactive in all Markdown files mode.',
@@ -426,12 +505,29 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 			if (!controller.enabled) {
 				continue;
 			}
+			if (controller.resolution.error) {
+				hasSourceError = true;
+				controller.messageEl.createDiv({
+					text: formatSourceValueForDisplay(controller.resolution.error),
+					cls: 'read-only-view-rule-inline-message is-error',
+				});
+				continue;
+			}
+			if (controller.resolution.sourceKind !== 'vault-path' && controller.resolution.resolvedPath) {
+				const sourceLabel = controller.resolution.sourceKind === 'obsidian-uri'
+					? 'Obsidian URL'
+					: 'System path';
+				controller.messageEl.createDiv({
+					text: `${sourceLabel} · Resolved to: ${formatSourceValueForDisplay(controller.resolution.resolvedPath)}`,
+					cls: 'read-only-view-rule-inline-message is-resolved',
+				});
+			}
 			const entry = controller.type === 'include'
 				? includeEntries[controller.indexWithinType]
 				: excludeEntries[controller.indexWithinType];
 			for (const warning of getInlineMessages(entry)) {
 				controller.messageEl.createDiv({
-					text: warning,
+					text: formatSourceValueForDisplay(warning),
 					cls: `read-only-view-rule-inline-message ${entry?.ignoredByRuleLimit ? 'is-ignored' : ''}`,
 				});
 			}
@@ -453,21 +549,21 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 						: 'read-only-view-diagnostics-item-warning',
 				});
 				itemEl.createDiv({
-					text: `${type} [${entry.lineNumber}] ${entry.normalized || '(empty line)'}`,
+					text: `${type} [${entry.lineNumber}] ${formatSourceValueForDisplay(entry.normalized || '(empty line)')}`,
 					cls: 'read-only-view-diagnostics-summary',
 				});
 				const warningsListEl = itemEl.createEl('ul', { cls: 'read-only-view-diagnostics-warnings' });
 				for (const warning of entry.warnings) {
 					warningsListEl.createEl('li', {
-						text: warning,
+						text: formatSourceValueForDisplay(warning),
 						cls: 'read-only-view-diagnostics-warning',
 					});
 				}
 			}
 		}
-		if (!diagnosticsEl.querySelector('li')) {
+		if (!diagnosticsEl.querySelector('li') && !hasSourceError) {
 			const okEl = diagnosticsEl.createDiv({ cls: 'read-only-view-diagnostics-summary' });
-			okEl.setText('All rules look valid.');
+			okEl.setText(rows.length === 0 ? 'No path rules configured.' : 'All rules look valid.');
 		}
 	};
 
@@ -494,6 +590,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 
 		for (const row of rows) {
 			const inactiveByMode = row.type === 'include' && !includeRulesActive;
+			const resolution = resolveRow(row, resolverContext);
 			const rowEl = tbodyEl.createEl('tr', {
 				cls: `read-only-view-rule-row${row.enabled ? '' : ' is-disabled'}${inactiveByMode ? ' is-inactive-by-mode' : ''}`,
 			});
@@ -534,6 +631,10 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 			inputEl.addClass('read-only-view-rule-input');
 			inputEl.setAttr('aria-label', `${row.type === 'include' ? 'Include' : 'Exclude'} rule value`);
 			inputEl.setAttr('aria-describedby', `${descriptionId} ${saveStatusId} ${diagnosticsId}`);
+			inputEl.setAttr('aria-invalid', row.inputLimitExceeded ? 'true' : 'false');
+			if (row.inputLimitExceeded) {
+				inputEl.addClass('is-input-error');
+			}
 			const messageEl = valueStackEl.createDiv({ cls: 'read-only-view-rule-inline-messages' });
 
 			const deleteCellEl = rowEl.createEl('td');
@@ -548,7 +649,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 			deleteButtonEl.setAttr('title', 'Delete rule');
 
 			const indexWithinType = row.type === 'include' ? includeIndex : excludeIndex;
-			if (row.enabled) {
+			if (row.enabled && resolution.resolvedPath) {
 				if (row.type === 'include') {
 					includeIndex++;
 				} else {
@@ -556,11 +657,13 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 				}
 			}
 			rowControllers.set(row.id, {
+				row,
 				type: row.type,
 				indexWithinType,
 				enabled: row.enabled,
 				inactiveByMode,
 				messageEl,
+				resolution,
 			});
 
 			enabledEl.addEventListener('change', () => {
@@ -575,24 +678,42 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 				syncRows(true);
 			});
 
+			const readInput = (): boolean => {
+				const limited = limitSourceInput(inputEl.value, row.inputLimitExceeded);
+				inputEl.value = limited.value;
+				row.value = limited.value;
+				row.inputLimit = limited.limit;
+				row.inputLimitExceeded = limited.exceeded;
+				inputEl.setAttr('aria-invalid', limited.exceeded ? 'true' : 'false');
+				if (limited.exceeded) {
+					inputEl.addClass('is-input-error');
+					diagnosticsRenderScheduler.schedule();
+					return false;
+				}
+				inputEl.removeClass('is-input-error');
+				row.acceptedValue = limited.value;
+				row.storedEntry = undefined;
+				return true;
+			};
+
 			inputEl.addEventListener('input', () => {
-				row.value = inputEl.value;
-				syncRows();
+				if (readInput()) {
+					syncRows();
+				}
 			});
 			inputEl.addEventListener('change', () => {
-				row.value = inputEl.value;
-				syncRows(true);
+				if (readInput()) {
+					syncRows(true);
+				}
 			});
 			inputEl.addEventListener('blur', () => {
-				row.value = inputEl.value;
-				syncRows(true);
+				if (readInput()) {
+					syncRows(true);
+				}
 			});
 
 			deleteButtonEl.addEventListener('click', () => {
 				rows = rows.filter((candidate) => candidate.id !== row.id);
-				if (rows.length === 0) {
-					rows = [{ id: nextRowId++, type: 'include', value: '', enabled: true }];
-				}
 				renderRows();
 				syncRows(true);
 			});
@@ -601,7 +722,15 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	};
 
 	addRuleButton.addEventListener('click', () => {
-		rows.push({ id: nextRowId++, type: 'include', value: '', enabled: true });
+		rows.push({
+			id: nextRowId++,
+			type: 'include',
+			value: '',
+			acceptedValue: '',
+			enabled: true,
+			inputLimitExceeded: false,
+			inputLimit: limitSourceInput('').limit,
+		});
 		renderRows();
 		syncRows(true);
 	});

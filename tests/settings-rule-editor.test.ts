@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { renderRuleEditor } from '../src/settings-rule-editor.js';
+import { PATH_SOURCE_INPUT_MAX_LENGTH } from '../src/source-input-limits.js';
 import { installDomMocks, MockHTMLElement } from './helpers/dom-mocks.js';
 
 function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) => Promise<void>): Promise<void> {
@@ -257,6 +258,237 @@ test('rules editor save status moves through saving to saved on committed input'
 			{ includeRules: ['docs/updated.md'], excludeRules: [], reason: 'settings-include-rules' },
 		]);
 		assert.ok(collectTexts(container).includes('Saved.'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor keeps Obsidian URL visible and saves its resolved path metadata', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	let savedState: { includeRules: string[]; includeRuleEntries?: Array<{ sourceValue: string; resolvedPath: string | null }> } | null = null;
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				includeRules: [],
+				excludeRules: [],
+				useGlobPatterns: false,
+				resolverContext: {
+					vaultName: 'demo-vault',
+					vaultBasePath: '/vaults/demo-vault',
+					isMarkdownFile: (path) => path === 'Inbox/Quick capture.md',
+					isFolder: () => false,
+				},
+				onChange: async (state) => {
+					savedState = state;
+				},
+			});
+			const addButton = container.querySelector('.read-only-view-add-rule-button');
+			assert.ok(addButton);
+			addButton.trigger('click');
+			const input = container.querySelector('.read-only-view-rule-input');
+			assert.ok(input);
+			const uri = 'obsidian://open?vault=demo-vault&file=Inbox%2FQuick%20capture';
+			input.value = uri;
+			input.trigger('input');
+			await flushAll();
+
+			assert.equal(input.value, uri);
+			assert.ok(collectTexts(container).includes('Obsidian URL · Resolved to: Inbox/Quick capture.md'));
+			assert.deepEqual(savedState?.includeRules, ['Inbox/Quick capture.md']);
+			assert.equal(savedState?.includeRuleEntries?.[0]?.sourceValue, uri);
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor imports a system folder as a privacy-safe vault folder rule', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const committed: Array<{
+		includeRules: string[];
+		sourceValue?: string;
+		resolvedPath?: string | null;
+	}> = [];
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				includeRules: [],
+				excludeRules: [],
+				useGlobPatterns: false,
+				resolverContext: {
+					vaultName: 'demo-vault',
+					vaultBasePath: '/vaults/demo-vault',
+					isMarkdownFile: () => false,
+					isFolder: (path) => path === 'Knowledge Base/Productivity',
+				},
+				onChange: async (state) => {
+					committed.push({
+						includeRules: state.includeRules,
+						sourceValue: state.includeRuleEntries?.[0]?.sourceValue,
+						resolvedPath: state.includeRuleEntries?.[0]?.resolvedPath,
+					});
+				},
+			});
+
+			const addButton = container.querySelector('.read-only-view-add-rule-button');
+			assert.ok(addButton);
+			addButton.trigger('click');
+			const input = container.querySelector('.read-only-view-rule-input');
+			assert.ok(input);
+			input.value = '/vaults/demo-vault/Knowledge Base/Productivity/';
+			input.trigger('input');
+			await flushAll();
+
+			assert.ok(collectTexts(container).includes(
+				'System path · Resolved to: Knowledge Base/Productivity/',
+			));
+			assert.deepEqual(committed.at(-1), {
+				includeRules: ['Knowledge Base/Productivity/'],
+				sourceValue: 'Knowledge Base/Productivity/',
+				resolvedPath: 'Knowledge Base/Productivity/',
+			});
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor blocks and does not save an over-limit rule value', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const committed: string[][] = [];
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				includeRules: [],
+				excludeRules: [],
+				useGlobPatterns: false,
+				onChange: async (state) => {
+					committed.push(state.includeRules);
+				},
+			});
+			const addButton = container.querySelector('.read-only-view-add-rule-button');
+			assert.ok(addButton);
+			addButton.trigger('click');
+			committed.length = 0;
+
+			const input = container.querySelector('.read-only-view-rule-input');
+			assert.ok(input);
+			input.value = 'x'.repeat(PATH_SOURCE_INPUT_MAX_LENGTH + 1);
+			input.trigger('input');
+			await flushAll();
+
+			assert.equal(input.value.length, PATH_SOURCE_INPUT_MAX_LENGTH);
+			assert.equal(input.getAttr('aria-invalid'), 'true');
+			assert.ok(input.matches('.is-input-error'));
+			assert.ok(collectTexts(container).includes('Input is too long. Maximum: 40,000 characters.'));
+			assert.deepEqual(committed, []);
+
+			input.value = 'docs/valid.md';
+			input.trigger('input');
+			await flushAll();
+			assert.equal(input.getAttr('aria-invalid'), 'false');
+			assert.ok(!input.matches('.is-input-error'));
+			assert.deepEqual(committed.at(-1), ['docs/valid.md']);
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor safely presents an over-limit persisted rule for correction', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const sourceValue = 'x'.repeat(PATH_SOURCE_INPUT_MAX_LENGTH + 1);
+
+	try {
+		renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			includeRules: [],
+			excludeRules: [],
+			includeRuleEntries: [{
+				sourceKind: 'vault-path',
+				sourceValue,
+				resolvedPath: sourceValue,
+				enabled: true,
+			}],
+			useGlobPatterns: true,
+			onChange: async () => undefined,
+		});
+
+		const input = container.querySelector('.read-only-view-rule-input');
+		assert.ok(input);
+		assert.equal(input.value.length, PATH_SOURCE_INPUT_MAX_LENGTH);
+		assert.equal(input.getAttr('aria-invalid'), 'true');
+		assert.ok(input.matches('.is-input-error'));
+		assert.ok(collectTexts(container).includes('Input is too long. Maximum: 40,000 characters.'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor starts with zero rows and no empty-rule warning in both modes', () => {
+	for (const includeRulesActive of [true, false]) {
+		const dom = installDomMocks();
+		const container = new MockHTMLElement();
+
+		try {
+			renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				includeRules: [],
+				excludeRules: [],
+				useGlobPatterns: true,
+				includeRulesActive,
+				onChange: async () => undefined,
+			});
+
+			const texts = collectTexts(container);
+			assert.equal(container.querySelectorAll('.read-only-view-rule-row').length, 0);
+			assert.ok(texts.includes('No path rules configured.'));
+			assert.ok(!texts.includes('Include [1] (empty line)'));
+			assert.ok(!texts.includes('Exclude [1] (empty line)'));
+			assert.ok(!texts.includes('Empty or whitespace-only line.'));
+		} finally {
+			dom.restore();
+		}
+	}
+});
+
+test('deleting the final rule leaves zero rows and persists empty rule arrays', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const committed: Array<{ includeRules: string[]; excludeRules: string[] }> = [];
+
+	try {
+		renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
+			useGlobPatterns: true,
+			onChange: async (state) => {
+				committed.push({ includeRules: state.includeRules, excludeRules: state.excludeRules });
+			},
+		});
+
+		const deleteButton = container.querySelector('.read-only-view-delete-rule-button');
+		assert.ok(deleteButton);
+		deleteButton.trigger('click');
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.equal(container.querySelectorAll('.read-only-view-rule-row').length, 0);
+		assert.deepEqual(committed.at(-1), { includeRules: [], excludeRules: [] });
+		const texts = collectTexts(container);
+		assert.ok(texts.includes('No path rules configured.'));
+		assert.ok(!texts.includes('Empty or whitespace-only line.'));
 	} finally {
 		dom.restore();
 	}

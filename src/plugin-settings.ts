@@ -1,4 +1,9 @@
-import type { ForceReadModeSettings } from './plugin-types';
+import { normalizeVaultPath } from './path-utils';
+import type { ForceReadModeSettings, RuleEntry, RuleSourceKind } from './plugin-types';
+import {
+	getSourceInputMaxLength,
+	PATH_SOURCE_INPUT_MAX_LENGTH,
+} from './source-input-limits';
 
 export const DEFAULT_SETTINGS: ForceReadModeSettings = {
 	enabled: true,
@@ -12,6 +17,8 @@ export const DEFAULT_SETTINGS: ForceReadModeSettings = {
 	excludeRules: [],
 	includeRuleEnabled: [],
 	excludeRuleEnabled: [],
+	includeRuleEntries: [],
+	excludeRuleEntries: [],
 };
 
 type BooleanSettingKey =
@@ -64,6 +71,60 @@ function parseRuleEnabledList(value: unknown, ruleCount: number): boolean[] {
 	);
 }
 
+function isRuleSourceKind(value: unknown): value is RuleSourceKind {
+	return value === 'vault-path' || value === 'obsidian-uri' || value === 'absolute-path';
+}
+
+function parseRuleEntries(value: unknown): RuleEntry[] | null {
+	if (!Array.isArray(value)) {
+		return null;
+	}
+	const entries: RuleEntry[] = [];
+	for (const candidate of value) {
+		if (typeof candidate !== 'object' || candidate === null) {
+			continue;
+		}
+		const record = candidate as Partial<Record<keyof RuleEntry, unknown>>;
+		if (!isRuleSourceKind(record.sourceKind) || typeof record.sourceValue !== 'string') {
+			continue;
+		}
+		const resolvedPath = typeof record.resolvedPath === 'string'
+			? normalizeVaultPath(record.resolvedPath)
+			: null;
+		entries.push({
+			sourceKind: record.sourceKind,
+			sourceValue: record.sourceValue,
+			resolvedPath: resolvedPath || null,
+			enabled: typeof record.enabled === 'boolean' ? record.enabled : true,
+		});
+	}
+	return entries;
+}
+
+function migrateLegacyRules(rules: string[], enabledStates: boolean[]): RuleEntry[] {
+	return rules.map((rule, index) => {
+		const normalized = normalizeVaultPath(rule);
+		return {
+			sourceKind: 'vault-path',
+			sourceValue: normalized,
+			resolvedPath: normalized || null,
+			enabled: enabledStates[index] !== false,
+		};
+	});
+}
+
+function buildRuntimeRules(entries: RuleEntry[]): { rules: string[]; enabled: boolean[] } {
+	const resolved = entries.filter((entry): entry is RuleEntry & { resolvedPath: string } =>
+		!!entry.resolvedPath
+		&& entry.sourceValue.length <= getSourceInputMaxLength(entry.sourceValue)
+		&& entry.resolvedPath.length <= PATH_SOURCE_INPUT_MAX_LENGTH,
+	);
+	return {
+		rules: resolved.map((entry) => entry.resolvedPath),
+		enabled: resolved.map((entry) => entry.enabled),
+	};
+}
+
 export function mergeLoadedSettings(
 	loaded: unknown,
 ): ForceReadModeSettings {
@@ -74,10 +135,24 @@ export function mergeLoadedSettings(
 			excludeRules: [...DEFAULT_SETTINGS.excludeRules],
 			includeRuleEnabled: [...DEFAULT_SETTINGS.includeRuleEnabled],
 			excludeRuleEnabled: [...DEFAULT_SETTINGS.excludeRuleEnabled],
+			includeRuleEntries: [...(DEFAULT_SETTINGS.includeRuleEntries ?? [])],
+			excludeRuleEntries: [...(DEFAULT_SETTINGS.excludeRuleEntries ?? [])],
 		};
 	}
 	const includeRules = parseRuleList(loaded.includeRules);
 	const excludeRules = parseRuleList(loaded.excludeRules);
+	const includeRuleEnabled = parseRuleEnabledList(loaded.includeRuleEnabled, includeRules.length);
+	const excludeRuleEnabled = parseRuleEnabledList(loaded.excludeRuleEnabled, excludeRules.length);
+	const parsedIncludeEntries = parseRuleEntries(loaded.includeRuleEntries);
+	const parsedExcludeEntries = parseRuleEntries(loaded.excludeRuleEntries);
+	const includeRuleEntries = parsedIncludeEntries && (parsedIncludeEntries.length > 0 || includeRules.length === 0)
+		? parsedIncludeEntries
+		: migrateLegacyRules(includeRules, includeRuleEnabled);
+	const excludeRuleEntries = parsedExcludeEntries && (parsedExcludeEntries.length > 0 || excludeRules.length === 0)
+		? parsedExcludeEntries
+		: migrateLegacyRules(excludeRules, excludeRuleEnabled);
+	const runtimeInclude = buildRuntimeRules(includeRuleEntries);
+	const runtimeExclude = buildRuntimeRules(excludeRuleEntries);
 
 	return {
 		enabled: parseBooleanSetting(loaded, 'enabled'),
@@ -87,9 +162,11 @@ export function mergeLoadedSettings(
 		debug: parseBooleanSetting(loaded, 'debug'),
 		debugVerbosePaths: parseBooleanSetting(loaded, 'debugVerbosePaths'),
 		dismissedWelcomeVersion: parseNumberSetting(loaded, 'dismissedWelcomeVersion'),
-		includeRules,
-		excludeRules,
-		includeRuleEnabled: parseRuleEnabledList(loaded.includeRuleEnabled, includeRules.length),
-		excludeRuleEnabled: parseRuleEnabledList(loaded.excludeRuleEnabled, excludeRules.length),
+		includeRules: runtimeInclude.rules,
+		excludeRules: runtimeExclude.rules,
+		includeRuleEnabled: runtimeInclude.enabled,
+		excludeRuleEnabled: runtimeExclude.enabled,
+		includeRuleEntries,
+		excludeRuleEntries,
 	};
 }

@@ -9,6 +9,7 @@ import {
 	type ForceReadModeSettings,
 } from '../src/matcher.js';
 import { DEFAULT_SETTINGS, mergeLoadedSettings } from '../src/plugin-settings.js';
+import { PATH_SOURCE_INPUT_MAX_LENGTH } from '../src/source-input-limits.js';
 
 type LoadSettingsPlugin = {
 	loadData: () => Promise<unknown>;
@@ -48,7 +49,16 @@ test('valid persisted settings are preserved', () => {
 		excludeRuleEnabled: [true],
 	};
 
-	assert.deepEqual(mergeLoadedSettings(loaded), loaded);
+	assert.deepEqual(mergeLoadedSettings(loaded), {
+		...loaded,
+		includeRuleEntries: [
+			{ sourceKind: 'vault-path', sourceValue: 'docs/**', resolvedPath: 'docs/**', enabled: true },
+			{ sourceKind: 'vault-path', sourceValue: 'notes/file.md', resolvedPath: 'notes/file.md', enabled: false },
+		],
+		excludeRuleEntries: [
+			{ sourceKind: 'vault-path', sourceValue: 'docs/private/**', resolvedPath: 'docs/private/**', enabled: true },
+		],
+	});
 });
 
 test('string includeRules payload falls back safely without crashing', () => {
@@ -90,6 +100,87 @@ test('existing rules without enabled flags migrate as enabled', () => {
 
 	assert.deepEqual(merged.includeRuleEnabled, [true, true]);
 	assert.deepEqual(merged.excludeRuleEnabled, [true]);
+});
+
+test('object rule entries drive canonical runtime rules and keep unresolved sources out', () => {
+	const merged = mergeLoadedSettings({
+		...DEFAULT_SETTINGS,
+		includeRules: ['stale/value.md'],
+		includeRuleEntries: [
+			{
+				sourceKind: 'obsidian-uri',
+				sourceValue: 'obsidian://open?vault=demo-vault&file=Inbox%2FQuick%20capture',
+				resolvedPath: 'Inbox/Quick capture.md',
+				enabled: true,
+			},
+			{
+				sourceKind: 'obsidian-uri',
+				sourceValue: 'obsidian://open?vault=other&file=Missing',
+				resolvedPath: null,
+				enabled: true,
+			},
+		],
+	});
+
+	assert.deepEqual(merged.includeRules, ['Inbox/Quick capture.md']);
+	assert.deepEqual(merged.includeRuleEnabled, [true]);
+	assert.equal(merged.includeRuleEntries?.length, 2);
+});
+
+test('over-limit persisted entries remain available for correction but stay out of runtime rules', () => {
+	const sourceValue = 'x'.repeat(PATH_SOURCE_INPUT_MAX_LENGTH + 1);
+	const merged = mergeLoadedSettings({
+		...DEFAULT_SETTINGS,
+		includeRuleEntries: [{
+			sourceKind: 'vault-path',
+			sourceValue,
+			resolvedPath: sourceValue,
+			enabled: true,
+		}],
+	});
+
+	assert.equal(merged.includeRuleEntries?.[0]?.sourceValue, sourceValue);
+	assert.deepEqual(merged.includeRules, []);
+	assert.deepEqual(merged.includeRuleEnabled, []);
+});
+
+test('absolute entry persists only the resolved vault path', () => {
+	const merged = mergeLoadedSettings({
+		...DEFAULT_SETTINGS,
+		includeRuleEntries: [{
+			sourceKind: 'absolute-path',
+			sourceValue: 'Inbox/Quick capture.md',
+			resolvedPath: 'Inbox/Quick capture.md',
+			enabled: true,
+		}],
+	});
+
+	assert.deepEqual(merged.includeRuleEntries, [{
+		sourceKind: 'absolute-path',
+		sourceValue: 'Inbox/Quick capture.md',
+		resolvedPath: 'Inbox/Quick capture.md',
+		enabled: true,
+	}]);
+});
+
+test('absolute folder entry reloads with its trailing slash and portable source value', () => {
+	const merged = mergeLoadedSettings({
+		...DEFAULT_SETTINGS,
+		includeRuleEntries: [{
+			sourceKind: 'absolute-path',
+			sourceValue: 'Knowledge Base/Productivity/',
+			resolvedPath: 'Knowledge Base/Productivity/',
+			enabled: true,
+		}],
+	});
+
+	assert.deepEqual(merged.includeRules, ['Knowledge Base/Productivity/']);
+	assert.deepEqual(merged.includeRuleEntries, [{
+		sourceKind: 'absolute-path',
+		sourceValue: 'Knowledge Base/Productivity/',
+		resolvedPath: 'Knowledge Base/Productivity/',
+		enabled: true,
+	}]);
 });
 
 test('rule enabled flags are validated and aligned to rule counts', () => {

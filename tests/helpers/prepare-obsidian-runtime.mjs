@@ -39,6 +39,25 @@ export class App {
 }
 export class WorkspaceLeaf {}
 export class MarkdownView {}
+export class TFile {
+  constructor(path = '') {
+    this.path = path;
+    this.extension = path.endsWith('.md') ? 'md' : '';
+  }
+}
+export class TFolder {
+  constructor(path = '') {
+    this.path = path;
+  }
+}
+export class FileSystemAdapter {
+  constructor(basePath = '') {
+    this.basePath = basePath;
+  }
+  getBasePath() {
+    return this.basePath;
+  }
+}
 export const editorInfoField = StateField.define({
   create() {
     return editorInfoValue;

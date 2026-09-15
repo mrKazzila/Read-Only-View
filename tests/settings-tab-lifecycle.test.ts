@@ -169,7 +169,7 @@ test('settings tab rerender cancels pending path tester render work', async () =
 
 			const texts = collectTexts(container);
 			assert.ok(!texts.includes('Matched include: docs/a.md'));
-			assert.ok(texts.includes('Enter a file path to test.'));
+			assert.ok(texts.includes('Enter a path to test.'));
 		});
 	} finally {
 		dom.restore();

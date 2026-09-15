@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { DEFAULT_SETTINGS } from '../src/plugin-settings.js';
 import { renderPathTester } from '../src/settings-path-tester.js';
+import { PATH_SOURCE_INPUT_MAX_LENGTH } from '../src/source-input-limits.js';
 import { installDomMocks, MockHTMLElement } from './helpers/dom-mocks.js';
 
 function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) => Promise<void>): Promise<void> {
@@ -102,7 +103,7 @@ test('path tester renders empty-state prompt before input', () => {
 	try {
 		renderPathTester(container as unknown as HTMLElement, { settings: createSettings() });
 
-		assert.ok(collectTexts(container).includes('Enter a file path to test.'));
+		assert.ok(collectTexts(container).includes('Enter a path to test.'));
 	} finally {
 		dom.restore();
 	}
@@ -163,6 +164,121 @@ test('path tester renders exclude override as editable state', () => {
 		assert.ok(texts.includes('This path is excluded and stays editable.'));
 		assert.ok(texts.includes('Matched exclude: docs/private/**'));
 		assert.ok(texts.includes('Result: READ-ONLY OFF'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('path tester resolves an Obsidian URL before matching', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		renderPathTester(container as unknown as HTMLElement, {
+			settings: {
+				...createSettings(),
+				enabled: true,
+				useGlobPatterns: false,
+				includeRules: ['Inbox/Quick capture.md'],
+				includeRuleEnabled: [true],
+			},
+			resolverContext: {
+				vaultName: 'demo-vault',
+				vaultBasePath: '/vaults/demo-vault',
+				isMarkdownFile: (path) => path === 'Inbox/Quick capture.md',
+				isFolder: () => false,
+			},
+		});
+
+		const input = container.querySelector('input');
+		assert.ok(input);
+		input.value = 'obsidian://open?vault=demo-vault&file=Inbox%2FQuick%20capture';
+		input.trigger('change');
+
+		const texts = collectTexts(container);
+		assert.ok(texts.includes('Detected source: obsidian-uri'));
+		assert.ok(texts.includes('Resolved path: Inbox/Quick capture.md'));
+		assert.ok(texts.includes('Read-only'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('path tester explains why an absolute path cannot be imported on mobile', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		renderPathTester(container as unknown as HTMLElement, {
+			settings: createSettings(),
+			resolverContext: {
+				vaultName: 'demo-vault',
+				vaultBasePath: null,
+				isMarkdownFile: () => false,
+				isFolder: () => false,
+			},
+		});
+		const input = container.querySelector('input');
+		assert.ok(input);
+		input.value = '/vaults/demo-vault/Inbox/Quick capture.md';
+		input.trigger('change');
+
+		assert.ok(collectTexts(container).includes('System paths can be imported only in the desktop app.'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('path tester resolves a desktop system folder without reporting a file error', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		renderPathTester(container as unknown as HTMLElement, {
+			settings: createSettings(),
+			resolverContext: {
+				vaultName: 'demo-vault',
+				vaultBasePath: '/vaults/demo-vault',
+				isMarkdownFile: () => false,
+				isFolder: (path) => path === 'Knowledge Base/Productivity',
+			},
+		});
+		const input = container.querySelector('input');
+		assert.ok(input);
+		input.value = '/vaults/demo-vault/Knowledge Base/Productivity/';
+		input.trigger('change');
+
+		const texts = collectTexts(container);
+		assert.ok(texts.includes('Folder'));
+		assert.ok(texts.includes('Detected source: absolute-path'));
+		assert.ok(texts.includes('Resolved folder: Knowledge Base/Productivity/'));
+		assert.ok(texts.includes('Enter a Markdown note inside this folder to test rule matches.'));
+		assert.ok(!texts.some((text) => text.includes('Markdown file not found')));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('path tester blocks over-limit input and exposes an accessible error state', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		renderPathTester(container as unknown as HTMLElement, { settings: createSettings() });
+		const input = container.querySelector('input');
+		assert.ok(input);
+		input.value = 'x'.repeat(PATH_SOURCE_INPUT_MAX_LENGTH + 1);
+		input.trigger('change');
+
+		assert.equal(input.value.length, PATH_SOURCE_INPUT_MAX_LENGTH);
+		assert.equal(input.getAttr('aria-invalid'), 'true');
+		assert.ok(input.matches('.is-input-error'));
+		assert.ok(collectTexts(container).includes('Input is too long. Maximum: 40,000 characters.'));
+
+		input.value = 'Inbox/Quick capture.md';
+		input.trigger('change');
+		assert.equal(input.getAttr('aria-invalid'), 'false');
+		assert.ok(!input.matches('.is-input-error'));
 	} finally {
 		dom.restore();
 	}
@@ -328,7 +444,7 @@ test('path tester dispose cancels pending render', async () => {
 
 			const texts = collectTexts(container);
 			assert.ok(!texts.includes('Matched include: docs/**'));
-			assert.ok(texts.includes('Enter a file path to test.'));
+			assert.ok(texts.includes('Enter a path to test.'));
 		});
 	} finally {
 		dom.restore();

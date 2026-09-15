@@ -379,3 +379,39 @@ test('X) disabled rules are excluded from matching and matcher cache keys', () =
 	settings.includeRuleEnabled[0] = true;
 	assert.notEqual(enabledKey, getCompiledRuleMatcherKey(settings));
 });
+
+test('Y) advanced rule entries match exactly even in prefix mode', () => {
+	const settings = createSettings({
+		useGlobPatterns: false,
+		includeRules: ['Inbox/Quick capture.md'],
+		includeRuleEnabled: [true],
+		includeRuleEntries: [{
+			sourceKind: 'obsidian-uri',
+			sourceValue: 'obsidian://open?vault=demo-vault&file=Inbox%2FQuick%20capture',
+			resolvedPath: 'Inbox/Quick capture.md',
+			enabled: true,
+		}],
+	});
+
+	const matcher = createCompiledRuleMatcher(settings);
+	assert.equal(matcher.shouldForceReadOnly('Inbox/Quick capture.md'), true);
+	assert.deepEqual(matcher.matchIncludeRules('Inbox/Quick capture.md/child'), []);
+});
+
+test('Z) an imported absolute folder keeps ordinary folder semantics', () => {
+	const settings = createSettings({
+		useGlobPatterns: false,
+		includeRules: ['Knowledge Base/Productivity/'],
+		includeRuleEnabled: [true],
+		includeRuleEntries: [{
+			sourceKind: 'absolute-path',
+			sourceValue: 'Knowledge Base/Productivity/',
+			resolvedPath: 'Knowledge Base/Productivity/',
+			enabled: true,
+		}],
+	});
+
+	const matcher = createCompiledRuleMatcher(settings);
+	assert.equal(matcher.shouldForceReadOnly('Knowledge Base/Productivity/Weekly review.md'), true);
+	assert.equal(matcher.shouldForceReadOnly('Knowledge Base/Productivity archive/Weekly review.md'), false);
+});

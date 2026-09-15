@@ -102,6 +102,10 @@ export async function getVaultName() {
 	return browser.execute(() => globalThis.app?.vault?.getName?.() ?? null);
 }
 
+export async function getVaultBasePath() {
+	return browser.execute(() => globalThis.app?.vault?.adapter?.getBasePath?.() ?? null);
+}
+
 export async function isPluginEnabled(pluginId) {
 	return browser.execute((targetPluginId) => {
 		const app = globalThis.app;
@@ -129,6 +133,59 @@ export async function waitForPluginEnabled(pluginId, timeout = 30_000) {
 			timeoutMsg: `Plugin ${pluginId} did not finish loading within ${timeout}ms.`,
 		},
 	);
+}
+
+export async function testPathInPluginSettings(inputValue) {
+	await browser.execute((value) => {
+		const app = globalThis.app;
+		app?.setting?.open?.();
+		app?.setting?.openTabById?.('read-only-view');
+		const input = globalThis.document?.querySelector?.('.read-only-view-path-tester input');
+		if (!input) {
+			return;
+		}
+		input.value = value;
+		input.dispatchEvent(new Event('change', { bubbles: true }));
+	}, inputValue);
+
+	const result = await $('.read-only-view-path-tester-result');
+	await result.waitForExist({ timeout: 10_000 });
+	await browser.waitUntil(
+		async () => {
+			const text = await result.getText();
+			return text.includes('Resolved path:')
+				|| text.includes('Resolved folder:')
+				|| text.includes('Only obsidian://open URLs are supported.');
+		},
+		{
+			timeout: 10_000,
+			interval: 100,
+			timeoutMsg: 'Path tester did not finish resolving the supplied value.',
+		},
+	);
+	return result.getText();
+}
+
+export async function testOverlimitPathInput(inputLength) {
+	return browser.execute((length) => {
+		const app = globalThis.app;
+		app?.setting?.open?.();
+		app?.setting?.openTabById?.('read-only-view');
+		const input = globalThis.document?.querySelector?.('.read-only-view-path-tester input');
+		if (!input) {
+			return null;
+		}
+		input.value = 'x'.repeat(length);
+		input.dispatchEvent(new Event('change', { bubbles: true }));
+		return {
+			length: input.value.length,
+			ariaInvalid: input.getAttribute('aria-invalid'),
+			hasErrorClass: input.classList.contains('is-input-error'),
+			resultText: globalThis.document
+				?.querySelector?.('.read-only-view-path-tester-result')
+				?.textContent ?? '',
+		};
+	}, inputLength);
 }
 
 export async function openMarkdownFile(relativePath) {

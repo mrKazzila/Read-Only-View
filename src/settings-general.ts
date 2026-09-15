@@ -2,7 +2,7 @@ import { ToggleComponent } from 'obsidian';
 import type { ForceReadModeSettings, SettingsTabPlugin } from './plugin-types';
 
 type BooleanSettingKey = {
-	[K in keyof ForceReadModeSettings]: ForceReadModeSettings[K] extends boolean ? K : never;
+	[K in keyof ForceReadModeSettings]-?: NonNullable<ForceReadModeSettings[K]> extends boolean ? K : never;
 }[keyof ForceReadModeSettings];
 
 type ToggleSettingConfig = {
