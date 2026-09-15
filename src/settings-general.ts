@@ -1,5 +1,6 @@
 import { ToggleComponent } from 'obsidian';
 import type { ForceReadModeSettings, SettingsTabPlugin } from './plugin-types';
+import { setSettingsFocusKey } from './settings-focus';
 
 type BooleanSettingKey = {
 	[K in keyof ForceReadModeSettings]-?: NonNullable<ForceReadModeSettings[K]> extends boolean ? K : never;
@@ -80,9 +81,18 @@ function renderToggleSettings(
 		const controlEl = settingEl.createDiv({ cls: 'read-only-view-setting-control' });
 		const toggle = new ToggleComponent(controlEl);
 		toggle.toggleEl.addClass('read-only-view-setting-toggle');
+		toggle.toggleEl.setAttr('tabindex', '0');
+		toggle.toggleEl.setAttr('role', 'switch');
+		toggle.toggleEl.setAttr('aria-label', toggleSetting.name);
+		toggle.toggleEl.setAttr(
+			'aria-checked',
+			plugin.settings[toggleSetting.settingKey] ? 'true' : 'false',
+		);
+		setSettingsFocusKey(toggle.toggleEl, `toggle-${toggleSetting.settingKey}`);
 		toggle
 			.setValue(plugin.settings[toggleSetting.settingKey])
 			.onChange(async (value) => {
+				toggle.toggleEl.setAttr('aria-checked', value ? 'true' : 'false');
 				await updateBooleanSetting(
 					plugin,
 					toggleSetting.settingKey,
@@ -104,17 +114,16 @@ function createModeOption(
 	},
 	onSelect: (value: boolean) => Promise<void>,
 ): void {
-	const labelEl = containerEl.createEl('label', { cls: 'read-only-view-mode-option' });
-	const radioEl = labelEl.createEl('input', { type: 'radio' });
-	radioEl.setAttr('name', 'read-only-view-mode');
-	radioEl.setAttr('aria-label', option.title);
-	radioEl.value = option.value ? 'all-markdown' : 'matched-paths';
-	if (option.selected) {
-		radioEl.setAttr('checked', 'checked');
-	}
-	radioEl.checked = option.selected;
+	const optionEl = containerEl.createEl('button', {
+		cls: 'read-only-view-mode-option',
+		type: 'button',
+	});
+	optionEl.setAttr('aria-pressed', option.selected ? 'true' : 'false');
+	optionEl.setAttr('aria-label', option.title);
+	setSettingsFocusKey(optionEl, `mode-${option.value ? 'all-markdown' : 'matched-paths'}`);
+	optionEl.createSpan({ cls: 'read-only-view-mode-option-indicator' });
 
-	const textEl = labelEl.createDiv({ cls: 'read-only-view-mode-option-copy' });
+	const textEl = optionEl.createSpan({ cls: 'read-only-view-mode-option-copy' });
 	textEl.createDiv({
 		text: option.title,
 		cls: 'read-only-view-mode-option-title',
@@ -150,16 +159,18 @@ function createModeOption(
 	};
 
 	const syncSelectedState = () => {
-		const siblings = Array.from(containerEl.querySelectorAll('.read-only-view-mode-option'));
+		const siblings = Array.from(containerEl.querySelectorAll<HTMLElement>('.read-only-view-mode-option'));
 		for (const sibling of siblings) {
 			setSelectedClass(sibling, false);
+			sibling.setAttr('aria-pressed', 'false');
 		}
-		setSelectedClass(labelEl, radioEl.checked);
+		setSelectedClass(optionEl, true);
+		optionEl.setAttr('aria-pressed', 'true');
 	};
 
-	setSelectedClass(labelEl, option.selected);
+	setSelectedClass(optionEl, option.selected);
 
-	radioEl.addEventListener('change', () => {
+	optionEl.addEventListener('click', () => {
 		syncSelectedState();
 		void activate();
 	});

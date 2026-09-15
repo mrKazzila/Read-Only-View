@@ -1,3 +1,24 @@
+.read-only-view-welcome-actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-4-3);
+}
+
+.read-only-view-welcome-actions button.read-only-view-welcome-action {
+	min-height: 44px;
+	margin: 0;
+}
+
+.read-only-view-welcome-actions button.read-only-view-welcome-action:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 2px var(--interactive-accent);
+}
+
+.read-only-view-welcome-actions button.read-only-view-welcome-action.mod-cta:focus-visible {
+	box-shadow: inset 0 0 0 2px var(--text-on-accent);
+}
+
 .read-only-view-settings {
 	display: flex;
 	flex-direction: column;
@@ -172,13 +193,35 @@
 	cursor: pointer;
 }
 
+.read-only-view-settings button.read-only-view-mode-option {
+	appearance: none;
+	width: 100%;
+	height: auto;
+	color: var(--text-normal);
+	font: inherit;
+	text-align: left;
+	white-space: normal;
+}
+
 .read-only-view-mode-option.is-selected {
 	border-color: var(--interactive-accent);
 	background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-primary));
 }
 
-.read-only-view-mode-option input {
+.read-only-view-mode-option-indicator {
+	box-sizing: border-box;
+	display: block;
+	width: 20px;
+	height: 20px;
 	margin-top: 0.2rem;
+	border: 2px solid var(--background-modifier-border-focus);
+	border-radius: 999px;
+}
+
+.read-only-view-mode-option.is-selected .read-only-view-mode-option-indicator {
+	border-color: var(--interactive-accent);
+	box-shadow: inset 0 0 0 4px var(--background-primary-alt);
+	background: var(--interactive-accent);
 }
 
 .read-only-view-mode-option-title {
@@ -230,7 +273,7 @@
 	appearance: none;
 	height: auto;
 	border: 0;
-	border-radius: 0;
+	border-radius: inherit;
 	background: color-mix(in srgb, var(--background-primary-alt) 42%, transparent);
 	box-shadow: none;
 	white-space: normal;
@@ -238,10 +281,12 @@
 
 .read-only-view-settings .read-only-view-disclosure-row.is-open > .read-only-view-disclosure-toggle {
 	border-bottom: 1px solid var(--background-modifier-border);
+	border-bottom-right-radius: 0;
+	border-bottom-left-radius: 0;
 }
 
-.read-only-view-disclosure-toggle:focus-visible,
-.read-only-view-help-icon:focus-visible,
+.read-only-view-setting-toggle:focus-visible,
+.read-only-view-rules-help:focus-visible,
 .read-only-view-rule-enabled-toggle:focus-visible,
 .read-only-view-delete-rule-button:focus-visible,
 .read-only-view-add-rule-button:focus-visible {
@@ -249,10 +294,21 @@
 	outline-offset: 2px;
 }
 
-.read-only-view-mode-option input:focus-visible {
+.read-only-view-settings button.read-only-view-disclosure-toggle:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 2px var(--interactive-accent);
+}
+
+.read-only-view-mode-option:focus-visible {
 	outline: 2px solid var(--interactive-accent);
-	outline-offset: 3px;
-	border-radius: 999px;
+	outline-offset: 2px;
+}
+
+.read-only-view-rule-input:focus-visible,
+.read-only-view-rules-table select:focus-visible,
+.read-only-view-path-tester input:focus-visible {
+	outline: 2px solid var(--interactive-accent);
+	outline-offset: 2px;
 }
 
 .read-only-view-disclosure-copy {
@@ -311,6 +367,9 @@
 	display: flex;
 	align-items: flex-start;
 	gap: 0.6rem;
+	border-radius: 10px;
+	color: var(--text-normal);
+	text-decoration: none;
 }
 
 .read-only-view-help-icon {
@@ -324,6 +383,12 @@
 	color: var(--text-normal);
 	text-decoration: none;
 	font-weight: 700;
+}
+
+.read-only-view-rules-help-label {
+	color: var(--link-color);
+	text-decoration: underline;
+	text-underline-offset: 2px;
 }
 
 .read-only-view-rules-summary {
@@ -724,7 +789,7 @@
 		padding: 0.7rem 0.8rem;
 	}
 
-	.read-only-view-mode-option input {
+	.read-only-view-mode-option-indicator {
 		margin-top: 0;
 	}
 

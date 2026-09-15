@@ -43,13 +43,21 @@ export class WelcomeModal extends Modal {
 		stepsEl.createEl('li', { text: 'Use the path tester to verify matching.' });
 
 		const actionsEl = contentEl.createDiv({ cls: 'read-only-view-welcome-actions' });
-		const openSettingsButton = actionsEl.createEl('button', { text: 'Open settings' });
+		const openSettingsButton = actionsEl.createEl('button', {
+			text: 'Open settings',
+			cls: 'read-only-view-welcome-action',
+			attr: { type: 'button' },
+		});
 		openSettingsButton.addClass('mod-cta');
 		openSettingsButton.addEventListener('click', () => {
 			void this.dismissAndOpenSettings();
 		});
 
-		const closeButton = actionsEl.createEl('button', { text: 'Close' });
+		const closeButton = actionsEl.createEl('button', {
+			text: 'Close',
+			cls: 'read-only-view-welcome-action',
+			attr: { type: 'button' },
+		});
 		closeButton.addEventListener('click', () => {
 			void this.dismiss();
 		});

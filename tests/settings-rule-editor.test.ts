@@ -111,6 +111,10 @@ test('rules editor renders table rows, help copy, and inline warnings', async ()
 		assert.ok(texts.includes('Examples: Notes/Summaries/ · Notes/Summaries/file.md · Archive/**/*.md · !Drafts/'));
 		assert.ok(texts.includes('Contains wildcard in prefix mode. It is treated as a literal character.'));
 		assert.equal(container.querySelectorAll('.read-only-view-rule-row').length, 2);
+		const helpLinks = container.querySelectorAll('a');
+		assert.equal(helpLinks.length, 1);
+		assert.equal(helpLinks[0]?.getAttr('href'), 'https://github.com/mrKazzila/Read-Only-View#rule-examples');
+		assert.equal(helpLinks[0]?.getAttr('aria-label'), 'Open path rule syntax examples');
 	} finally {
 		dom.restore();
 	}
@@ -147,6 +151,38 @@ test('rules editor persists enabled checkbox changes', async () => {
 			enabled: [false],
 			reason: 'settings-rule-enabled',
 		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor keeps focus on a control when rows rerender', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	container.ownerDocument = dom.document;
+
+	try {
+		renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
+			includeRuleEnabled: [true],
+			excludeRuleEnabled: [],
+			useGlobPatterns: true,
+			onChange: async () => undefined,
+		});
+
+		const initialToggle = container.querySelector('.read-only-view-rule-enabled-toggle');
+		assert.ok(initialToggle);
+		initialToggle.focus();
+		initialToggle.checked = false;
+		initialToggle.trigger('change');
+		await Promise.resolve();
+
+		const rerenderedToggle = container.querySelector('.read-only-view-rule-enabled-toggle');
+		assert.ok(rerenderedToggle);
+		assert.notEqual(rerenderedToggle, initialToggle);
+		assert.equal(dom.document.activeElement, rerenderedToggle);
 	} finally {
 		dom.restore();
 	}

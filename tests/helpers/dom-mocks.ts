@@ -132,8 +132,20 @@ export class MockHTMLElement {
 
 	setAttr(name: string, value: string): void {
 		this.attributes.set(name, value);
+		this.selectors.add(`[${name}]`);
+		this.selectors.add(`[${name}="${value}"]`);
 		if (name === 'id') {
 			this.selectors.add(`#${value}`);
+		}
+	}
+
+	getAttribute(name: string): string | null {
+		return this.getAttr(name);
+	}
+
+	focus(): void {
+		if (this.ownerDocument) {
+			this.ownerDocument.activeElement = this;
 		}
 	}
 
@@ -210,10 +222,12 @@ export class MockHTMLElement {
 
 export class MockDocument {
 	readonly body: MockHTMLElement;
+	activeElement: MockHTMLElement | null;
 
 	constructor() {
 		this.body = new MockHTMLElement();
 		this.body.ownerDocument = this;
+		this.activeElement = this.body;
 	}
 }
 

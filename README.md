@@ -293,7 +293,13 @@ In **Settings → Read Only View**, you can configure:
 
 On narrow mobile and tablet layouts, settings switch to a stacked presentation. Section headings expand to fit wrapped descriptions, and rule controls no longer compete for narrow table columns.
 
-On first enable for a new onboarding version, the plugin shows a small welcome modal with setup steps and a shortcut to open the settings.
+On desktop, opening the plugin settings moves focus to the first plugin control. Every settings control is reachable with Tab and has a visible keyboard-focus indicator. Both mode choices are separate Tab stops and can be selected with Enter or Space. Focus is preserved when changing a toggle, mode, or rule causes the settings UI to refresh.
+
+The path-rule help icon and label form one keyboard target. Enter or Space opens the rule examples, and the next Tab moves directly to the next rule control.
+
+Advanced section headers are full-width disclosure buttons. They receive an inset focus highlight when reached with Tab and open or close with Enter or Space.
+
+On first enable for a new onboarding version, the plugin shows a small welcome modal with setup steps and a shortcut to open the settings. Its action buttons have separate 44 px touch targets and an inset keyboard-focus indicator that does not overlap adjacent controls.
 
 While editing rules:
 

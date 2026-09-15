@@ -226,6 +226,7 @@ UI module split:
 - Welcome modal:
   - shown only when `dismissedWelcomeVersion < WELCOME_VERSION`
   - dismissing or using `Open settings` saves the current onboarding version
+  - action buttons use separated 44 px targets and inset focus indicators to avoid visual overlap
 - Settings layout uses one always-visible plugin block plus plugin-owned collapsible sections with ephemeral open state
 - Header card:
   - title `Read Only View`
@@ -278,6 +279,10 @@ UI module split:
 - At viewport widths up to `800px`, settings use the stacked narrow-screen layout. This covers portrait tablet settings panes as well as phones, preventing disclosure summaries and rule-table columns from squeezing their neighboring content.
 - Disclosure buttons override mobile host button geometry: they use content-driven height, wrapped text, and the parent card outline instead of a nested pill shape. Open sections add a divider below the disclosure header.
 - Settings toggles are rendered with plugin-owned layout rows backed by `ToggleComponent`.
+- Settings controls expose explicit keyboard/ARIA semantics. Opening the legacy settings page focuses its first control, while stable focus keys preserve the active control across full-page and rule-row rerenders.
+- Mode choices use mutually exclusive `aria-pressed` buttons so both choices participate in sequential Tab navigation and support native Enter/Space activation.
+- Path-rule help is a single external-link focus target (icon plus label), with visible focus and Enter/Space activation.
+- Advanced disclosure headers use a full-width inset focus indicator that remains visible inside the clipped card, plus `aria-expanded`/`aria-controls`; arrow glyphs are decorative.
 - `Debug: verbose paths` toggle allows full file paths in debug logs; default keeps paths redacted
 - Persisted settings schema:
   - `forceAllMarkdownReadOnly: boolean`

@@ -7,6 +7,7 @@ import {
 	formatSourceValueForDisplay,
 	limitSourceInput,
 } from './source-input-limits';
+import { setSettingsFocusKey } from './settings-focus';
 
 const PATH_TESTER_RENDER_DEBOUNCE_MS = 75;
 
@@ -45,6 +46,7 @@ export function renderPathTester(
 	inputEl.placeholder = 'Inbox/Quick capture.md or obsidian://open?...';
 	inputEl.addClass('read-only-view-full-width');
 	inputEl.setAttr('aria-label', 'Path to test');
+	setSettingsFocusKey(inputEl, 'path-tester-input');
 
 	const resultEl = wrapperEl.createDiv({ cls: 'read-only-view-path-tester-result' });
 	let inputLimitExceeded = false;

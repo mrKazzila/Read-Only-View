@@ -229,6 +229,11 @@ test('collapsible section opens on click without rerender', () => {
 		const disclosureButtons = container.querySelectorAll('.read-only-view-disclosure-toggle');
 		const pathTesterToggle = disclosureButtons[1];
 		assert.ok(pathTesterToggle);
+		assert.equal(pathTesterToggle.getAttr('aria-controls'), 'read-only-view-section-debugFlags');
+		assert.equal(
+			container.querySelector('.read-only-view-disclosure-arrow')?.getAttr('aria-hidden'),
+			'true',
+		);
 		pathTesterToggle.trigger('click');
 
 		const disclosures = container.querySelectorAll('.read-only-view-disclosure-row');
@@ -260,6 +265,52 @@ test('collapsible section stays open across settings tab rerender', () => {
 		assert.ok(disclosures[1]?.matches('.is-open'));
 		const rerenderedToggle = container.querySelectorAll('.read-only-view-disclosure-toggle')[1];
 		assert.equal(rerenderedToggle?.getAttr('aria-expanded'), 'true');
+	} finally {
+		dom.restore();
+	}
+});
+
+test('settings tab rerender restores focus to the equivalent control', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	container.ownerDocument = dom.document;
+	const { plugin } = createPlugin();
+	const tab = new ForceReadModeSettingTab({} as never, plugin as never);
+	tab.containerEl = container as unknown as HTMLElement;
+
+	try {
+		tab.display();
+
+		const initialMode = container.querySelector('[data-read-only-view-focus="mode-matched-paths"]');
+		assert.ok(initialMode);
+		initialMode.focus();
+
+		tab.display();
+
+		const rerenderedMode = container.querySelector('[data-read-only-view-focus="mode-matched-paths"]');
+		assert.ok(rerenderedMode);
+		assert.notEqual(rerenderedMode, initialMode);
+		assert.equal(dom.document.activeElement, rerenderedMode);
+	} finally {
+		dom.restore();
+	}
+});
+
+test('opening the settings tab focuses the first plugin control', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	container.ownerDocument = dom.document;
+	const { plugin } = createPlugin();
+	const tab = new ForceReadModeSettingTab({} as never, plugin as never);
+	tab.containerEl = container as unknown as HTMLElement;
+
+	try {
+		tab.display();
+
+		assert.equal(
+			dom.document.activeElement?.getAttr('data-read-only-view-focus'),
+			'toggle-enabled',
+		);
 	} finally {
 		dom.restore();
 	}

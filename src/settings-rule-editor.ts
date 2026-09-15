@@ -22,6 +22,11 @@ import {
 	type OwnedTimeout,
 	type TimerWindow,
 } from './window-ownership';
+import {
+	captureSettingsFocus,
+	restoreSettingsFocus,
+	setSettingsFocusKey,
+} from './settings-focus';
 
 type RuleSaveState = 'saving' | 'saved' | 'error';
 type RuleType = 'include' | 'exclude';
@@ -297,25 +302,34 @@ export class DebouncedRuleChangeSaver {
 }
 
 function renderHelpLink(containerEl: HTMLElement): void {
-	const helpEl = containerEl.createDiv({ cls: 'read-only-view-rules-help' });
-	const iconEl = helpEl.createEl('a', { text: '?' });
+	const helpEl = containerEl.createEl('a', { cls: 'read-only-view-rules-help' });
+	helpEl.setAttr('href', RULE_EXAMPLES_URL);
+	helpEl.setAttr('target', '_blank');
+	helpEl.setAttr('rel', 'noopener noreferrer');
+	helpEl.setAttr('aria-label', 'Open path rule syntax examples');
+	helpEl.setAttr('data-tooltip-position', 'top');
+	helpEl.setAttr('title', 'Open syntax examples');
+	const iconEl = helpEl.createSpan({ text: '?' });
 	iconEl.addClass('read-only-view-help-icon');
-	iconEl.setAttr('href', RULE_EXAMPLES_URL);
-	iconEl.setAttr('target', '_blank');
-	iconEl.setAttr('rel', 'noopener noreferrer');
-	iconEl.setAttr('aria-label', 'Path rule syntax help');
-	iconEl.setAttr('data-tooltip-position', 'top');
-	iconEl.setAttr('title', 'Syntax examples');
+	iconEl.setAttr('aria-hidden', 'true');
 
 	const copyEl = helpEl.createDiv({ cls: 'read-only-view-rules-help-copy' });
 	copyEl.createDiv({
 		text: 'Examples: Notes/Summaries/ · Notes/Summaries/file.md · Archive/**/*.md · !Drafts/',
 		cls: 'setting-item-description',
 	});
-	const linkEl = copyEl.createEl('a', { text: 'Rule examples in readme' });
-	linkEl.setAttr('href', RULE_EXAMPLES_URL);
-	linkEl.setAttr('target', '_blank');
-	linkEl.setAttr('rel', 'noopener noreferrer');
+	copyEl.createSpan({
+		text: 'Rule examples in readme',
+		cls: 'read-only-view-rules-help-label',
+	});
+
+	helpEl.addEventListener('keydown', (event) => {
+		if (event.key !== ' ') {
+			return;
+		}
+		event.preventDefault();
+		helpEl.click();
+	});
 }
 
 export function getPathRulesSummary(
@@ -583,6 +597,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	};
 
 	const renderRows = () => {
+		const focusSnapshot = captureSettingsFocus(tbodyEl);
 		tbodyEl.empty();
 		rowControllers = new Map<number, RuleRowController>();
 		let includeIndex = 0;
@@ -603,12 +618,14 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 			enabledEl.checked = row.enabled;
 			enabledEl.setAttr('aria-label', 'Rule enabled');
 			enabledEl.setAttr('title', row.enabled ? 'Disable rule' : 'Enable rule');
+			setSettingsFocusKey(enabledEl, `rule-${row.id}-enabled`);
 
 			const typeCellEl = rowEl.createEl('td');
 			typeCellEl.setAttr('data-label', 'Type');
 			const typeSlotEl = typeCellEl.createDiv({ cls: 'read-only-view-rule-cell-slot' });
 			const typeSelectEl = typeSlotEl.createEl('select');
 			typeSelectEl.setAttr('aria-label', 'Rule type');
+			setSettingsFocusKey(typeSelectEl, `rule-${row.id}-type`);
 			const includeOptionEl = typeSelectEl.createEl('option', { text: 'Include' });
 			includeOptionEl.value = 'include';
 			if (row.type === 'include') {
@@ -632,6 +649,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 			inputEl.setAttr('aria-label', `${row.type === 'include' ? 'Include' : 'Exclude'} rule value`);
 			inputEl.setAttr('aria-describedby', `${descriptionId} ${saveStatusId} ${diagnosticsId}`);
 			inputEl.setAttr('aria-invalid', row.inputLimitExceeded ? 'true' : 'false');
+			setSettingsFocusKey(inputEl, `rule-${row.id}-value`);
 			if (row.inputLimitExceeded) {
 				inputEl.addClass('is-input-error');
 			}
@@ -647,6 +665,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 			});
 			deleteButtonEl.setAttr('aria-label', `Delete ${row.type} rule`);
 			deleteButtonEl.setAttr('title', 'Delete rule');
+			setSettingsFocusKey(deleteButtonEl, `rule-${row.id}-delete`);
 
 			const indexWithinType = row.type === 'include' ? includeIndex : excludeIndex;
 			if (row.enabled && resolution.resolvedPath) {
@@ -719,6 +738,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 			});
 		}
 		diagnosticsRenderScheduler.flush();
+		restoreSettingsFocus(tbodyEl, focusSnapshot);
 	};
 
 	addRuleButton.addEventListener('click', () => {

@@ -19,6 +19,12 @@ import {
 } from './settings-rule-editor';
 import type { SettingsTabPlugin } from './plugin-types';
 import { createRuleResolverContext, type RuleResolverContext } from './rule-source';
+import {
+	captureSettingsFocus,
+	focusFirstSettingsControl,
+	restoreSettingsFocus,
+	setSettingsFocusKey,
+} from './settings-focus';
 
 export { computeRuleLimitsUiState } from './settings-ui-state';
 export { DebouncedRuleChangeSaver } from './settings-rule-editor';
@@ -70,6 +76,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
+		const focusSnapshot = captureSettingsFocus(this.containerEl);
 		this.disposeUiControllers();
 		const { containerEl } = this;
 		containerEl.empty();
@@ -162,6 +169,10 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 			false,
 		);
 		renderDebugSettings(debugSection.bodyEl, this.plugin, () => this.display());
+
+		if (!restoreSettingsFocus(containerEl, focusSnapshot)) {
+			focusFirstSettingsControl(containerEl);
+		}
 	}
 
 	hide(): void {
@@ -247,6 +258,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 		defaultOpen: boolean,
 	): DisclosureController {
 		const open = this.sectionOpenState.get(sectionKey) ?? defaultOpen;
+		const bodyId = `read-only-view-section-${sectionKey}`;
 		const wrapperEl = containerEl.createDiv({
 			cls: `read-only-view-disclosure-row${open ? ' is-open' : ''}`,
 		});
@@ -255,6 +267,8 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 			type: 'button',
 		});
 		toggleEl.setAttr('aria-expanded', open ? 'true' : 'false');
+		toggleEl.setAttr('aria-controls', bodyId);
+		setSettingsFocusKey(toggleEl, `section-${sectionKey}`);
 
 		const copyEl = toggleEl.createSpan({ cls: 'read-only-view-disclosure-copy' });
 		copyEl.createSpan({
@@ -269,14 +283,16 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 		const metaEl = toggleEl.createSpan({ cls: 'read-only-view-disclosure-meta' });
 		const summaryEl = metaEl.createSpan({ cls: 'read-only-view-disclosure-summary' });
 		summaryEl.setText(summary);
-		metaEl.createSpan({
+		const arrowEl = metaEl.createSpan({
 			text: open ? '▼' : '▶',
 			cls: 'read-only-view-disclosure-arrow',
 		});
+		arrowEl.setAttr('aria-hidden', 'true');
 
 		const bodyEl = wrapperEl.createDiv({
 			cls: `read-only-view-disclosure-body${open ? '' : ' is-collapsed'}`,
 		});
+		bodyEl.setAttr('id', bodyId);
 
 		toggleEl.addEventListener('click', () => {
 			const isOpen = wrapperEl.matches('.is-open');
