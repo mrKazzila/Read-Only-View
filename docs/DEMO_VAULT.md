@@ -51,12 +51,14 @@ Protected by default:
 
 - `Read Only/`
 - `Archive/`
+- `Inbox/Quick capture.md` — exact rule imported from an `obsidian://open` URL
+- `Inbox/Meeting recap.md` — exact rule imported from a desktop system path
 
 Excluded from protection:
 
 - `Read Only/Drafts/`
 
-These values are written into `.obsidian/plugins/read-only-view/data.json` using the current plugin settings schema.
+These values are written into `.obsidian/plugins/read-only-view/data.json` using the current plugin settings schema. The imported system path is stored as the portable vault-relative value `Inbox/Meeting recap.md`; the generated settings do not retain a local absolute path.
 
 ## Suggested test scenarios
 
@@ -81,21 +83,27 @@ These values are written into `.obsidian/plugins/read-only-view/data.json` using
 
 ### Scenario 4: Normal editable notes
 
-1. Open `Inbox/Quick capture.md`.
+1. Open `Inbox/Idea parking lot.md`.
 2. Verify it remains editable.
 3. Open `Knowledge Base/Programming/Python/Testing checklist.md`.
 4. Verify it remains editable unless you add your own matching rules.
 
-### Scenario 5: Path tester / diagnostics
+### Scenario 5: Imported notes
 
-Use the plugin settings Path tester with these vault-relative paths:
+1. Open `Inbox/Quick capture.md` and verify the exact rule imported from an Obsidian URL protects it.
+2. Open `Inbox/Meeting recap.md` and verify the exact rule imported from a desktop system path protects it.
+3. Open **Settings -> Read Only View** and inspect the unified **Path rules** table.
+4. Verify both rows show their detected source type and resolved vault-relative path.
 
-- `Read Only/Docs/API overview.md`
-- `Read Only/Drafts/Editable draft.md`
-- `Archive/2025/Retrospective.md`
-- `Inbox/Quick capture.md`
+### Scenario 6: Path tester and rule diagnostics
 
-Also review the diagnostics next to the include and exclude rule editors to confirm the generated defaults look clean in prefix mode.
+Use **Path tester** with all three accepted source formats:
+
+- Vault-relative path: `Read Only/Docs/API overview.md`
+- Obsidian URL: `obsidian://open?vault=demo-vault&file=Inbox%2FQuick%20capture`
+- Desktop system path: copy the absolute path to `demo-vault/Inbox/Meeting recap.md` or the `demo-vault/Inbox` folder
+
+Verify the detected source, resolved path, matched include/exclude rules, and final `Read-only` or `Editable` result. Also inspect inline and aggregate diagnostics in the unified **Path rules** table and confirm that the generated defaults are valid in prefix mode.
 
 ## Recommended recording targets
 
@@ -105,14 +113,19 @@ Use the generated notes below for documentation media:
 - Short note: `Reference/Snippets/Regex cheatsheet.md`
 - Excluded draft note: `Read Only/Drafts/Editable draft.md`
 - Archive note: `Archive/2025/Retrospective.md`
+- Obsidian URL import: `Inbox/Quick capture.md`
+- System-path import: `Inbox/Meeting recap.md`
+- Ordinary editable note: `Inbox/Idea parking lot.md`
 
 README candidate screenshots:
 
-- Settings screen with include and exclude rules
-- Path tester result
+- Main settings screen in both `All Markdown files` and `Only matched paths` modes
+- Unified **Path rules** table with include/exclude, enabled/disabled, and imported-source rows
+- **Path tester** result showing detected source, resolved path, matched rules, and final status
+- Collapsed and expanded **Advanced** settings
 - Protected note example
 - Editable excluded draft example
-- Optional mobile or tablet recording
+- Narrow mobile or tablet settings layout
 
 ## Notes on reproducibility
 

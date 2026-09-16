@@ -1,102 +1,73 @@
-# Compatibility Regression Matrix
+# Compatibility regression matrix
 
-Last updated: 2026-02-23
+Last updated: 2026-09-16
 
-This document tracks manual compatibility checks for `read-only-view` across Obsidian versions and platforms.
-It is intentionally manual-first because several behaviors depend on Obsidian internal DOM/API details.
+This manual-first matrix tracks runtime compatibility for `read-only-view`. Unit and desktop smoke tests support it, but they do not replace platform checks against Obsidian's UI and internal APIs.
 
-## Scope
+## Status legend
 
-Scenarios covered:
-
-- `file-open` event reapply
-- `active-leaf-change` event reapply
-- `layout-change` event reapply
-- Popover/editor enforcement path (`MutationObserver`)
-- Path tester behavior
-- Settings toggles behavior
-- `setViewState` fallback behavior
-- Burst-event UI jank check
-
-## Status Legend
-
-- `PASS`: explicitly verified in real app
+- `PASS`: explicitly verified in the listed real app
 - `FAIL`: verified and reproducibly broken
-- `REQUIRES_CHECK`: not yet verified in real app
-- `N/A`: not applicable for platform/version
+- `REQUIRES_CHECK`: not yet manually verified in the listed real app
+- `N/A`: not applicable to that platform/version
 
-## Test Matrix
+## Test matrix
 
-| Platform | Obsidian Version | Scenario | Status | Notes |
+| Platform | Obsidian version | Scenario | Status | Notes |
 |---|---|---|---|---|
-| Desktop | 1.10.3 | `file-open` reapply | REQUIRES_CHECK | Requires real-app validation outside CI sandbox. |
-| Desktop | 1.10.3 | `active-leaf-change` reapply | REQUIRES_CHECK | Requires real-app validation outside CI sandbox. |
-| Desktop | 1.10.3 | `layout-change` reapply | REQUIRES_CHECK | Requires real-app validation outside CI sandbox. |
-| Desktop | 1.10.3 | Popover/editor enforcement | REQUIRES_CHECK | Depends on internal DOM classes in runtime. |
-| Desktop | 1.10.3 | Path tester rendering/logic | REQUIRES_CHECK | Requires manual settings UI check. |
-| Desktop | 1.10.3 | Toggles (`Enabled`, glob, case, debug) | REQUIRES_CHECK | Requires manual settings UI check. |
-| Desktop | 1.10.3 | `setViewState` fallback path | REQUIRES_CHECK | Verify via debug logs (`ensure-preview-fallback`) in real app. |
-| Desktop | 1.10.3 | Burst-event jank | REQUIRES_CHECK | Validate rapid tab/layout switching; check visible jitter. |
-| Mobile | 1.10.3 | `file-open`/leaf-change behavior | REQUIRES_CHECK | Touch workflow and leaf transitions need real device. |
-| Mobile | 1.10.3 | Settings diagnostics readability | REQUIRES_CHECK | Verify capped diagnostics scroll and inline warnings. |
-| Mobile | 1.10.3 | Path tester wrapping | REQUIRES_CHECK | Verify long-path wrapping on narrow screens. |
-| Tablet (portrait) | 1.10.3 | Settings layout overlap check | REQUIRES_CHECK | Verify textarea/diagnostics/path tester do not overlap. |
-| Tablet (landscape) | 1.10.3 | Settings layout overlap check | REQUIRES_CHECK | Verify in split and full-width layouts. |
-| Tablet | 1.10.3 | Burst-event jank | REQUIRES_CHECK | Verify with rapid pane switching and layout updates. |
+| Desktop | 1.10.3 | `file-open`, `active-leaf-change`, and `layout-change` reapply | REQUIRES_CHECK | Verify protected notes settle in Reading view. |
+| Desktop | 1.10.3 | **Only matched paths** mode | REQUIRES_CHECK | Verify enabled include rules protect only matching Markdown notes. |
+| Desktop | 1.10.3 | **All Markdown files** mode | REQUIRES_CHECK | Verify all Markdown notes are protected except enabled excludes. |
+| Desktop | 1.10.3 | Exclude priority | REQUIRES_CHECK | Excludes must override the global mode and include rules. |
+| Desktop | 1.10.3 | Unified rule rows | REQUIRES_CHECK | Check enabled, type, value, delete, disabled rows, save status, and diagnostics. |
+| Desktop | 1.10.3 | Obsidian URL source | REQUIRES_CHECK | Import an existing note and verify exact vault-relative resolution. |
+| Desktop | 1.10.3 | Absolute system file/folder sources | REQUIRES_CHECK | Verify containment, file/folder semantics, and portable persistence. |
+| Desktop | 1.10.3 | Path tester source resolution and result | REQUIRES_CHECK | Check all three source types, matches, and final status. |
+| Desktop | 1.10.3 | Keyboard navigation and focus restoration | REQUIRES_CHECK | Check mode buttons, rows, disclosures, rerenders, and visible focus. |
+| Desktop | 1.10.3 | Popover/editor enforcement | REQUIRES_CHECK | Depends on runtime DOM classes and editor contexts. |
+| Desktop | 1.10.3 | `setViewState` fallback path | REQUIRES_CHECK | Inspect `ensure-preview-fallback` debug logs if triggered. |
+| Desktop | 1.10.3 | Burst-event jank | REQUIRES_CHECK | Check rapid tab and layout changes for jitter or delayed enforcement. |
+| Mobile | 1.10.3 | **Only matched paths** and **All Markdown files** modes | REQUIRES_CHECK | Verify touch workflow, persistence, and exclude priority. |
+| Mobile | 1.10.3 | Unified rule rows and narrow layout | REQUIRES_CHECK | Check stacked controls, diagnostics, and touch targets. |
+| Mobile | 1.10.3 | Obsidian URL source | REQUIRES_CHECK | Verify existing-note resolution without desktop APIs. |
+| Mobile | 1.10.3 | New absolute system-path import is unavailable | REQUIRES_CHECK | Confirm a desktop-only source produces the expected unsupported result. |
+| Mobile | 1.10.3 | Previously saved portable system-path rule | REQUIRES_CHECK | Verify a resolved vault-relative rule continues to match. |
+| Mobile | 1.10.3 | Path tester and keyboard/focus behavior | REQUIRES_CHECK | Check wrapping, status, external keyboard, and visible focus where applicable. |
+| Tablet (portrait) | 1.10.3 | Responsive settings layout | REQUIRES_CHECK | Verify cards and rule rows stack without overlap. |
+| Tablet (landscape) | 1.10.3 | Responsive settings layout | REQUIRES_CHECK | Verify split and full-width settings panes. |
+| Tablet | 1.10.3 | Portable rules, Path tester, and burst-event behavior | REQUIRES_CHECK | Check matching, readability, and rapid pane changes. |
 
-## Manual Checklist
+## Manual checklist
 
-Use this checklist for each applicable platform/version row:
+Use this checklist for each applicable platform/version:
 
-1. Enable plugin and set include rule `**/*.md`.
-2. Open several markdown notes and trigger:
-   - `file-open`
-   - `active-leaf-change`
-   - `layout-change`
-3. Confirm matched files return to preview mode.
-4. Trigger popover/editor contexts and verify enforcement.
-5. Validate settings:
-   - include/exclude editing, debounce save status
-   - diagnostics inline warnings and local scroll
-   - path tester long-string wrapping
-6. Enable `Debug logging`:
-   - verify redacted paths by default
-   - enable `Debug: verbose paths` and verify full-path behavior
-7. Validate fallback diagnostics:
-   - identify `ensure-preview-fallback` log entries when fallback occurs
-   - record `errorType`/`errorMessage`
-8. Perform burst interactions:
-   - rapid tab switches / active leaf changes / layout changes
-   - note any visible jank or delayed enforcement
+1. Verify **Only matched paths**, then **All Markdown files**, and confirm the chosen mode persists.
+2. Confirm the priority order: enabled exclude rule -> global mode -> enabled include rule.
+3. Add include and exclude rows; edit **Type** and **Value**, toggle **Enabled**, delete a row, and verify save status and diagnostics.
+4. Test a vault-relative source and an `obsidian://open` URL.
+5. On desktop, import an absolute file and folder and confirm no full system path is persisted.
+6. On mobile, confirm new absolute paths cannot be resolved while previously saved portable rules still work.
+7. Use **Path tester** for each supported source and verify detected type, resolved path, matches, and final status.
+8. Navigate all controls by keyboard where available; verify `aria-pressed`, disclosure state, visible focus, and focus restoration after rerenders.
+9. Trigger normal, popover, and pop-out editor contexts and verify enforcement.
+10. Enable debug logging, verify redaction by default, and inspect fallback diagnostics if a fallback occurs.
+11. Repeat rapid tab, leaf, and layout changes and record any jank or delayed enforcement.
 
-## Fallback Observation Record
+## Runtime observation records
 
-Record per platform/version when fallback is observed:
+| Platform | Obsidian version | Fallback observed | Burst/jank result | Notes |
+|---|---|---|---|---|
+| Desktop | 1.10.3 | REQUIRES_CHECK | REQUIRES_CHECK | Record fallback error type/message and interaction sequence. |
+| Mobile | 1.10.3 | REQUIRES_CHECK | REQUIRES_CHECK | Record device, OS, and navigation sequence. |
+| Tablet | 1.10.3 | REQUIRES_CHECK | REQUIRES_CHECK | Record orientation and pane layout. |
 
-| Platform | Obsidian Version | Fallback Observed | errorType | errorMessage | Notes |
-|---|---|---|---|---|---|
-| Desktop | 1.10.3 | REQUIRES_CHECK | - | - | Runtime-only scenario, not reproducible in CI. |
-| Mobile | 1.10.3 | REQUIRES_CHECK | - | - | Runtime-only scenario, not reproducible in CI. |
-| Tablet | 1.10.3 | REQUIRES_CHECK | - | - | Runtime-only scenario, not reproducible in CI. |
+## Follow-up tasks
 
-## Burst/Jank Observation Record
-
-| Platform | Obsidian Version | Burst Scenario Result | Notes |
-|---|---|---|---|
-| Desktop | 1.10.3 | REQUIRES_CHECK | Validate event coalescing perception and no visible jitter. |
-| Mobile | 1.10.3 | REQUIRES_CHECK | Validate responsiveness during rapid navigation. |
-| Tablet | 1.10.3 | REQUIRES_CHECK | Validate portrait/landscape transitions and pane operations. |
-
-## Follow-up Tasks
-
-Create follow-up tasks only when manual checks produce concrete evidence:
+Create a follow-up only when a manual check produces concrete evidence:
 
 1. `FOLLOWUP-COMPAT-POPOVER-<version-platform>`: popover/editor enforcement mismatch.
-2. `FOLLOWUP-COMPAT-FALLBACK-<version-platform>`: fallback signature/behavior regression.
+2. `FOLLOWUP-COMPAT-FALLBACK-<version-platform>`: fallback signature or behavior regression.
 3. `FOLLOWUP-UX-JANK-<version-platform>`: confirmed burst-event jank or delayed reapply.
-4. `FOLLOWUP-MOBILE-LAYOUT-<version-platform>`: settings readability/overlap regressions.
+4. `FOLLOWUP-MOBILE-LAYOUT-<version-platform>`: settings readability or overlap regression.
 
-## Notes
-
-- Current automated tests cover core logic and mock-based observer/enforcement paths, but not full runtime compatibility against real Obsidian UI internals.
-- Keep this matrix versioned by date when rerunning checks after Obsidian upgrades.
+Keep this matrix dated when rerunning checks after Obsidian upgrades. Do not promote a row to `PASS` without a recorded real-app check.

@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Last updated: 2026-09-15
+Last updated: 2026-09-16
 
 This document is a living system map for the `read-only-view` Obsidian plugin.
 
@@ -51,15 +51,20 @@ High-level modules:
 - `src/settings-tab.ts`
   - `ForceReadModeSettingTab` composition entrypoint for sectioned settings UI
 - `src/settings-general.ts`
-  - General/debug toggle rendering with plugin-owned toggle rows and shared save/re-apply side-effect helper
+  - Enabled control, mutually exclusive mode buttons, and shared save/re-apply side-effect helper
 - `src/settings-rule-editor.ts`
-  - Rules editor section rendering, diagnostics list UI, and `DebouncedRuleChangeSaver`
+  - Unified Path rules table rendering, row diagnostics, and `DebouncedRuleChangeSaver`
+- `src/settings-focus.ts`
+  - Stable focus keys plus capture/restore helpers for settings and rule-row rerenders
+  - First-control focus helper used when opening the settings page
 - `src/settings-ui-state.ts`
   - Pure settings summary/warning state computation for rule-limit banners
 - `src/settings-path-tester.ts`
   - Path tester section rendering
 - `src/settings-welcome.ts`
   - Versioned onboarding modal and best-effort settings opening helper
+- `src/source-input-limits.ts`
+  - Source-input length policy, overflow handling, and display-safe truncation helpers
 - `src/constants.ts`
   - Rule volume thresholds and hard limits (`50/150`, `200/300/400`)
 - `src/rule-limits.ts`
@@ -113,7 +118,19 @@ High-level modules:
 - `tests/rules-save-debounce.test.ts`
   - Debounced rules-save coverage for settings module: burst collapse, immediate flush, and latest-value persistence
 - `tests/settings-general.test.ts`
-  - Settings toggle side-effect coverage for save/re-apply behavior after UI extraction
+  - Enabled/mode side effects plus `aria-pressed` and keyboard behavior
+- `tests/rule-source.test.ts`
+  - Source detection/resolution coverage for vault paths, Obsidian URLs, and desktop system paths
+- `tests/source-input-limits.test.ts`
+  - Path/URL input caps, overflow state, and display-truncation coverage
+- `tests/settings-rule-editor.test.ts`
+  - Unified rule-row rendering, source resolution, enabled states, diagnostics, and focus restoration
+- `tests/settings-path-tester.test.ts`
+  - Path tester source details, matched rules, final status, and accessible input errors
+- `tests/settings-tab-lifecycle.test.ts`
+  - Settings render lifecycle, cleanup, and first-control focus behavior
+- `tests/settings-tab-ui-state.test.ts`
+  - Static/collapsible section state and settings-level focus preservation
 - `tests/rule-diagnostics.test.ts`
   - Diagnostics and path tester helper coverage for inline warnings and include/exclude/result computation
 - `tests/rule-limits.test.ts`
@@ -123,7 +140,7 @@ High-level modules:
 - `tests/workspace-events.test.ts`
   - Workspace-event controller coverage for targeted bursts, full-scan fallback, and timer cleanup
 - `tests/e2e/specs/read-only-smoke.e2e.mjs`
-  - Desktop smoke coverage for real Obsidian startup, demo-vault loading, protected-note Reading view enforcement, and editable behavior for excluded/non-matching notes
+  - Desktop smoke coverage for startup, protected/excluded/editable notes, imported exact rules, advanced source resolution in Path tester, and accessible over-limit errors
 
 Design intent:
 
@@ -216,18 +233,20 @@ Command entry points:
 UI module split:
 
 - `src/settings-tab.ts` owns only top-level composition of settings UI sections.
-- `src/settings-general.ts` owns general/debug toggle rendering and persistence side effects.
-- `src/settings-rule-editor.ts` owns the include/exclude editor sections and debounced save helper.
+- `src/settings-general.ts` owns the Enabled control, `aria-pressed` mode buttons, and persistence side effects.
+- `src/settings-rule-editor.ts` owns the unified Path rules table and debounced save helper.
+- `src/settings-focus.ts` owns stable focus capture, restoration, and first-control focus.
 - `src/settings-ui-state.ts` owns the pure summary/warning calculation used by the rules section.
 - `src/settings-path-tester.ts` owns the path tester section.
 - `src/settings-welcome.ts` owns the versioned onboarding modal shown for undismissed onboarding versions.
+- `src/source-input-limits.ts` owns accepted source lengths, overflow state, and display truncation.
 - `src/rule-diagnostics.ts` provides pure helpers used by settings UI (rule diagnostics + path tester computations).
 
 - Welcome modal:
   - shown only when `dismissedWelcomeVersion < WELCOME_VERSION`
   - dismissing or using `Open settings` saves the current onboarding version
   - action buttons use separated 44 px targets and inset focus indicators to avoid visual overlap
-- Settings layout uses one always-visible plugin block plus plugin-owned collapsible sections with ephemeral open state
+- Settings layout keeps the header, mode, Path rules, and Path tester workflow permanently visible. Only `Matching` and `Debug flags` are collapsible, with ephemeral open state.
 - Header card:
   - title `Read Only View`
   - subtitle `Read-only behavior`
@@ -236,13 +255,13 @@ UI module split:
   - global warning pill when all-Markdown mode is enabled
 - Mode card:
   - `Enabled`
-  - radio-style mode selector backed by persisted `forceAllMarkdownReadOnly`
+  - two mutually exclusive button choices backed by persisted `forceAllMarkdownReadOnly`; the selected button exposes `aria-pressed=true`
   - visible priority copy:
     - exclude rules always win
     - priority order is exclude -> all-Markdown mode -> include
 - Path rules section:
-  - expanded by default
-  - compact disclosure summary (`X include · Y exclude`)
+  - permanent workflow card rather than a disclosure
+  - unified include/exclude table with a compact rule summary
   - table-style rule rows with columns:
     - enabled (persisted per-rule state; disabled rules are retained but not matched)
     - type
@@ -259,7 +278,7 @@ UI module split:
   - rule usage summary
   - warning banners and diagnostics
 - Path tester section:
-  - compact disclosure summary
+  - permanent workflow card rather than a disclosure
   - include matches
   - exclude matches
   - preset override note when the all-Markdown preset is driving the final result
@@ -276,10 +295,10 @@ UI module split:
     - `Debug logging`
     - `Debug: verbose paths`
     - warning text about full path exposure in console logs
-- At viewport widths up to `800px`, settings use the stacked narrow-screen layout. This covers portrait tablet settings panes as well as phones, preventing disclosure summaries and rule-table columns from squeezing their neighboring content.
-- Disclosure buttons override mobile host button geometry: they use content-driven height, wrapped text, and the parent card outline instead of a nested pill shape. Open sections add a divider below the disclosure header.
+- At viewport widths up to `800px`, settings use the stacked narrow-screen layout. This covers portrait tablet settings panes as well as phones, preventing card headers and rule-table columns from squeezing neighboring content.
+- The `Matching` and `Debug flags` disclosure buttons override mobile host button geometry: they use content-driven height, wrapped text, and the parent card outline instead of a nested pill shape. Open sections add a divider below the disclosure header.
 - Settings toggles are rendered with plugin-owned layout rows backed by `ToggleComponent`.
-- Settings controls expose explicit keyboard/ARIA semantics. Opening the legacy settings page focuses its first control, while stable focus keys preserve the active control across full-page and rule-row rerenders.
+- Settings controls expose explicit keyboard/ARIA semantics. Opening the plugin settings page focuses its first control, while stable focus keys preserve the active control across full-page and rule-row rerenders.
 - Mode choices use mutually exclusive `aria-pressed` buttons so both choices participate in sequential Tab navigation and support native Enter/Space activation.
 - Path-rule help is a single external-link focus target (icon plus label), with visible focus and Enter/Space activation.
 - Advanced disclosure headers use a full-width inset focus indicator that remains visible inside the clipped card, plus `aria-expanded`/`aria-controls`; arrow glyphs are decorative.

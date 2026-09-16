@@ -8,12 +8,17 @@ This repository includes a small, opt-in WebdriverIO smoke suite for desktop Obs
 - Confirming the plugin is enabled in that synthetic vault
 - Confirming a protected note under `Read Only/` returns to Reading view
 - Confirming an excluded draft under `Read Only/Drafts/` can stay in source mode
-- Confirming a normal note outside the include rules can stay in source mode
+- Confirming `Inbox/Quick capture.md`, imported from an Obsidian URL, is protected
+- Resolving an Obsidian URL in Path tester and reporting its detected source and vault path
+- Resolving a copied desktop system-folder path in Path tester
+- Capping an over-limit Path tester value, exposing the error text, and setting `aria-invalid`
+- Confirming `Inbox/Meeting recap.md`, imported from a desktop system path, is protected
+- Confirming the ordinary `Inbox/Idea parking lot.md` note can stay in source mode
 
 ## What it does not cover
 
 - Mobile behavior
-- Broad settings UI traversal
+- A complete traversal of the **Mode**, **Path rules**, and **Advanced** settings UI
 - Welcome modal flows
 - Every popover or hover-preview edge case
 - Exhaustive editor interaction coverage

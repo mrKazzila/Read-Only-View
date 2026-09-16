@@ -1,106 +1,75 @@
 # Test coverage audit
 
-Last updated: 2026-06-05
+Last updated: 2026-09-16
 
 ## Current automated coverage
 
-### Strong unit coverage already present
+### Strong unit and integration coverage
 
 - Matcher and rule behavior
-  - prefix mode and glob mode semantics
-  - path normalization
-  - case-sensitive and case-insensitive matching
-  - include and exclude precedence
-  - compiled matcher cache behavior
-  - long-path and wildcard stress cases
+  - prefix and glob semantics, normalization, case sensitivity, and exclude precedence
+  - compiled matcher cache behavior and long-path/wildcard stress cases
 - Persisted settings
-  - safe merge of stored plugin settings
-  - invalid booleans, invalid arrays, and malformed payload fallbacks
-  - onboarding dismissal version fallback
-  - all-Markdown preset fallback behavior
+  - safe merge and fallback behavior for malformed values
+  - source-aware rule migration, enabled state, onboarding version, and all-Markdown mode
+- Rule-source resolution
+  - vault-relative paths, `obsidian://open` URLs, and absolute system file/folder paths
+  - vault containment, exact-note validation, unresolved sources, and privacy-safe portable persistence
+- Input limits
+  - path and encoded-URL limits, blocked overflow, display truncation, and accessible invalid state
 - Rule diagnostics and limits
-  - suspicious rule warnings
-  - empty-line handling
-  - effective-rule caps and ignored-line reporting
-  - path tester helper result computation
-- Editor and enforcement behavior
-  - editor read-only extension behavior for matching and non-matching files
-  - interaction callback behavior for read-only editor contexts
-  - enforcement service queueing, throttle logic, fallback paths, and cleanup
-  - workspace-event burst coalescing and targeted-leaf behavior
-- Main plugin orchestration
-  - onload wiring
-  - matcher rebuild behavior
-  - observer wiring
-  - editor paste and drop blocking
-- Settings and onboarding UI logic
-  - general settings side effects
-  - rules editor debounce and lifecycle
-  - settings-tab state preservation and cleanup
-  - path tester rendering behavior
-  - welcome modal and settings-opening flow
-- Popover behavior
-  - observer lifecycle
-  - popover/editor candidate filtering
-  - per-leaf deduplication
-  - cache invalidation and detached-popover logging limits
+  - suspicious input, effective-rule caps, ignored rows, and Path tester result computation
+- Unified rule editor
+  - include/exclude row rendering, enabled/type/value/delete controls, save lifecycle, and zero-row state
+  - inactive include presentation in all-Markdown mode and rule diagnostics
+- Settings accessibility and focus
+  - `aria-pressed` mode choices, disclosure ARIA contracts, keyboard activation, and stable focus restoration after rerenders
+  - Path tester rendering and welcome/settings-opening logic
+- Editor, enforcement, and orchestration
+  - read-only editor extensions, interaction callbacks, queues, throttling, fallback paths, cleanup, and workspace-event coalescing
+  - plugin lifecycle, matcher rebuilds, observer wiring, paste/drop blocking, and popover candidate handling
+
+### Desktop E2E smoke coverage
+
+- Obsidian startup with the generated `demo-vault` and plugin activation
+- Reading-view enforcement for an ordinary protected note
+- Editable behavior for an excluded note and `Inbox/Idea parking lot.md`
+- Protection for exact notes imported from an Obsidian URL and a desktop system path
+- Path tester resolution for an Obsidian URL and a copied system-folder path
+- Accessible handling of an over-limit Path tester input, including capped value, error text, and `aria-invalid`
 
 ## Important gaps
 
-### Best covered by desktop E2E
-
-- Obsidian desktop startup against a real vault
-- Community plugin activation in a real desktop app session
-- Real `demo-vault` fixture loading
-- Real file opening and leaf activation in desktop Obsidian
-- Real Reading-view enforcement after attempting to switch a protected note into source mode
-- Real excluded and non-matching note behavior in the packaged app
-
-### Still not fully covered after the initial smoke suite
-
-- File explorer driven navigation paths
-- Welcome modal rendering in a real desktop session
-- Settings tab interactions in the real app DOM
-- Hover preview and popover behavior in a real desktop renderer
-- Cross-window or pop-out behavior in the live app
-- Desktop-specific regressions caused by future Obsidian UI changes
+- Complete real-app traversal of the **Mode**, **Path rules**, and **Advanced** settings workflow
+- Welcome modal rendering and interaction in a real desktop session
+- Mobile and tablet runtime behavior, including responsive layout and portable imported rules
+- Hover preview, popover, cross-window, and pop-out behavior in a live renderer
+- File-explorer-driven navigation paths
+- Regressions caused by future Obsidian UI or internal API changes
 
 ## What should stay as unit tests
 
-- Matcher semantics and normalization rules
-- Include and exclude precedence
-- Rule-limit calculations
-- Persisted settings merge and fallback behavior
-- Debounce, cleanup, and lifecycle logic
-- Pure settings UI state helpers
+- Matcher semantics, normalization, and rule precedence
+- Rule-source resolution, privacy-safe persistence, and input limits
+- Rule-limit calculations and persisted-settings migration
+- Debounce, focus restoration, cleanup, and lifecycle logic
+- Pure settings state, diagnostics, and accessibility contracts
 - Popover filtering and enforcement decision helpers
 
-These behaviors are deterministic, fast to exercise, and easier to maintain with isolated tests than with UI automation.
+These behaviors are deterministic, fast to exercise, and easier to maintain in isolation than through UI automation.
 
-## What should be E2E only
+## What should remain E2E-focused
 
 - Launching desktop Obsidian with the repo-generated synthetic vault
-- Verifying the plugin is enabled in that vault
-- Verifying protected notes actually settle in Reading view in the real app
-- Verifying excluded and unprotected notes can remain in source mode in the real app
-
-These behaviors depend on the live Electron application, real workspace timing, and real Obsidian leaf/view behavior that mocks cannot prove.
+- Verifying the plugin is enabled and real notes settle in the expected mode
+- Exercising source resolution through the actual settings DOM
+- Checking packaged-app integration across real workspace timing and leaf behavior
 
 ## Recommended next tests
 
-### Next highest-value E2E additions
+- Add one stable end-to-end settings workflow spanning mode selection, rule-row changes, Path tester, and Advanced settings.
+- Add welcome-modal coverage when its one-time state can be reset reliably.
+- Add one hover or popover smoke check only if selectors and timing can remain stable.
+- Keep mobile and tablet behavior in manual QA until a reliable Obsidian mobile automation path exists.
 
-- Open a protected archive note such as `Archive/2025/Retrospective.md` and confirm it stays in Reading view
-- Exercise one file-explorer-driven open path if a stable selector strategy emerges
-- Add one popover or hover-preview smoke check only if it can be made stable
-
-### Keep as unit-first additions
-
-- Any new matcher syntax or normalization rule
-- Any settings schema or migration change
-- Any new rule-limit policy
-- Any new save/debounce behavior in settings editors
-
-## Initial E2E boundary
-
-The first WebdriverIO suite should stay small and smoke-oriented. Broad UI coverage would add more maintenance cost than value for this plugin at its current size.
+The WebdriverIO suite should stay smoke-oriented: expand it where a real Obsidian session proves behavior that mocks cannot, not for every deterministic UI helper.
