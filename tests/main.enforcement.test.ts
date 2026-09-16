@@ -25,6 +25,7 @@ function createPluginForEnforcement(leaves: MockWorkspaceLeaf[]) {
 	state.settings = {
 		...DEFAULT_SETTINGS,
 		enabled: true,
+		forceAllMarkdownReadOnly: false,
 		useGlobPatterns: true,
 		caseSensitive: true,
 		includeRules: ['**/*.md'],

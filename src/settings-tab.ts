@@ -1,23 +1,74 @@
 import { App, Plugin, PluginSettingTab } from 'obsidian';
 import type { PathTesterController } from './settings-path-tester';
 import {
-	splitRulesFromText,
-	stringifyRules,
-} from './rule-diagnostics';
-import { renderGeneralSettings } from './settings-general';
-import { renderPathTester } from './settings-path-tester';
-import { renderRuleEditor } from './settings-rule-editor';
-import { computeRuleLimitsUiState } from './settings-ui-state';
+	getPathTesterSummary,
+	renderPathTester,
+} from './settings-path-tester';
+import {
+	getDebugSummary,
+	getMatchingSummary,
+	renderDebugSettings,
+	renderMatchingSettings,
+	renderModeSelector,
+	renderPrimarySettings,
+} from './settings-general';
+import {
+	getPathRulesSummary,
+	renderRuleEditor,
+	type RuleEditorController,
+} from './settings-rule-editor';
 import type { SettingsTabPlugin } from './plugin-types';
-import type { RuleEditorController } from './settings-rule-editor';
+import { createRuleResolverContext, type RuleResolverContext } from './rule-source';
+import {
+	captureSettingsFocus,
+	focusFirstSettingsControl,
+	restoreSettingsFocus,
+	setSettingsFocusKey,
+} from './settings-focus';
 
 export { computeRuleLimitsUiState } from './settings-ui-state';
 export { DebouncedRuleChangeSaver } from './settings-rule-editor';
 
+type SettingsSectionKey = 'pathRules' | 'pathTester' | 'matching' | 'debugFlags';
+
+type DisclosureController = {
+	bodyEl: HTMLElement;
+	setSummary: (summary: string) => void;
+};
+
+type StaticSectionController = {
+	bodyEl: HTMLElement;
+	setSummary: (summary: string) => void;
+};
+
+type HeaderIndicatorsController = {
+	setActiveRulesCount: (count: number) => void;
+};
+
+function getRuleResolverContext(app: App): RuleResolverContext {
+	if (!app.vault) {
+		return {
+			vaultName: '',
+			vaultBasePath: null,
+			isMarkdownFile: () => false,
+			isFolder: () => false,
+		};
+	}
+	return createRuleResolverContext(app.vault);
+}
+
+function getActiveRulesCount(settings: SettingsTabPlugin['settings']): number {
+	return (settings.forceAllMarkdownReadOnly
+		? 0
+		: settings.includeRules.filter((_, index) => settings.includeRuleEnabled[index] !== false).length)
+		+ settings.excludeRules.filter((_, index) => settings.excludeRuleEnabled[index] !== false).length;
+}
+
 export class ForceReadModeSettingTab extends PluginSettingTab {
 	plugin: SettingsTabPlugin;
-	private ruleEditors: RuleEditorController[] = [];
+	private ruleEditor: RuleEditorController | null = null;
 	private pathTesterController: PathTesterController | null = null;
+	private readonly sectionOpenState = new Map<SettingsSectionKey, boolean>();
 
 	constructor(app: App, plugin: Plugin & SettingsTabPlugin) {
 		super(app, plugin);
@@ -25,97 +76,258 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 	}
 
 	display(): void {
+		const focusSnapshot = captureSettingsFocus(this.containerEl);
 		this.disposeUiControllers();
 		const { containerEl } = this;
 		containerEl.empty();
+		containerEl.addClass('read-only-view-settings');
 
-		renderGeneralSettings(containerEl, this.plugin, () => this.display());
+		const headerIndicators = this.renderHeaderSection(containerEl);
 
-		const rulesSummaryEl = containerEl.createDiv({ cls: 'read-only-view-rules-summary' });
-		const ruleWarningEl = containerEl.createDiv({ cls: 'read-only-view-rule-warning-banner' });
-		const hardCapWarningEl = containerEl.createDiv({ cls: 'read-only-view-rule-warning-banner' });
+		const modeSectionEl = this.createCardSection(containerEl);
+		renderPrimarySettings(modeSectionEl, this.plugin, () => this.display());
+		renderModeSelector(modeSectionEl, this.plugin, () => this.display());
 
-		let includeRulesText = stringifyRules(this.plugin.settings.includeRules);
-		let excludeRulesText = stringifyRules(this.plugin.settings.excludeRules);
-
-		const includeEditor = renderRuleEditor({
+		const pathRulesSection = this.createStaticWorkflowSection(
 			containerEl,
-			title: 'Include rules',
-			description: 'One rule per line. These files become read-only if not excluded.',
-			initialText: stringifyRules(this.plugin.settings.includeRules),
+			'Path rules',
+			'Choose folders or notes to keep in Reading view.',
+			getPathRulesSummary(
+				this.plugin.settings.includeRules,
+				this.plugin.settings.excludeRules,
+				this.plugin.settings.includeRuleEnabled,
+				this.plugin.settings.excludeRuleEnabled,
+				!this.plugin.settings.forceAllMarkdownReadOnly,
+			),
+		);
+		this.ruleEditor = renderRuleEditor({
+			containerEl: pathRulesSection.bodyEl,
+			includeRules: this.plugin.settings.includeRules,
+			excludeRules: this.plugin.settings.excludeRules,
+			includeRuleEnabled: this.plugin.settings.includeRuleEnabled,
+			excludeRuleEnabled: this.plugin.settings.excludeRuleEnabled,
+			includeRuleEntries: this.plugin.settings.includeRuleEntries,
+			excludeRuleEntries: this.plugin.settings.excludeRuleEntries,
+			resolverContext: getRuleResolverContext(this.app),
 			useGlobPatterns: this.plugin.settings.useGlobPatterns,
-			onChange: async (value) => {
-			this.plugin.settings.includeRules = splitRulesFromText(value);
-			await this.plugin.saveSettings();
-			this.plugin.refreshEditorOptions();
-			await this.plugin.applyAllOpenMarkdownLeaves('settings-include-rules');
+			includeRulesActive: !this.plugin.settings.forceAllMarkdownReadOnly,
+			onChange: async (state, reason) => {
+				this.plugin.settings.includeRules = state.includeRules;
+				this.plugin.settings.excludeRules = state.excludeRules;
+				this.plugin.settings.includeRuleEnabled = state.includeRuleEnabled;
+				this.plugin.settings.excludeRuleEnabled = state.excludeRuleEnabled;
+				this.plugin.settings.includeRuleEntries = state.includeRuleEntries ?? [];
+				this.plugin.settings.excludeRuleEntries = state.excludeRuleEntries ?? [];
+				await this.plugin.saveSettings();
+				this.plugin.refreshEditorOptions();
+				await this.plugin.applyAllOpenMarkdownLeaves(reason);
+				pathRulesSection.setSummary(
+					getPathRulesSummary(
+						state.includeRules,
+						state.excludeRules,
+						state.includeRuleEnabled,
+						state.excludeRuleEnabled,
+						!this.plugin.settings.forceAllMarkdownReadOnly,
+					),
+				);
 			},
-			onTextInput: (value) => {
-				includeRulesText = value;
-				renderRuleLimitsState();
+			onStateChange: ({ includeCount, excludeCount }) => {
+				pathRulesSection.setSummary(buildRulesSummary(includeCount, excludeCount));
+				headerIndicators.setActiveRulesCount(includeCount + excludeCount);
 			},
 		});
 
-		const excludeEditor = renderRuleEditor({
+		const pathTesterSection = this.createStaticWorkflowSection(
 			containerEl,
-			title: 'Exclude rules',
-			description: 'One rule per line. Exclude wins when include and exclude both match.',
-			initialText: stringifyRules(this.plugin.settings.excludeRules),
-			useGlobPatterns: this.plugin.settings.useGlobPatterns,
-			onChange: async (value) => {
-			this.plugin.settings.excludeRules = splitRulesFromText(value);
-			await this.plugin.saveSettings();
-			this.plugin.refreshEditorOptions();
-			await this.plugin.applyAllOpenMarkdownLeaves('settings-exclude-rules');
-			},
-			onTextInput: (value) => {
-				excludeRulesText = value;
-				renderRuleLimitsState();
-			},
-		});
-		this.ruleEditors = [includeEditor, excludeEditor];
-
-		const renderRuleLimitsState = () => {
-			const uiState = computeRuleLimitsUiState(includeRulesText, excludeRulesText);
-			rulesSummaryEl.setText(uiState.summaryText);
-			ruleWarningEl.empty();
-			if (uiState.volumeWarningMessage) {
-				ruleWarningEl.setText(uiState.volumeWarningMessage);
-				ruleWarningEl.addClass('is-visible');
-			} else {
-				ruleWarningEl.removeClass('is-visible');
-			}
-
-			hardCapWarningEl.empty();
-			if (uiState.hardCapWarningMessage) {
-				hardCapWarningEl.setText(uiState.hardCapWarningMessage);
-				hardCapWarningEl.addClass('is-visible');
-			} else {
-				hardCapWarningEl.removeClass('is-visible');
-			}
-
-			includeEditor.setIgnoredLineIndexes(uiState.ignoredIncludeLineIndexes);
-			excludeEditor.setIgnoredLineIndexes(uiState.ignoredExcludeLineIndexes);
-		};
-
-		renderRuleLimitsState();
-
-		this.pathTesterController = renderPathTester(containerEl, {
+			'Path tester',
+			'Test a vault path against the current rules.',
+			getPathTesterSummary(),
+		);
+		this.pathTesterController = renderPathTester(pathTesterSection.bodyEl, {
 			settings: this.plugin.settings,
 			getCompiledRuleMatcher: this.plugin.getCompiledRuleMatcher?.bind(this.plugin),
+			resolverContext: getRuleResolverContext(this.app),
 		});
+
+		const advancedSectionEl = this.createCardSection(containerEl, 'Advanced');
+		const matchingSection = this.createCollapsibleSection(
+			advancedSectionEl,
+			'matching',
+			'Matching',
+			'Choose how paths are compared before rules are evaluated.',
+			getMatchingSummary(this.plugin.settings),
+			false,
+		);
+		renderMatchingSettings(matchingSection.bodyEl, this.plugin, () => this.display());
+
+		const debugSection = this.createCollapsibleSection(
+			advancedSectionEl,
+			'debugFlags',
+			'Debug flags',
+			'Enable extra logging only when diagnosing rule behavior.',
+			getDebugSummary(this.plugin.settings),
+			false,
+		);
+		renderDebugSettings(debugSection.bodyEl, this.plugin, () => this.display());
+
+		if (!restoreSettingsFocus(containerEl, focusSnapshot)) {
+			focusFirstSettingsControl(containerEl);
+		}
 	}
 
 	hide(): void {
 		this.disposeUiControllers();
+		this.sectionOpenState.clear();
+	}
+
+	private renderHeaderSection(containerEl: HTMLElement): HeaderIndicatorsController {
+		const sectionEl = containerEl.createDiv({ cls: 'read-only-view-header-card' });
+		sectionEl.createDiv({
+			text: 'Read Only View',
+			cls: 'read-only-view-header-title',
+		});
+		sectionEl.createDiv({
+			text: 'Read-only behavior',
+			cls: 'read-only-view-header-subtitle',
+		});
+		sectionEl.createDiv({
+			text: 'Keep selected Markdown notes in Reading view',
+			cls: 'read-only-view-header-description',
+		});
+
+		const indicatorsEl = sectionEl.createDiv({ cls: 'read-only-view-header-indicators' });
+		const activeRulesBadgeEl = indicatorsEl.createDiv({ cls: 'read-only-view-status-badge' });
+		activeRulesBadgeEl.setText(`Active rules: ${getActiveRulesCount(this.plugin.settings)}`);
+		if (this.plugin.settings.forceAllMarkdownReadOnly) {
+			const warningEl = indicatorsEl.createDiv({ cls: 'read-only-view-global-warning' });
+			warningEl.setText('All Markdown files mode is enabled');
+		}
+		return {
+			setActiveRulesCount: (count: number) => {
+				activeRulesBadgeEl.setText(`Active rules: ${count}`);
+			},
+		};
+	}
+
+	private createCardSection(containerEl: HTMLElement, title?: string): HTMLElement {
+		const sectionEl = containerEl.createDiv({ cls: 'read-only-view-section-card' });
+		if (title) {
+			sectionEl.createDiv({
+				text: title,
+				cls: 'read-only-view-section-card-title',
+			});
+		}
+		return sectionEl;
+	}
+
+	private createStaticWorkflowSection(
+		containerEl: HTMLElement,
+		title: string,
+		description: string,
+		summary: string,
+	): StaticSectionController {
+		const sectionEl = this.createCardSection(containerEl);
+		const headerEl = sectionEl.createDiv({ cls: 'read-only-view-static-section-header' });
+		const copyEl = headerEl.createDiv({ cls: 'read-only-view-static-section-copy' });
+		copyEl.createDiv({
+			text: title,
+			cls: 'read-only-view-disclosure-title',
+		});
+		copyEl.createDiv({
+			text: description,
+			cls: 'read-only-view-disclosure-description',
+		});
+		const summaryEl = headerEl.createDiv({ cls: 'read-only-view-static-section-summary' });
+		summaryEl.setText(summary);
+
+		const bodyEl = sectionEl.createDiv({ cls: 'read-only-view-static-section-body' });
+		return {
+			bodyEl,
+			setSummary: (nextSummary: string) => {
+				summaryEl.setText(nextSummary);
+			},
+		};
+	}
+
+	private createCollapsibleSection(
+		containerEl: HTMLElement,
+		sectionKey: SettingsSectionKey,
+		title: string,
+		description: string,
+		summary: string,
+		defaultOpen: boolean,
+	): DisclosureController {
+		const open = this.sectionOpenState.get(sectionKey) ?? defaultOpen;
+		const bodyId = `read-only-view-section-${sectionKey}`;
+		const wrapperEl = containerEl.createDiv({
+			cls: `read-only-view-disclosure-row${open ? ' is-open' : ''}`,
+		});
+		const toggleEl = wrapperEl.createEl('button', {
+			cls: 'read-only-view-disclosure-toggle',
+			type: 'button',
+		});
+		toggleEl.setAttr('aria-expanded', open ? 'true' : 'false');
+		toggleEl.setAttr('aria-controls', bodyId);
+		setSettingsFocusKey(toggleEl, `section-${sectionKey}`);
+
+		const copyEl = toggleEl.createSpan({ cls: 'read-only-view-disclosure-copy' });
+		copyEl.createSpan({
+			text: title,
+			cls: 'read-only-view-disclosure-title',
+		});
+		copyEl.createSpan({
+			text: description,
+			cls: 'read-only-view-disclosure-description',
+		});
+
+		const metaEl = toggleEl.createSpan({ cls: 'read-only-view-disclosure-meta' });
+		const summaryEl = metaEl.createSpan({ cls: 'read-only-view-disclosure-summary' });
+		summaryEl.setText(summary);
+		const arrowEl = metaEl.createSpan({
+			text: open ? '▼' : '▶',
+			cls: 'read-only-view-disclosure-arrow',
+		});
+		arrowEl.setAttr('aria-hidden', 'true');
+
+		const bodyEl = wrapperEl.createDiv({
+			cls: `read-only-view-disclosure-body${open ? '' : ' is-collapsed'}`,
+		});
+		bodyEl.setAttr('id', bodyId);
+
+		toggleEl.addEventListener('click', () => {
+			const isOpen = wrapperEl.matches('.is-open');
+			if (isOpen) {
+				this.sectionOpenState.set(sectionKey, false);
+				wrapperEl.removeClass('is-open');
+				bodyEl.addClass('is-collapsed');
+				toggleEl.setAttr('aria-expanded', 'false');
+				toggleEl.querySelector('.read-only-view-disclosure-arrow')?.setText('▶');
+				return;
+			}
+
+			this.sectionOpenState.set(sectionKey, true);
+			wrapperEl.addClass('is-open');
+			bodyEl.removeClass('is-collapsed');
+			toggleEl.setAttr('aria-expanded', 'true');
+			toggleEl.querySelector('.read-only-view-disclosure-arrow')?.setText('▼');
+		});
+
+		return {
+			bodyEl,
+			setSummary: (nextSummary: string) => {
+				summaryEl.setText(nextSummary);
+			},
+		};
 	}
 
 	private disposeUiControllers(): void {
-		for (const editor of this.ruleEditors) {
-			editor.dispose();
-		}
-		this.ruleEditors = [];
+		this.ruleEditor?.dispose();
+		this.ruleEditor = null;
 		this.pathTesterController?.dispose();
 		this.pathTesterController = null;
 	}
+}
+
+function buildRulesSummary(includeCount: number, excludeCount: number): string {
+	return `${includeCount} include · ${excludeCount} exclude`;
 }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { renderRuleEditor } from '../src/settings-rule-editor.js';
+import { PATH_SOURCE_INPUT_MAX_LENGTH } from '../src/source-input-limits.js';
 import { installDomMocks, MockHTMLElement } from './helpers/dom-mocks.js';
 
 function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) => Promise<void>): Promise<void> {
@@ -87,59 +88,169 @@ function withOwnedFakeTimeoutWindows(
 	});
 }
 
-test('rules editor renders ignored-line warning after ignored indexes are updated', async () => {
+test('rules editor renders table rows, help copy, and inline warnings', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 
 	try {
 		await withFakeTimeouts(async ({ flushAll }) => {
-			const controller = renderRuleEditor({
+			renderRuleEditor({
 				containerEl: container as unknown as HTMLElement,
-				title: 'Include rules',
-				description: 'desc',
-				initialText: 'docs/a.md\ndocs/b.md',
-				useGlobPatterns: true,
+				includeRules: ['docs/a.md'],
+				excludeRules: ['drafts/*'],
+				useGlobPatterns: false,
 				onChange: async () => undefined,
 			});
 
-			controller.setIgnoredLineIndexes([1]);
 			await flushAll();
 		});
 
 		const texts = collectTexts(container);
-		assert.ok(texts.includes('⚠️'));
-		assert.ok(texts.includes(' Warning [2] docs/b.md'));
-		assert.ok(texts.includes(' Ignored'));
-		assert.ok(texts.includes('Ignored due to rule limit.'));
-		assert.ok(container.querySelector('.read-only-view-diagnostics-item-ignored'));
+		assert.ok(texts.includes('Exclude rules always win. Disable a rule to keep it without applying it.'));
+		assert.ok(texts.includes('Rule examples in readme'));
+		assert.ok(texts.includes('Examples: Notes/Summaries/ · Notes/Summaries/file.md · Archive/**/*.md · !Drafts/'));
+		assert.ok(texts.includes('Contains wildcard in prefix mode. It is treated as a literal character.'));
+		assert.equal(container.querySelectorAll('.read-only-view-rule-row').length, 2);
+		const helpLinks = container.querySelectorAll('a');
+		assert.equal(helpLinks.length, 1);
+		assert.equal(helpLinks[0]?.getAttr('href'), 'https://github.com/mrKazzila/Read-Only-View#rule-examples');
+		assert.equal(helpLinks[0]?.getAttr('aria-label'), 'Open path rule syntax examples');
 	} finally {
 		dom.restore();
 	}
 });
 
-test('rules editor exposes textarea description and live save status to assistive tech', () => {
+test('rules editor persists enabled checkbox changes', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const committed: Array<{ enabled: boolean[]; reason: string }> = [];
+
+	try {
+		renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
+			includeRuleEnabled: [true],
+			excludeRuleEnabled: [],
+			useGlobPatterns: true,
+			onChange: async (state, reason) => {
+				committed.push({ enabled: state.includeRuleEnabled, reason });
+			},
+		});
+
+		const enabledToggle = container.querySelector('.read-only-view-rule-enabled-toggle');
+		assert.ok(enabledToggle);
+		assert.equal(enabledToggle.checked, true);
+
+		enabledToggle.checked = false;
+		enabledToggle.trigger('change');
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.deepEqual(committed.at(-1), {
+			enabled: [false],
+			reason: 'settings-rule-enabled',
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor keeps focus on a control when rows rerender', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	container.ownerDocument = dom.document;
+
+	try {
+		renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
+			includeRuleEnabled: [true],
+			excludeRuleEnabled: [],
+			useGlobPatterns: true,
+			onChange: async () => undefined,
+		});
+
+		const initialToggle = container.querySelector('.read-only-view-rule-enabled-toggle');
+		assert.ok(initialToggle);
+		initialToggle.focus();
+		initialToggle.checked = false;
+		initialToggle.trigger('change');
+		await Promise.resolve();
+
+		const rerenderedToggle = container.querySelector('.read-only-view-rule-enabled-toggle');
+		assert.ok(rerenderedToggle);
+		assert.notEqual(rerenderedToggle, initialToggle);
+		assert.equal(dom.document.activeElement, rerenderedToggle);
+	} finally {
+		dom.restore();
+	}
+});
+
+test('all-Markdown mode visually inactivates only include rules without changing enabled state', () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 
 	try {
 		renderRuleEditor({
 			containerEl: container as unknown as HTMLElement,
-			title: 'Include rules',
-			description: 'One rule per line.',
-			initialText: 'docs/a.md',
+			includeRules: ['docs/a.md', 'docs/b.md'],
+			excludeRules: ['docs/private.md', 'docs/archive.md'],
+			includeRuleEnabled: [true, false],
+			excludeRuleEnabled: [true, false],
+			useGlobPatterns: true,
+			includeRulesActive: false,
+			onChange: async () => undefined,
+		});
+
+		const rows = container.querySelectorAll('.read-only-view-rule-row');
+		assert.equal(rows.length, 4);
+		assert.ok(rows[0]?.matches('.is-inactive-by-mode'));
+		assert.ok(rows[1]?.matches('.is-inactive-by-mode'));
+		assert.ok(!rows[2]?.matches('.is-inactive-by-mode'));
+		assert.ok(!rows[3]?.matches('.is-inactive-by-mode'));
+		assert.ok(rows[3]?.matches('.is-disabled'));
+
+		const toggles = container.querySelectorAll('.read-only-view-rule-enabled-toggle');
+		assert.equal(toggles[0]?.checked, true);
+		assert.equal(toggles[1]?.checked, false);
+		assert.equal(toggles[2]?.checked, true);
+		assert.equal(toggles[3]?.checked, false);
+
+		const texts = collectTexts(container);
+		assert.ok(texts.includes('Include rules are inactive while all Markdown files mode is enabled.'));
+		assert.ok(texts.includes('Inactive in all Markdown files mode.'));
+		assert.ok(texts.includes('Include: 0 rules · Exclude: 1 rules · Total: 1'));
+		assert.ok(!texts.includes('Include [1] (empty line)'));
+		assert.ok(!texts.includes('Empty or whitespace-only line.'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor exposes input description and live save status to assistive tech', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
 			useGlobPatterns: true,
 			onChange: async () => undefined,
 		});
 
-		const textarea = container.querySelector('textarea');
-		const saveStatus = container.querySelector('#read-only-view-include-rules-save-status');
-		const diagnostics = container.querySelector('#read-only-view-include-rules-diagnostics');
+		const input = container.querySelector('.read-only-view-rule-input');
+		const saveStatus = container.querySelector('#read-only-view-path-rules-save-status');
+		const diagnostics = container.querySelector('#read-only-view-path-rules-diagnostics');
 
-		assert.ok(textarea);
-		assert.equal(textarea.getAttr('aria-label'), 'Include rules');
+		assert.ok(input);
+		assert.equal(input.getAttr('aria-label'), 'Include rule value');
 		assert.equal(
-			textarea.getAttr('aria-describedby'),
-			'read-only-view-include-rules-description read-only-view-include-rules-save-status read-only-view-include-rules-diagnostics',
+			input.getAttr('aria-describedby'),
+			'read-only-view-path-rules-description read-only-view-path-rules-save-status read-only-view-path-rules-diagnostics',
 		);
 		assert.ok(saveStatus);
 		assert.equal(saveStatus.getAttr('role'), 'status');
@@ -155,33 +266,265 @@ test('rules editor exposes textarea description and live save status to assistiv
 test('rules editor save status moves through saving to saved on committed input', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
-	const committed: string[] = [];
+	const committed: Array<{ includeRules: string[]; excludeRules: string[]; reason: string }> = [];
 
 	try {
 		renderRuleEditor({
 			containerEl: container as unknown as HTMLElement,
-			title: 'Include rules',
-			description: 'desc',
-			initialText: 'docs/a.md',
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
 			useGlobPatterns: true,
-			onChange: async (value) => {
-				committed.push(value);
+			onChange: async (state, reason) => {
+				committed.push({ includeRules: state.includeRules, excludeRules: state.excludeRules, reason });
 			},
 		});
 
-		const textarea = container.querySelector('textarea');
-		assert.ok(textarea);
+		const input = container.querySelector('.read-only-view-rule-input');
+		assert.ok(input);
 
 		await withFakeTimeouts(async ({ flushAll }) => {
-			textarea.value = 'docs/updated.md';
-			textarea.trigger('input');
+			input.value = 'docs/updated.md';
+			input.trigger('input');
 
 			assert.ok(collectTexts(container).includes('Saving...'));
 			await flushAll();
 		});
 
-		assert.deepEqual(committed, ['docs/updated.md']);
+		assert.deepEqual(committed, [
+			{ includeRules: ['docs/updated.md'], excludeRules: [], reason: 'settings-include-rules' },
+		]);
 		assert.ok(collectTexts(container).includes('Saved.'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor keeps Obsidian URL visible and saves its resolved path metadata', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	let savedState: { includeRules: string[]; includeRuleEntries?: Array<{ sourceValue: string; resolvedPath: string | null }> } | null = null;
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				includeRules: [],
+				excludeRules: [],
+				useGlobPatterns: false,
+				resolverContext: {
+					vaultName: 'demo-vault',
+					vaultBasePath: '/vaults/demo-vault',
+					isMarkdownFile: (path) => path === 'Inbox/Quick capture.md',
+					isFolder: () => false,
+				},
+				onChange: async (state) => {
+					savedState = state;
+				},
+			});
+			const addButton = container.querySelector('.read-only-view-add-rule-button');
+			assert.ok(addButton);
+			addButton.trigger('click');
+			const input = container.querySelector('.read-only-view-rule-input');
+			assert.ok(input);
+			const uri = 'obsidian://open?vault=demo-vault&file=Inbox%2FQuick%20capture';
+			input.value = uri;
+			input.trigger('input');
+			await flushAll();
+
+			assert.equal(input.value, uri);
+			assert.ok(collectTexts(container).includes('Obsidian URL · Resolved to: Inbox/Quick capture.md'));
+			assert.deepEqual(savedState?.includeRules, ['Inbox/Quick capture.md']);
+			assert.equal(savedState?.includeRuleEntries?.[0]?.sourceValue, uri);
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor imports a system folder as a privacy-safe vault folder rule', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const committed: Array<{
+		includeRules: string[];
+		sourceValue?: string;
+		resolvedPath?: string | null;
+	}> = [];
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				includeRules: [],
+				excludeRules: [],
+				useGlobPatterns: false,
+				resolverContext: {
+					vaultName: 'demo-vault',
+					vaultBasePath: '/vaults/demo-vault',
+					isMarkdownFile: () => false,
+					isFolder: (path) => path === 'Knowledge Base/Productivity',
+				},
+				onChange: async (state) => {
+					committed.push({
+						includeRules: state.includeRules,
+						sourceValue: state.includeRuleEntries?.[0]?.sourceValue,
+						resolvedPath: state.includeRuleEntries?.[0]?.resolvedPath,
+					});
+				},
+			});
+
+			const addButton = container.querySelector('.read-only-view-add-rule-button');
+			assert.ok(addButton);
+			addButton.trigger('click');
+			const input = container.querySelector('.read-only-view-rule-input');
+			assert.ok(input);
+			input.value = '/vaults/demo-vault/Knowledge Base/Productivity/';
+			input.trigger('input');
+			await flushAll();
+
+			assert.ok(collectTexts(container).includes(
+				'System path · Resolved to: Knowledge Base/Productivity/',
+			));
+			assert.deepEqual(committed.at(-1), {
+				includeRules: ['Knowledge Base/Productivity/'],
+				sourceValue: 'Knowledge Base/Productivity/',
+				resolvedPath: 'Knowledge Base/Productivity/',
+			});
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor blocks and does not save an over-limit rule value', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const committed: string[][] = [];
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				includeRules: [],
+				excludeRules: [],
+				useGlobPatterns: false,
+				onChange: async (state) => {
+					committed.push(state.includeRules);
+				},
+			});
+			const addButton = container.querySelector('.read-only-view-add-rule-button');
+			assert.ok(addButton);
+			addButton.trigger('click');
+			committed.length = 0;
+
+			const input = container.querySelector('.read-only-view-rule-input');
+			assert.ok(input);
+			input.value = 'x'.repeat(PATH_SOURCE_INPUT_MAX_LENGTH + 1);
+			input.trigger('input');
+			await flushAll();
+
+			assert.equal(input.value.length, PATH_SOURCE_INPUT_MAX_LENGTH);
+			assert.equal(input.getAttr('aria-invalid'), 'true');
+			assert.ok(input.matches('.is-input-error'));
+			assert.ok(collectTexts(container).includes('Input is too long. Maximum: 40,000 characters.'));
+			assert.deepEqual(committed, []);
+
+			input.value = 'docs/valid.md';
+			input.trigger('input');
+			await flushAll();
+			assert.equal(input.getAttr('aria-invalid'), 'false');
+			assert.ok(!input.matches('.is-input-error'));
+			assert.deepEqual(committed.at(-1), ['docs/valid.md']);
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor safely presents an over-limit persisted rule for correction', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const sourceValue = 'x'.repeat(PATH_SOURCE_INPUT_MAX_LENGTH + 1);
+
+	try {
+		renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			includeRules: [],
+			excludeRules: [],
+			includeRuleEntries: [{
+				sourceKind: 'vault-path',
+				sourceValue,
+				resolvedPath: sourceValue,
+				enabled: true,
+			}],
+			useGlobPatterns: true,
+			onChange: async () => undefined,
+		});
+
+		const input = container.querySelector('.read-only-view-rule-input');
+		assert.ok(input);
+		assert.equal(input.value.length, PATH_SOURCE_INPUT_MAX_LENGTH);
+		assert.equal(input.getAttr('aria-invalid'), 'true');
+		assert.ok(input.matches('.is-input-error'));
+		assert.ok(collectTexts(container).includes('Input is too long. Maximum: 40,000 characters.'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor starts with zero rows and no empty-rule warning in both modes', () => {
+	for (const includeRulesActive of [true, false]) {
+		const dom = installDomMocks();
+		const container = new MockHTMLElement();
+
+		try {
+			renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				includeRules: [],
+				excludeRules: [],
+				useGlobPatterns: true,
+				includeRulesActive,
+				onChange: async () => undefined,
+			});
+
+			const texts = collectTexts(container);
+			assert.equal(container.querySelectorAll('.read-only-view-rule-row').length, 0);
+			assert.ok(texts.includes('No path rules configured.'));
+			assert.ok(!texts.includes('Include [1] (empty line)'));
+			assert.ok(!texts.includes('Exclude [1] (empty line)'));
+			assert.ok(!texts.includes('Empty or whitespace-only line.'));
+		} finally {
+			dom.restore();
+		}
+	}
+});
+
+test('deleting the final rule leaves zero rows and persists empty rule arrays', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const committed: Array<{ includeRules: string[]; excludeRules: string[] }> = [];
+
+	try {
+		renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
+			useGlobPatterns: true,
+			onChange: async (state) => {
+				committed.push({ includeRules: state.includeRules, excludeRules: state.excludeRules });
+			},
+		});
+
+		const deleteButton = container.querySelector('.read-only-view-delete-rule-button');
+		assert.ok(deleteButton);
+		deleteButton.trigger('click');
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.equal(container.querySelectorAll('.read-only-view-rule-row').length, 0);
+		assert.deepEqual(committed.at(-1), { includeRules: [], excludeRules: [] });
+		const texts = collectTexts(container);
+		assert.ok(texts.includes('No path rules configured.'));
+		assert.ok(!texts.includes('Empty or whitespace-only line.'));
 	} finally {
 		dom.restore();
 	}
@@ -194,21 +537,20 @@ test('rules editor save status shows failure when commit rejects', async () => {
 	try {
 		renderRuleEditor({
 			containerEl: container as unknown as HTMLElement,
-			title: 'Include rules',
-			description: 'desc',
-			initialText: 'docs/a.md',
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
 			useGlobPatterns: true,
 			onChange: async () => {
 				throw new Error('save failed');
 			},
 		});
 
-		const textarea = container.querySelector('textarea');
-		assert.ok(textarea);
+		const input = container.querySelector('.read-only-view-rule-input');
+		assert.ok(input);
 
 		await withFakeTimeouts(async ({ flushAll }) => {
-			textarea.value = 'docs/b.md';
-			textarea.trigger('input');
+			input.value = 'docs/b.md';
+			input.trigger('input');
 			await flushAll();
 		});
 
@@ -218,36 +560,37 @@ test('rules editor save status shows failure when commit rejects', async () => {
 	}
 });
 
-test('rules editor debounces diagnostics input and eventually renders latest state once', async () => {
+test('rules editor add rule button creates a new row and flushes combined save state', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
+	const committed: Array<{ includeRules: string[]; excludeRules: string[]; reason: string }> = [];
 
 	try {
-		await withFakeTimeouts(async ({ flushAll }) => {
-			renderRuleEditor({
-				containerEl: container as unknown as HTMLElement,
-				title: 'Include rules',
-				description: 'desc',
-				initialText: 'docs/a.md',
-				useGlobPatterns: true,
-				onChange: async () => undefined,
-			});
+		renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
+			useGlobPatterns: true,
+			onChange: async (state, reason) => {
+				committed.push({ includeRules: state.includeRules, excludeRules: state.excludeRules, reason });
+			},
+		});
 
-			const textarea = container.querySelector('textarea');
-			assert.ok(textarea);
-			textarea.value = 'docs/first.md';
-			textarea.trigger('input');
-			textarea.value = 'docs/latest.md';
-			textarea.trigger('input');
+		const addButton = container.querySelector('.read-only-view-add-rule-button');
+		assert.ok(addButton);
+		addButton.trigger('click');
 
-			const textsBeforeFlush = collectTexts(container);
-			assert.ok(!textsBeforeFlush.includes(' OK [1] docs/latest.md'));
+		const inputs = container.querySelectorAll('.read-only-view-rule-input');
+		assert.equal(inputs.length, 2);
+		inputs[1]!.value = 'docs/b.md';
+		inputs[1]!.trigger('change');
+		await Promise.resolve();
+		await Promise.resolve();
 
-			await flushAll();
-
-			const textsAfterFlush = collectTexts(container);
-			assert.ok(textsAfterFlush.includes(' OK [1] docs/latest.md'));
-			assert.ok(!textsAfterFlush.includes(' OK [1] docs/first.md'));
+		assert.deepEqual(committed.at(-1), {
+			includeRules: ['docs/a.md', 'docs/b.md'],
+			excludeRules: [],
+			reason: 'settings-path-rules',
 		});
 	} finally {
 		dom.restore();
@@ -257,65 +600,35 @@ test('rules editor debounces diagnostics input and eventually renders latest sta
 test('rules editor blur flushes pending diagnostics render immediately', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
+	const committed: string[] = [];
 
 	try {
 		await withFakeTimeouts(async () => {
 			renderRuleEditor({
 				containerEl: container as unknown as HTMLElement,
-				title: 'Include rules',
-				description: 'desc',
-				initialText: 'docs/a.md',
+				includeRules: ['docs/a.md'],
+				excludeRules: [],
 				useGlobPatterns: true,
-				onChange: async () => undefined,
+				onChange: async (state) => {
+					committed.push(state.includeRules.join(','));
+				},
 			});
 
-			const textarea = container.querySelector('textarea');
-			assert.ok(textarea);
-			textarea.value = 'docs/blurred.md';
-			textarea.trigger('input');
-			assert.ok(!collectTexts(container).includes(' OK [1] docs/blurred.md'));
+			const input = container.querySelector('.read-only-view-rule-input');
+			assert.ok(input);
+			input.value = 'docs/blurred.md';
+			input.trigger('input');
 
-			textarea.trigger('blur');
-			assert.ok(collectTexts(container).includes(' OK [1] docs/blurred.md'));
+			input.trigger('blur');
+			await Promise.resolve();
+			assert.deepEqual(committed, ['docs/blurred.md']);
 		});
 	} finally {
 		dom.restore();
 	}
 });
 
-test('rules editor dispose cancels pending diagnostics render', async () => {
-	const dom = installDomMocks();
-	const container = new MockHTMLElement();
-
-	try {
-		await withFakeTimeouts(async ({ flushAll }) => {
-			const controller = renderRuleEditor({
-				containerEl: container as unknown as HTMLElement,
-				title: 'Include rules',
-				description: 'desc',
-				initialText: 'docs/a.md',
-				useGlobPatterns: true,
-				onChange: async () => undefined,
-			});
-
-			const textarea = container.querySelector('textarea');
-			assert.ok(textarea);
-			textarea.value = 'docs/cancelled.md';
-			textarea.trigger('input');
-			controller.dispose();
-
-			await flushAll();
-
-			const texts = collectTexts(container);
-			assert.ok(!texts.includes(' OK [1] docs/cancelled.md'));
-			assert.ok(texts.includes(' OK [1] docs/a.md'));
-		});
-	} finally {
-		dom.restore();
-	}
-});
-
-test('rules editor dispose clears diagnostics debounce through owner window after focus switch', async () => {
+test('rules editor dispose cancels pending work through owner window after focus switch', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 
@@ -324,21 +637,20 @@ test('rules editor dispose clears diagnostics debounce through owner window afte
 			container.ownerDocument = { defaultView: windowA } as unknown as typeof container.ownerDocument;
 			const controller = renderRuleEditor({
 				containerEl: container as unknown as HTMLElement,
-				title: 'Include rules',
-				description: 'desc',
-				initialText: 'docs/a.md',
+				includeRules: ['docs/a.md'],
+				excludeRules: [],
 				useGlobPatterns: true,
 				onChange: async () => undefined,
 			});
 
-			const textarea = container.querySelector('textarea');
-			assert.ok(textarea);
-			textarea.value = 'docs/cancelled.md';
-			textarea.trigger('input');
+			const input = container.querySelector('.read-only-view-rule-input');
+			assert.ok(input);
+			input.value = 'docs/cancelled.md';
+			input.trigger('input');
 			switchActiveWindow('B');
 			controller.dispose();
 
-			assert.deepEqual(windowA.clearedIds, [2, 1]);
+			assert.deepEqual([...windowA.clearedIds].sort((left, right) => left - right), [1, 2]);
 			assert.deepEqual(windowB.clearedIds, []);
 		});
 	} finally {

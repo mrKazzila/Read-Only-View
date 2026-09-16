@@ -15,12 +15,54 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_VAULT_DIR = REPO_ROOT / "demo-vault"
 PLUGIN_SETTINGS = {
     "enabled": True,
+    "forceAllMarkdownReadOnly": False,
     "useGlobPatterns": False,
     "caseSensitive": True,
     "debug": False,
     "debugVerbosePaths": False,
-    "includeRules": ["Read Only/", "Archive/"],
+    "includeRules": [
+        "Read Only/",
+        "Archive/",
+        "Inbox/Quick capture.md",
+        "Inbox/Meeting recap.md",
+    ],
     "excludeRules": ["Read Only/Drafts/"],
+    "includeRuleEnabled": [True, True, True, True],
+    "excludeRuleEnabled": [True],
+    "includeRuleEntries": [
+        {
+            "sourceKind": "vault-path",
+            "sourceValue": "Read Only/",
+            "resolvedPath": "Read Only/",
+            "enabled": True,
+        },
+        {
+            "sourceKind": "vault-path",
+            "sourceValue": "Archive/",
+            "resolvedPath": "Archive/",
+            "enabled": True,
+        },
+        {
+            "sourceKind": "obsidian-uri",
+            "sourceValue": "obsidian://open?vault=demo-vault&file=Inbox%2FQuick%20capture",
+            "resolvedPath": "Inbox/Quick capture.md",
+            "enabled": True,
+        },
+        {
+            "sourceKind": "absolute-path",
+            "sourceValue": "Inbox/Meeting recap.md",
+            "resolvedPath": "Inbox/Meeting recap.md",
+            "enabled": True,
+        },
+    ],
+    "excludeRuleEntries": [
+        {
+            "sourceKind": "vault-path",
+            "sourceValue": "Read Only/Drafts/",
+            "resolvedPath": "Read Only/Drafts/",
+            "enabled": True,
+        },
+    ],
 }
 
 
@@ -481,13 +523,15 @@ The note combines several Markdown patterns in one place so it looks convincing 
 | `Read Only/Docs/API overview.md` | Protected | Included by folder rule |
 | `Read Only/Drafts/Editable draft.md` | Editable | Excluded by subfolder rule |
 | `Archive/2025/Retrospective.md` | Protected | Included by archive rule |
-| `Inbox/Quick capture.md` | Editable | No include rule matches |
+| `Inbox/Quick capture.md` | Protected | Imported from an Obsidian URL |
+| `Inbox/Meeting recap.md` | Protected | Imported from a system path |
+| `Inbox/Idea parking lot.md` | Editable | No include rule matches |
 
 ## Example code
 
 ```ts
 const rules = {
-  includeRules: ["Read Only/", "Archive/"],
+  includeRules: ["Read Only/", "Archive/", "Inbox/Quick capture.md", "Inbox/Meeting recap.md"],
   excludeRules: ["Read Only/Drafts/"],
 };
 ```
@@ -771,7 +815,7 @@ def main() -> int:
     print(f"Demo vault ready: {vault_dir}")
     print(f"Markdown notes: {note_count}")
     print(f"Maximum note depth: {max_depth}")
-    print("Configured protected folders: Read Only/, Archive/")
+    print("Configured protected paths: Read Only/, Archive/, and two exact Inbox notes")
     print("Configured excluded folder: Read Only/Drafts/")
     if plugin_messages:
         print("Plugin install:")

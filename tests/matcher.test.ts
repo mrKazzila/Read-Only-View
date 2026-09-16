@@ -20,12 +20,16 @@ const fileNoMatch = 'project_a/project_a.md';
 function createSettings(overrides: Partial<ForceReadModeSettings>): ForceReadModeSettings {
     return {
         enabled: true,
+        forceAllMarkdownReadOnly: false,
         useGlobPatterns: true,
         caseSensitive: true,
         debug: false,
         debugVerbosePaths: false,
+        dismissedWelcomeVersion: 0,
         includeRules: [],
         excludeRules: [],
+		includeRuleEnabled: [],
+		excludeRuleEnabled: [],
         ...overrides,
     };
 }
@@ -188,6 +192,40 @@ test('K) shouldForceReadOnly ignores non-markdown files and disabled plugin', ()
 	assert.equal(shouldForceReadOnly('docs/file.md', { ...settings, enabled: false }), false);
 });
 
+test('K2) exclude rules override the all-Markdown preset', () => {
+	const settings = createSettings({
+		forceAllMarkdownReadOnly: true,
+		useGlobPatterns: false,
+		includeRules: [],
+		excludeRules: ['Read Only/Drafts/Outline.md'],
+	});
+
+	assert.equal(shouldForceReadOnly('Read Only/Drafts/Outline.md', settings), false);
+	assert.equal(shouldForceReadOnly('notes/file.md', settings), true);
+});
+
+test('K2b) glob exclude rules override the all-Markdown preset', () => {
+	const settings = createSettings({
+		forceAllMarkdownReadOnly: true,
+		useGlobPatterns: true,
+		includeRules: [],
+		excludeRules: ['project_a/patterns/**'],
+	});
+
+	assert.equal(shouldForceReadOnly('project_a/patterns/saga.md', settings), false);
+	assert.equal(shouldForceReadOnly('project_a/other/file.md', settings), true);
+});
+
+test('K3) all-Markdown preset does not affect non-Markdown files', () => {
+	const settings = createSettings({
+		forceAllMarkdownReadOnly: true,
+		includeRules: [],
+		excludeRules: [],
+	});
+
+	assert.equal(shouldForceReadOnly('notes/file.png', settings), false);
+});
+
 test('L) shouldForceReadOnly requires include match and supports case-insensitive prefix mode', () => {
 	const noIncludeSettings = createSettings({
 		useGlobPatterns: true,
@@ -275,6 +313,20 @@ test('T) compiled matcher key changes when matching settings change', () => {
 	assert.equal(secondMatcher.shouldForceReadOnly('docs/private/file.md'), false);
 });
 
+test('T2) compiled matcher key changes when all-Markdown preset changes', () => {
+	const settings = createSettings({
+		useGlobPatterns: true,
+		includeRules: [],
+		excludeRules: [],
+		forceAllMarkdownReadOnly: false,
+	});
+	const firstKey = getCompiledRuleMatcherKey(settings);
+
+	settings.forceAllMarkdownReadOnly = true;
+
+	assert.notEqual(firstKey, getCompiledRuleMatcherKey(settings));
+});
+
 test('U) shouldForceReadOnly preserves exact include path behavior in prefix mode', () => {
 	const settings = createSettings({
 		useGlobPatterns: false,
@@ -307,4 +359,59 @@ test('W) compileGlobToRegex creates a new regex after cache miss via clear', () 
 
 	assert.notEqual(regex1, regex2);
 	assert.equal(getGlobRegexCacheSize(), 1);
+});
+
+test('X) disabled rules are excluded from matching and matcher cache keys', () => {
+	const settings = createSettings({
+		useGlobPatterns: true,
+		includeRules: ['docs/**', 'notes/**'],
+		excludeRules: ['docs/private/**'],
+		includeRuleEnabled: [false, true],
+		excludeRuleEnabled: [false],
+	});
+	const enabledKey = getCompiledRuleMatcherKey(settings);
+	const matcher = createCompiledRuleMatcher(settings);
+
+	assert.equal(matcher.shouldForceReadOnly('docs/file.md'), false);
+	assert.equal(matcher.shouldForceReadOnly('notes/file.md'), true);
+	assert.deepEqual(matcher.matchExcludeRules('docs/private/file.md'), []);
+
+	settings.includeRuleEnabled[0] = true;
+	assert.notEqual(enabledKey, getCompiledRuleMatcherKey(settings));
+});
+
+test('Y) advanced rule entries match exactly even in prefix mode', () => {
+	const settings = createSettings({
+		useGlobPatterns: false,
+		includeRules: ['Inbox/Quick capture.md'],
+		includeRuleEnabled: [true],
+		includeRuleEntries: [{
+			sourceKind: 'obsidian-uri',
+			sourceValue: 'obsidian://open?vault=demo-vault&file=Inbox%2FQuick%20capture',
+			resolvedPath: 'Inbox/Quick capture.md',
+			enabled: true,
+		}],
+	});
+
+	const matcher = createCompiledRuleMatcher(settings);
+	assert.equal(matcher.shouldForceReadOnly('Inbox/Quick capture.md'), true);
+	assert.deepEqual(matcher.matchIncludeRules('Inbox/Quick capture.md/child'), []);
+});
+
+test('Z) an imported absolute folder keeps ordinary folder semantics', () => {
+	const settings = createSettings({
+		useGlobPatterns: false,
+		includeRules: ['Knowledge Base/Productivity/'],
+		includeRuleEnabled: [true],
+		includeRuleEntries: [{
+			sourceKind: 'absolute-path',
+			sourceValue: 'Knowledge Base/Productivity/',
+			resolvedPath: 'Knowledge Base/Productivity/',
+			enabled: true,
+		}],
+	});
+
+	const matcher = createCompiledRuleMatcher(settings);
+	assert.equal(matcher.shouldForceReadOnly('Knowledge Base/Productivity/Weekly review.md'), true);
+	assert.equal(matcher.shouldForceReadOnly('Knowledge Base/Productivity archive/Weekly review.md'), false);
 });

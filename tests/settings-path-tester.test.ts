@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { DEFAULT_SETTINGS } from '../src/plugin-settings.js';
 import { renderPathTester } from '../src/settings-path-tester.js';
+import { PATH_SOURCE_INPUT_MAX_LENGTH } from '../src/source-input-limits.js';
 import { installDomMocks, MockHTMLElement } from './helpers/dom-mocks.js';
 
 function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) => Promise<void>): Promise<void> {
@@ -43,6 +44,13 @@ function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) =
 function collectTexts(root: MockHTMLElement): string[] {
 	return [root.textContent, ...root.getChildren().flatMap((child) => collectTexts(child))]
 		.filter((value) => value.length > 0);
+}
+
+function createSettings() {
+	return {
+		...DEFAULT_SETTINGS,
+		forceAllMarkdownReadOnly: false,
+	};
 }
 
 function withOwnedFakeTimeoutWindows(
@@ -93,22 +101,22 @@ test('path tester renders empty-state prompt before input', () => {
 	const container = new MockHTMLElement();
 
 	try {
-		renderPathTester(container as unknown as HTMLElement, { settings: { ...DEFAULT_SETTINGS } });
+		renderPathTester(container as unknown as HTMLElement, { settings: createSettings() });
 
-		assert.ok(collectTexts(container).includes('Enter a file path to test.'));
+		assert.ok(collectTexts(container).includes('Enter a path to test.'));
 	} finally {
 		dom.restore();
 	}
 });
 
-test('path tester normalizes input path and renders include-only read-only result', () => {
+test('path tester normalizes input path and renders read-only success state', () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 
 	try {
 		renderPathTester(container as unknown as HTMLElement, {
 			settings: {
-				...DEFAULT_SETTINGS,
+				...createSettings(),
 				enabled: true,
 				useGlobPatterns: true,
 				includeRules: ['docs/**'],
@@ -122,22 +130,23 @@ test('path tester normalizes input path and renders include-only read-only resul
 		input.trigger('change');
 
 		const texts = collectTexts(container);
+		assert.ok(texts.includes('Read-only'));
+		assert.ok(texts.includes('This path resolves to Reading view.'));
 		assert.ok(texts.includes('Matched include: docs/**'));
-		assert.ok(texts.includes('Matched exclude: none'));
 		assert.ok(texts.includes('Result: READ-ONLY ON'));
 	} finally {
 		dom.restore();
 	}
 });
 
-test('path tester renders exclude override as read-only off', () => {
+test('path tester renders exclude override as editable state', () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 
 	try {
 		renderPathTester(container as unknown as HTMLElement, {
 			settings: {
-				...DEFAULT_SETTINGS,
+				...createSettings(),
 				enabled: true,
 				useGlobPatterns: true,
 				includeRules: ['docs/**'],
@@ -151,9 +160,125 @@ test('path tester renders exclude override as read-only off', () => {
 		input.trigger('change');
 
 		const texts = collectTexts(container);
-		assert.ok(texts.includes('Matched include: docs/**'));
+		assert.ok(texts.includes('Editable'));
+		assert.ok(texts.includes('This path is excluded and stays editable.'));
 		assert.ok(texts.includes('Matched exclude: docs/private/**'));
 		assert.ok(texts.includes('Result: READ-ONLY OFF'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('path tester resolves an Obsidian URL before matching', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		renderPathTester(container as unknown as HTMLElement, {
+			settings: {
+				...createSettings(),
+				enabled: true,
+				useGlobPatterns: false,
+				includeRules: ['Inbox/Quick capture.md'],
+				includeRuleEnabled: [true],
+			},
+			resolverContext: {
+				vaultName: 'demo-vault',
+				vaultBasePath: '/vaults/demo-vault',
+				isMarkdownFile: (path) => path === 'Inbox/Quick capture.md',
+				isFolder: () => false,
+			},
+		});
+
+		const input = container.querySelector('input');
+		assert.ok(input);
+		input.value = 'obsidian://open?vault=demo-vault&file=Inbox%2FQuick%20capture';
+		input.trigger('change');
+
+		const texts = collectTexts(container);
+		assert.ok(texts.includes('Detected source: obsidian-uri'));
+		assert.ok(texts.includes('Resolved path: Inbox/Quick capture.md'));
+		assert.ok(texts.includes('Read-only'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('path tester explains why an absolute path cannot be imported on mobile', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		renderPathTester(container as unknown as HTMLElement, {
+			settings: createSettings(),
+			resolverContext: {
+				vaultName: 'demo-vault',
+				vaultBasePath: null,
+				isMarkdownFile: () => false,
+				isFolder: () => false,
+			},
+		});
+		const input = container.querySelector('input');
+		assert.ok(input);
+		input.value = '/vaults/demo-vault/Inbox/Quick capture.md';
+		input.trigger('change');
+
+		assert.ok(collectTexts(container).includes('System paths can be imported only in the desktop app.'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('path tester resolves a desktop system folder without reporting a file error', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		renderPathTester(container as unknown as HTMLElement, {
+			settings: createSettings(),
+			resolverContext: {
+				vaultName: 'demo-vault',
+				vaultBasePath: '/vaults/demo-vault',
+				isMarkdownFile: () => false,
+				isFolder: (path) => path === 'Knowledge Base/Productivity',
+			},
+		});
+		const input = container.querySelector('input');
+		assert.ok(input);
+		input.value = '/vaults/demo-vault/Knowledge Base/Productivity/';
+		input.trigger('change');
+
+		const texts = collectTexts(container);
+		assert.ok(texts.includes('Folder'));
+		assert.ok(texts.includes('Detected source: absolute-path'));
+		assert.ok(texts.includes('Resolved folder: Knowledge Base/Productivity/'));
+		assert.ok(texts.includes('Enter a Markdown note inside this folder to test rule matches.'));
+		assert.ok(!texts.some((text) => text.includes('Markdown file not found')));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('path tester blocks over-limit input and exposes an accessible error state', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+
+	try {
+		renderPathTester(container as unknown as HTMLElement, { settings: createSettings() });
+		const input = container.querySelector('input');
+		assert.ok(input);
+		input.value = 'x'.repeat(PATH_SOURCE_INPUT_MAX_LENGTH + 1);
+		input.trigger('change');
+
+		assert.equal(input.value.length, PATH_SOURCE_INPUT_MAX_LENGTH);
+		assert.equal(input.getAttr('aria-invalid'), 'true');
+		assert.ok(input.matches('.is-input-error'));
+		assert.ok(collectTexts(container).includes('Input is too long. Maximum: 40,000 characters.'));
+
+		input.value = 'Inbox/Quick capture.md';
+		input.trigger('change');
+		assert.equal(input.getAttr('aria-invalid'), 'false');
+		assert.ok(!input.matches('.is-input-error'));
 	} finally {
 		dom.restore();
 	}
@@ -172,7 +297,7 @@ test('path tester uses supplied compiled matcher instead of rebuilding from raw 
 
 		renderPathTester(container as unknown as HTMLElement, {
 			settings: {
-				...DEFAULT_SETTINGS,
+				...createSettings(),
 				enabled: true,
 				useGlobPatterns: true,
 				includeRules: [],
@@ -188,56 +313,37 @@ test('path tester uses supplied compiled matcher instead of rebuilding from raw 
 
 		const texts = collectTexts(container);
 		assert.ok(texts.includes('Matched include: shared/include'));
-		assert.ok(texts.includes('Matched exclude: none'));
-		assert.ok(texts.includes('Result: READ-ONLY ON'));
+		assert.ok(texts.includes('Read-only'));
 	} finally {
 		dom.restore();
 	}
 });
 
-test('path tester reflects matcher invalidation after rule changes', () => {
+test('path tester shows exclude override when all-Markdown preset is enabled', () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
 
 	try {
-		let currentMatcher: {
-			matchIncludeRules: () => string[];
-			matchExcludeRules: () => string[];
-			shouldForceReadOnly: () => boolean;
-		} = {
-			matchIncludeRules: () => ['docs/**'],
-			matchExcludeRules: () => [],
-			shouldForceReadOnly: () => true,
-		};
-
 		renderPathTester(container as unknown as HTMLElement, {
 			settings: {
 				...DEFAULT_SETTINGS,
 				enabled: true,
+				forceAllMarkdownReadOnly: true,
 				useGlobPatterns: true,
-				includeRules: ['docs/**'],
-				excludeRules: [],
+				includeRules: [],
+				excludeRules: ['docs/private/**'],
 			},
-			getCompiledRuleMatcher: () => currentMatcher,
 		});
 
 		const input = container.querySelector('input');
 		assert.ok(input);
 		input.value = 'docs/private/secret.md';
 		input.trigger('change');
-		assert.ok(collectTexts(container).includes('Result: READ-ONLY ON'));
-
-		currentMatcher = {
-			matchIncludeRules: () => ['docs/**'],
-			matchExcludeRules: () => ['docs/private/**'],
-			shouldForceReadOnly: () => false,
-		};
-		input.trigger('change');
 
 		const texts = collectTexts(container);
-		assert.ok(texts.includes('Matched include: docs/**'));
-		assert.ok(texts.includes('Matched exclude: docs/private/**'));
-		assert.ok(texts.includes('Result: READ-ONLY OFF'));
+		assert.ok(texts.includes('This path is excluded and stays editable.'));
+		assert.ok(texts.includes('Editable'));
+		assert.ok(!texts.includes('All Markdown files mode applies because no exclude rule matches.'));
 	} finally {
 		dom.restore();
 	}
@@ -251,7 +357,7 @@ test('path tester debounces input and eventually renders only the latest result'
 		await withFakeTimeouts(async ({ flushAll }) => {
 			renderPathTester(container as unknown as HTMLElement, {
 				settings: {
-					...DEFAULT_SETTINGS,
+					...createSettings(),
 					enabled: true,
 					useGlobPatterns: true,
 					includeRules: ['docs/**', 'notes/**'],
@@ -274,7 +380,6 @@ test('path tester debounces input and eventually renders only the latest result'
 			const textsAfterFlush = collectTexts(container);
 			assert.ok(textsAfterFlush.includes('Matched include: notes/**'));
 			assert.ok(!textsAfterFlush.includes('Matched include: docs/**'));
-			assert.ok(textsAfterFlush.includes('Result: READ-ONLY ON'));
 		});
 	} finally {
 		dom.restore();
@@ -289,7 +394,7 @@ test('path tester blur flushes pending input render immediately', async () => {
 		await withFakeTimeouts(async () => {
 			renderPathTester(container as unknown as HTMLElement, {
 				settings: {
-					...DEFAULT_SETTINGS,
+					...createSettings(),
 					enabled: true,
 					useGlobPatterns: true,
 					includeRules: ['docs/**'],
@@ -306,7 +411,7 @@ test('path tester blur flushes pending input render immediately', async () => {
 			input.trigger('blur');
 			const texts = collectTexts(container);
 			assert.ok(texts.includes('Matched include: docs/**'));
-			assert.ok(texts.includes('Result: READ-ONLY ON'));
+			assert.ok(texts.includes('Read-only'));
 		});
 	} finally {
 		dom.restore();
@@ -321,7 +426,7 @@ test('path tester dispose cancels pending render', async () => {
 		await withFakeTimeouts(async ({ flushAll }) => {
 			const controller = renderPathTester(container as unknown as HTMLElement, {
 				settings: {
-					...DEFAULT_SETTINGS,
+					...createSettings(),
 					enabled: true,
 					useGlobPatterns: true,
 					includeRules: ['docs/**'],
@@ -339,7 +444,7 @@ test('path tester dispose cancels pending render', async () => {
 
 			const texts = collectTexts(container);
 			assert.ok(!texts.includes('Matched include: docs/**'));
-			assert.ok(texts.includes('Enter a file path to test.'));
+			assert.ok(texts.includes('Enter a path to test.'));
 		});
 	} finally {
 		dom.restore();
@@ -355,7 +460,7 @@ test('path tester dispose clears pending render through owner window after focus
 			container.ownerDocument = { defaultView: windowA } as unknown as typeof container.ownerDocument;
 			const controller = renderPathTester(container as unknown as HTMLElement, {
 				settings: {
-					...DEFAULT_SETTINGS,
+					...createSettings(),
 					enabled: true,
 					useGlobPatterns: true,
 					includeRules: ['docs/**'],

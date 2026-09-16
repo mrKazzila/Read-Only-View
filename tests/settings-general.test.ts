@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { updateBooleanSetting } from '../src/settings-general.js';
+import {
+	renderModeSelector,
+	renderPrimarySettings,
+	updateBooleanSetting,
+} from '../src/settings-general.js';
 import { DEFAULT_SETTINGS } from '../src/plugin-settings.js';
 import type { SettingsTabPlugin } from '../src/plugin-types.js';
+import { installDomMocks, MockHTMLElement } from './helpers/dom-mocks.js';
 
 function createPlugin(): SettingsTabPlugin & {
 	saveCalls: number;
@@ -27,6 +32,11 @@ function createPlugin(): SettingsTabPlugin & {
 	};
 
 	return plugin;
+}
+
+function collectTexts(root: MockHTMLElement): string[] {
+	return [root.textContent, ...root.getChildren().flatMap((child) => collectTexts(child))]
+		.filter((value) => value.length > 0);
 }
 
 test('general settings update saves and re-applies when enabling the plugin', async () => {
@@ -67,6 +77,23 @@ test('general settings update re-applies for matching-related toggles', async ()
 	assert.equal(plugin.refreshCalls, 1);
 });
 
+test('general settings update re-applies for all-Markdown preset toggle', async () => {
+	const plugin = createPlugin();
+
+	await updateBooleanSetting(
+		plugin,
+		'forceAllMarkdownReadOnly',
+		false,
+		() => undefined,
+		'settings-force-all-markdown-read-only',
+	);
+
+	assert.equal(plugin.settings.forceAllMarkdownReadOnly, false);
+	assert.equal(plugin.saveCalls, 1);
+	assert.deepEqual(plugin.applyReasons, ['settings-force-all-markdown-read-only']);
+	assert.equal(plugin.refreshCalls, 1);
+});
+
 test('general settings update re-applies for case-sensitive toggle and refreshes after save', async () => {
 	const plugin = createPlugin();
 	const callOrder: string[] = [];
@@ -104,4 +131,108 @@ test('general settings update saves debug toggle without re-applying leaves', as
 	assert.equal(plugin.saveCalls, 1);
 	assert.deepEqual(plugin.applyReasons, []);
 	assert.equal(plugin.refreshCalls, 0);
+});
+
+test('mode selector renders priority copy and highlights the selected mode', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const plugin = createPlugin();
+
+	try {
+		renderModeSelector(container as unknown as HTMLElement, plugin, () => undefined);
+
+		const texts = collectTexts(container);
+		assert.ok(texts.includes('Mode'));
+		assert.ok(texts.includes('Only matched paths'));
+		assert.ok(texts.includes('All Markdown files'));
+		assert.ok(texts.includes('Exclude rules always win.'));
+		assert.ok(texts.includes('Priority: Exclude rules → all Markdown files mode → include rules.'));
+
+		const selectedOption = container.querySelector('.is-selected');
+		assert.ok(selectedOption);
+		assert.ok(collectTexts(selectedOption).includes('All Markdown files'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('mode selector shows the global warning when all-Markdown mode is enabled', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const plugin = createPlugin();
+
+	try {
+		plugin.settings.forceAllMarkdownReadOnly = true;
+		renderModeSelector(container as unknown as HTMLElement, plugin, () => undefined);
+
+		assert.ok(collectTexts(container).includes('All Markdown files mode is enabled'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('mode selector exposes both choices as separate keyboard buttons', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const plugin = createPlugin();
+
+	try {
+		renderModeSelector(container as unknown as HTMLElement, plugin, () => undefined);
+
+		const options = container.querySelectorAll('.read-only-view-mode-option');
+		assert.equal(options.length, 2);
+		assert.equal(options[0]?.tagName, 'button');
+		assert.equal(options[1]?.tagName, 'button');
+		assert.equal(options[0]?.getAttr('aria-pressed'), 'false');
+		assert.equal(options[1]?.getAttr('aria-pressed'), 'true');
+		assert.equal(options[0]?.getAttr('data-read-only-view-focus'), 'mode-matched-paths');
+		assert.equal(options[1]?.getAttr('data-read-only-view-focus'), 'mode-all-markdown');
+	} finally {
+		dom.restore();
+	}
+});
+
+test('mode option button selects and persists the requested mode', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const plugin = createPlugin();
+
+	try {
+		renderModeSelector(container as unknown as HTMLElement, plugin, () => undefined);
+
+		const matchedPathsButton = container.querySelector(
+			'[data-read-only-view-focus="mode-matched-paths"]',
+		);
+		assert.ok(matchedPathsButton);
+		matchedPathsButton.trigger('click');
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.equal(plugin.settings.forceAllMarkdownReadOnly, false);
+		assert.equal(plugin.saveCalls, 1);
+		assert.deepEqual(plugin.applyReasons, ['settings-force-all-markdown-read-only']);
+		assert.equal(matchedPathsButton.getAttr('aria-pressed'), 'true');
+	} finally {
+		dom.restore();
+	}
+});
+
+test('custom settings toggle is exposed as a keyboard-focusable switch', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const plugin = createPlugin();
+
+	try {
+		renderPrimarySettings(container as unknown as HTMLElement, plugin, () => undefined);
+
+		const toggle = container.querySelector('.read-only-view-setting-toggle');
+		assert.ok(toggle);
+		assert.equal(toggle.getAttr('tabindex'), '0');
+		assert.equal(toggle.getAttr('role'), 'switch');
+		assert.equal(toggle.getAttr('aria-label'), 'Enabled');
+		assert.equal(toggle.getAttr('aria-checked'), 'true');
+		assert.equal(toggle.getAttr('data-read-only-view-focus'), 'toggle-enabled');
+	} finally {
+		dom.restore();
+	}
 });

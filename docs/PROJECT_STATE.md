@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Last updated: 2026-05-28
+Last updated: 2026-09-16
 
 This document is a living system map for the `read-only-view` Obsidian plugin.
 
@@ -15,8 +15,12 @@ This document is a living system map for the `read-only-view` Obsidian plugin.
 - The demo vault lives at `./demo-vault`, is ignored by git, and contains only synthetic Markdown notes plus optional linked plugin files for safe screenshots and recordings.
 - When plugin linking is enabled, the generator copies `manifest.json`, links `main.js`, links optional `styles.css`, writes plugin `data.json`, and enables the plugin in `.obsidian/community-plugins.json`.
 - Demo vault default rules use prefix mode and configure:
-  - include: `Read Only/`, `Archive/`
+  - vault-path include: `Read Only/`, `Archive/`
+  - exact advanced include: `Inbox/Quick capture.md` (Obsidian URL), `Inbox/Meeting recap.md` (privacy-safe system-path import)
   - exclude: `Read Only/Drafts/`
+- Desktop E2E smoke tests also reuse that same repo-local `./demo-vault` fixture instead of creating a second vault generator.
+- The opt-in E2E entrypoint is `npm run test:e2e` (or `npm run test:e2e:debug`), which builds the plugin, recreates `./demo-vault`, and launches Obsidian against that synthetic vault through WebdriverIO.
+- The E2E workflow defaults to macOS binary path `/Applications/Obsidian.app/Contents/MacOS/Obsidian` and accepts `OBSIDIAN_PATH` for override.
 
 ## 1) Architecture
 
@@ -45,15 +49,22 @@ High-level modules:
   - CodeMirror 6 read-only extension for markdown editors
   - Path-aware `EditorState.readOnly` and `EditorView.editable` gating via `editorInfoField`
 - `src/settings-tab.ts`
-  - `ForceReadModeSettingTab` composition entrypoint for settings UI sections
+  - `ForceReadModeSettingTab` composition entrypoint for sectioned settings UI
 - `src/settings-general.ts`
-  - General toggle settings rendering and shared save/re-apply side-effect helper
+  - Enabled control, mutually exclusive mode buttons, and shared save/re-apply side-effect helper
 - `src/settings-rule-editor.ts`
-  - Rules editor section rendering, diagnostics list UI, and `DebouncedRuleChangeSaver`
+  - Unified Path rules table rendering, row diagnostics, and `DebouncedRuleChangeSaver`
+- `src/settings-focus.ts`
+  - Stable focus keys plus capture/restore helpers for settings and rule-row rerenders
+  - First-control focus helper used when opening the settings page
 - `src/settings-ui-state.ts`
   - Pure settings summary/warning state computation for rule-limit banners
 - `src/settings-path-tester.ts`
   - Path tester section rendering
+- `src/settings-welcome.ts`
+  - Versioned onboarding modal and best-effort settings opening helper
+- `src/source-input-limits.ts`
+  - Source-input length policy, overflow handling, and display-safe truncation helpers
 - `src/constants.ts`
   - Rule volume thresholds and hard limits (`50/150`, `200/300/400`)
 - `src/rule-limits.ts`
@@ -68,6 +79,9 @@ High-level modules:
 - `src/rule-diagnostics.ts`
   - Rule text parsing and diagnostics helpers
   - Path tester matching helpers for include/exclude/result output
+- `src/rule-source.ts`
+  - Auto-detection and resolution for vault paths, `obsidian://open` URLs, and absolute system paths
+  - Exact-file/folder validation, current-vault containment, and privacy-safe absolute-path persistence
 - `src/workspace-events.ts`
   - Workspace-event coalescing controller for targeted-vs-full reapply strategy
   - Timed burst scheduling and cleanup for `file-open`, `active-leaf-change`, and `layout-change`
@@ -104,7 +118,19 @@ High-level modules:
 - `tests/rules-save-debounce.test.ts`
   - Debounced rules-save coverage for settings module: burst collapse, immediate flush, and latest-value persistence
 - `tests/settings-general.test.ts`
-  - Settings toggle side-effect coverage for save/re-apply behavior after UI extraction
+  - Enabled/mode side effects plus `aria-pressed` and keyboard behavior
+- `tests/rule-source.test.ts`
+  - Source detection/resolution coverage for vault paths, Obsidian URLs, and desktop system paths
+- `tests/source-input-limits.test.ts`
+  - Path/URL input caps, overflow state, and display-truncation coverage
+- `tests/settings-rule-editor.test.ts`
+  - Unified rule-row rendering, source resolution, enabled states, diagnostics, and focus restoration
+- `tests/settings-path-tester.test.ts`
+  - Path tester source details, matched rules, final status, and accessible input errors
+- `tests/settings-tab-lifecycle.test.ts`
+  - Settings render lifecycle, cleanup, and first-control focus behavior
+- `tests/settings-tab-ui-state.test.ts`
+  - Static/collapsible section state and settings-level focus preservation
 - `tests/rule-diagnostics.test.ts`
   - Diagnostics and path tester helper coverage for inline warnings and include/exclude/result computation
 - `tests/rule-limits.test.ts`
@@ -113,11 +139,14 @@ High-level modules:
   - Debug logging privacy coverage for path redaction/verbose mode and fallback error diagnostics
 - `tests/workspace-events.test.ts`
   - Workspace-event controller coverage for targeted bursts, full-scan fallback, and timer cleanup
+- `tests/e2e/specs/read-only-smoke.e2e.mjs`
+  - Desktop smoke coverage for startup, protected/excluded/editable notes, imported exact rules, advanced source resolution in Path tester, and accessible over-limit errors
 
 Design intent:
 
 - Read-only policy is enforced by editor-level input blocking first, with view mode (`preview`) as a fallback/UX layer.
-- Exclude rules always override include rules.
+- Optional global preset can force all Markdown notes into read-only after exclude rules are considered.
+- Exclude rules always override both the global preset and include rules.
 - Only markdown files are in scope.
 
 ## 2) Key Flows
@@ -186,27 +215,104 @@ Command entry points:
 2. If `useGlobPatterns=true`: anchored regex (`^...$`) using internal glob conversion.
    - Compiled regex entries are cached with fixed FIFO cap (`512`) to bound memory for highly unique rule sets.
 3. If `useGlobPatterns=false`: literal prefix mode with optional folder slash hint.
-4. Build effective rule sets from settings using hard-cap policy:
+4. Advanced sources are resolved before matching:
+   - Obsidian URL entries target one exact existing Markdown file
+   - absolute file entries target one exact existing Markdown file; absolute folder entries retain ordinary vault-path matching semantics
+   - ordinary vault-path entries retain prefix/glob semantics
+   - unresolved entries are retained for correction but omitted from runtime matching and rule limits
+5. Build effective rule sets from settings using hard-cap policy:
    - include is capped first (`200`)
    - exclude is capped second (`300`)
    - if total still exceeds `400`, exclude tail is trimmed first (include priority)
-5. Include must match, then exclude must *not* match.
+6. If an exclude rule matches, the `.md` path remains editable.
+7. Otherwise, if `forceAllMarkdownReadOnly=true`, the `.md` path is treated as read-only.
+8. Otherwise, an include rule must match.
 
 ### D. Settings UX flow
 
 UI module split:
 
 - `src/settings-tab.ts` owns only top-level composition of settings UI sections.
-- `src/settings-general.ts` owns toggle rendering and persistence side effects.
-- `src/settings-rule-editor.ts` owns the include/exclude editor sections and debounced save helper.
+- `src/settings-general.ts` owns the Enabled control, `aria-pressed` mode buttons, and persistence side effects.
+- `src/settings-rule-editor.ts` owns the unified Path rules table and debounced save helper.
+- `src/settings-focus.ts` owns stable focus capture, restoration, and first-control focus.
 - `src/settings-ui-state.ts` owns the pure summary/warning calculation used by the rules section.
 - `src/settings-path-tester.ts` owns the path tester section.
+- `src/settings-welcome.ts` owns the versioned onboarding modal shown for undismissed onboarding versions.
+- `src/source-input-limits.ts` owns accepted source lengths, overflow state, and display truncation.
 - `src/rule-diagnostics.ts` provides pure helpers used by settings UI (rule diagnostics + path tester computations).
 
-- Toggles: `Enabled`, `Use glob patterns`, `Case sensitive`, `Debug logging`
-- Settings toggles are rendered with standard Obsidian `Setting.addToggle()` controls; there are no plugin-owned toggle keyboard handlers.
+- Welcome modal:
+  - shown only when `dismissedWelcomeVersion < WELCOME_VERSION`
+  - dismissing or using `Open settings` saves the current onboarding version
+  - action buttons use separated 44 px targets and inset focus indicators to avoid visual overlap
+- Settings layout keeps the header, mode, Path rules, and Path tester workflow permanently visible. Only `Matching` and `Debug flags` are collapsible, with ephemeral open state.
+- Header card:
+  - title `Read Only View`
+  - subtitle `Read-only behavior`
+  - support copy for the primary workflow
+  - `Active rules: N` badge
+  - global warning pill when all-Markdown mode is enabled
+- Mode card:
+  - `Enabled`
+  - two mutually exclusive button choices backed by persisted `forceAllMarkdownReadOnly`; the selected button exposes `aria-pressed=true`
+  - visible priority copy:
+    - exclude rules always win
+    - priority order is exclude -> all-Markdown mode -> include
+- Path rules section:
+  - permanent workflow card rather than a disclosure
+  - unified include/exclude table with a compact rule summary
+  - table-style rule rows with columns:
+    - enabled (persisted per-rule state; disabled rules are retained but not matched)
+    - type
+    - value
+    - delete
+  - one value field auto-detects vault paths, Obsidian URLs, and system paths
+  - input guards allow up to 40,000 characters for paths and 120,000 for percent-encoded Obsidian URLs; overflow is blocked before resolution/persistence and exposed with an accessible invalid state
+  - advanced rows show their resolved vault path or a specific inline error without rewriting the active input
+  - all-Markdown mode visually marks every include row as inactive, excludes includes from active counts and diagnostics, and preserves each include rule's persisted enabled state
+  - exclude rows remain active in all-Markdown mode unless individually disabled
+  - add-rule button
+  - zero rules is a valid editor state; deleting the final row does not create a placeholder or empty-line diagnostic
+  - inline syntax help and README link
+  - rule usage summary
+  - warning banners and diagnostics
+- Path tester section:
+  - permanent workflow card rather than a disclosure
+  - include matches
+  - exclude matches
+  - preset override note when the all-Markdown preset is driving the final result
+  - final `READ-ONLY ON/OFF`
+  - visible `Read-only` / `Editable` status pill
+  - accepts all three source formats and displays detected source plus resolved vault path
+  - system-folder inputs show their resolved vault folder and prompt for a concrete note when match diagnostics are needed
+  - long resolved values and matched-rule labels are display-truncated to keep settings usable without changing accepted input
+- Advanced section:
+  - `Matching`
+    - `Use glob patterns`
+    - `Case sensitive`
+  - `Debug flags`
+    - `Debug logging`
+    - `Debug: verbose paths`
+    - warning text about full path exposure in console logs
+- At viewport widths up to `800px`, settings use the stacked narrow-screen layout. This covers portrait tablet settings panes as well as phones, preventing card headers and rule-table columns from squeezing neighboring content.
+- The `Matching` and `Debug flags` disclosure buttons override mobile host button geometry: they use content-driven height, wrapped text, and the parent card outline instead of a nested pill shape. Open sections add a divider below the disclosure header.
+- Settings toggles are rendered with plugin-owned layout rows backed by `ToggleComponent`.
+- Settings controls expose explicit keyboard/ARIA semantics. Opening the plugin settings page focuses its first control, while stable focus keys preserve the active control across full-page and rule-row rerenders.
+- Mode choices use mutually exclusive `aria-pressed` buttons so both choices participate in sequential Tab navigation and support native Enter/Space activation.
+- Path-rule help is a single external-link focus target (icon plus label), with visible focus and Enter/Space activation.
+- Advanced disclosure headers use a full-width inset focus indicator that remains visible inside the clipped card, plus `aria-expanded`/`aria-controls`; arrow glyphs are decorative.
 - `Debug: verbose paths` toggle allows full file paths in debug logs; default keeps paths redacted
-- Rule textareas: include/exclude (one rule per line)
+- Persisted settings schema:
+  - `forceAllMarkdownReadOnly: boolean`
+  - `includeRules: string[]`
+  - `excludeRules: string[]`
+  - `includeRuleEnabled: boolean[]` (index-aligned; missing entries migrate to `true`)
+  - `excludeRuleEnabled: boolean[]` (index-aligned; missing entries migrate to `true`)
+  - `includeRuleEntries?: RuleEntry[]` and `excludeRuleEntries?: RuleEntry[]` are the source-aware schema
+  - legacy string/enabled arrays remain canonical runtime mirrors and migration/rollback compatibility data
+  - `RuleEntry` contains `sourceKind`, `sourceValue`, `resolvedPath`, and `enabled`
+  - successful absolute file/folder imports store only the resolved vault path in `sourceValue`; full local paths are not persisted
 - Rule usage summary:
   - `Include: X rules · Exclude: Y rules · Total: Z` (`+N ignored` when capped)
 - Rule volume warnings (inline banner, no toast):
@@ -217,18 +323,12 @@ UI module split:
   - save on `input` with 400 ms debounce
   - flush on `blur` and `change`
   - status text: `Saving...`, `Saved.`, `Save failed.`
-- Diagnostics list per line:
-  - `✅` healthy, marked `aria-hidden` with adjacent text status for screen readers
-  - `⚠️` suspicious (empty lines, wildcard in prefix mode, normalization/folder-hint changes), marked `aria-hidden` with adjacent text status for screen readers
-  - ignored line marker (`Ignored`) and inline warning (`Ignored due to rule limit.`) for rules truncated by caps
-  - empty lines render as `(empty line)` and do not receive synthetic `/` normalization
-  - warning details are rendered inline in nested semantic lists (`ul/li`) and announced via `aria-live`
-  - diagnostics panel is capped with local scroll for mobile/tablet readability
-- Path tester:
-  - include matches
-  - exclude matches
-  - final `READ-ONLY ON/OFF`
-  - long strings wrap to avoid horizontal overflow on narrow screens
+  - saving include/exclude rule changes preserves the explicitly selected mode
+- Diagnostics rendering:
+  - warnings are attached inline to each rule row where practical
+  - aggregate diagnostics still render in a local scrolling panel
+  - ignored line marker (`Ignored due to rule limit.`) still comes from the same cap logic
+- Path tester long strings wrap to avoid horizontal overflow on narrow screens
 - Keyboard QA note:
   - if pressing `Space` scrolls the settings pane during toggle testing, inspect `document.activeElement` before treating it as a toggle bug
   - only classify it as a plugin defect when the focused element is the toggle control and keyboard activation still fails
@@ -278,6 +378,8 @@ Generated artifacts (not source of truth):
 - `ensurePreview` uses `setViewState` with `{ replace: true }` and fallback call style; API behavior can differ across Obsidian versions.
 - Editor-level protection assumes the target markdown context is CodeMirror-backed and exposes `editorInfoField`.
 - Matching is intentionally limited to `.md`; attachments and other extensions are untouched.
+- New absolute paths can be resolved only with desktop `FileSystemAdapter`; already resolved entries remain portable on mobile.
+- Advanced imports require the target note or folder to exist when first imported and do not track later renames.
 - Prefix mode treats `*` and `?` as literal characters, which can surprise users.
 - Rule diagnostics are advisory; they do not block saving rules.
 - Debug logs use path redaction by default; full path output is opt-in via `Debug: verbose paths`.

@@ -30,6 +30,7 @@ function createEditorEventPlugin() {
 	plugin.settings = {
 		...DEFAULT_SETTINGS,
 		enabled: true,
+		forceAllMarkdownReadOnly: false,
 		useGlobPatterns: true,
 		caseSensitive: true,
 		includeRules: ['docs/**'],

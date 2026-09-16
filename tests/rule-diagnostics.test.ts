@@ -54,6 +54,7 @@ test('path tester helper returns include/exclude matches and final read-only sta
 	const settings = {
 		...DEFAULT_SETTINGS,
 		enabled: true,
+		forceAllMarkdownReadOnly: false,
 		useGlobPatterns: true,
 		caseSensitive: true,
 		includeRules: ['docs/**'],
@@ -71,12 +72,35 @@ test('path tester helper returns include/exclude matches and final read-only sta
 	assert.equal(excluded.finalReadOnly, false);
 });
 
+test('path tester reports exclude override when all-Markdown preset is enabled', () => {
+	const settings = {
+		...DEFAULT_SETTINGS,
+		enabled: true,
+		forceAllMarkdownReadOnly: true,
+		useGlobPatterns: true,
+		caseSensitive: true,
+		includeRules: [],
+		excludeRules: ['docs/private/**'],
+	};
+
+	const excluded = buildPathTesterResult('docs/private/secrets.md', settings);
+	assert.deepEqual(excluded.excludeMatches, ['docs/private/**']);
+	assert.equal(excluded.finalReadOnly, false);
+	assert.equal(excluded.presetApplied, false);
+
+	const protectedPath = buildPathTesterResult('docs/public/guide.md', settings);
+	assert.deepEqual(protectedPath.excludeMatches, []);
+	assert.equal(protectedPath.finalReadOnly, true);
+	assert.equal(protectedPath.presetApplied, true);
+});
+
 test('path tester uses effective rules and does not match ignored tail rules', () => {
 	const includeRules = Array.from({ length: 200 }, (_, index) => `notes/${index}.md`);
 	includeRules.push('notes/ignored.md');
 	const settings = {
 		...DEFAULT_SETTINGS,
 		enabled: true,
+		forceAllMarkdownReadOnly: false,
 		useGlobPatterns: true,
 		caseSensitive: true,
 		includeRules,
@@ -92,6 +116,7 @@ test('path tester helper preserves diagnostics result when reusing a compiled ma
 	const settings = {
 		...DEFAULT_SETTINGS,
 		enabled: true,
+		forceAllMarkdownReadOnly: false,
 		useGlobPatterns: true,
 		caseSensitive: true,
 		includeRules: ['docs/**'],

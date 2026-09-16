@@ -9,6 +9,7 @@ import {
 	type ForceReadModeSettings,
 } from '../src/matcher.js';
 import { DEFAULT_SETTINGS, mergeLoadedSettings } from '../src/plugin-settings.js';
+import { PATH_SOURCE_INPUT_MAX_LENGTH } from '../src/source-input-limits.js';
 
 type LoadSettingsPlugin = {
 	loadData: () => Promise<unknown>;
@@ -36,15 +37,28 @@ function createPlugin(loadDataValue: unknown): LoadSettingsPlugin {
 test('valid persisted settings are preserved', () => {
 	const loaded: ForceReadModeSettings = {
 		enabled: false,
+		forceAllMarkdownReadOnly: true,
 		useGlobPatterns: true,
 		caseSensitive: false,
 		debug: true,
 		debugVerbosePaths: true,
+		dismissedWelcomeVersion: 1,
 		includeRules: ['docs/**', 'notes/file.md'],
 		excludeRules: ['docs/private/**'],
+		includeRuleEnabled: [true, false],
+		excludeRuleEnabled: [true],
 	};
 
-	assert.deepEqual(mergeLoadedSettings(loaded), loaded);
+	assert.deepEqual(mergeLoadedSettings(loaded), {
+		...loaded,
+		includeRuleEntries: [
+			{ sourceKind: 'vault-path', sourceValue: 'docs/**', resolvedPath: 'docs/**', enabled: true },
+			{ sourceKind: 'vault-path', sourceValue: 'notes/file.md', resolvedPath: 'notes/file.md', enabled: false },
+		],
+		excludeRuleEntries: [
+			{ sourceKind: 'vault-path', sourceValue: 'docs/private/**', resolvedPath: 'docs/private/**', enabled: true },
+		],
+	});
 });
 
 test('string includeRules payload falls back safely without crashing', () => {
@@ -78,6 +92,109 @@ test('rule arrays keep only string entries', () => {
 	assert.deepEqual(merged.excludeRules, ['docs/private/**']);
 });
 
+test('existing rules without enabled flags migrate as enabled', () => {
+	const merged = mergeLoadedSettings({
+		includeRules: ['docs/**', 'notes/**'],
+		excludeRules: ['private/**'],
+	});
+
+	assert.deepEqual(merged.includeRuleEnabled, [true, true]);
+	assert.deepEqual(merged.excludeRuleEnabled, [true]);
+});
+
+test('object rule entries drive canonical runtime rules and keep unresolved sources out', () => {
+	const merged = mergeLoadedSettings({
+		...DEFAULT_SETTINGS,
+		includeRules: ['stale/value.md'],
+		includeRuleEntries: [
+			{
+				sourceKind: 'obsidian-uri',
+				sourceValue: 'obsidian://open?vault=demo-vault&file=Inbox%2FQuick%20capture',
+				resolvedPath: 'Inbox/Quick capture.md',
+				enabled: true,
+			},
+			{
+				sourceKind: 'obsidian-uri',
+				sourceValue: 'obsidian://open?vault=other&file=Missing',
+				resolvedPath: null,
+				enabled: true,
+			},
+		],
+	});
+
+	assert.deepEqual(merged.includeRules, ['Inbox/Quick capture.md']);
+	assert.deepEqual(merged.includeRuleEnabled, [true]);
+	assert.equal(merged.includeRuleEntries?.length, 2);
+});
+
+test('over-limit persisted entries remain available for correction but stay out of runtime rules', () => {
+	const sourceValue = 'x'.repeat(PATH_SOURCE_INPUT_MAX_LENGTH + 1);
+	const merged = mergeLoadedSettings({
+		...DEFAULT_SETTINGS,
+		includeRuleEntries: [{
+			sourceKind: 'vault-path',
+			sourceValue,
+			resolvedPath: sourceValue,
+			enabled: true,
+		}],
+	});
+
+	assert.equal(merged.includeRuleEntries?.[0]?.sourceValue, sourceValue);
+	assert.deepEqual(merged.includeRules, []);
+	assert.deepEqual(merged.includeRuleEnabled, []);
+});
+
+test('absolute entry persists only the resolved vault path', () => {
+	const merged = mergeLoadedSettings({
+		...DEFAULT_SETTINGS,
+		includeRuleEntries: [{
+			sourceKind: 'absolute-path',
+			sourceValue: 'Inbox/Quick capture.md',
+			resolvedPath: 'Inbox/Quick capture.md',
+			enabled: true,
+		}],
+	});
+
+	assert.deepEqual(merged.includeRuleEntries, [{
+		sourceKind: 'absolute-path',
+		sourceValue: 'Inbox/Quick capture.md',
+		resolvedPath: 'Inbox/Quick capture.md',
+		enabled: true,
+	}]);
+});
+
+test('absolute folder entry reloads with its trailing slash and portable source value', () => {
+	const merged = mergeLoadedSettings({
+		...DEFAULT_SETTINGS,
+		includeRuleEntries: [{
+			sourceKind: 'absolute-path',
+			sourceValue: 'Knowledge Base/Productivity/',
+			resolvedPath: 'Knowledge Base/Productivity/',
+			enabled: true,
+		}],
+	});
+
+	assert.deepEqual(merged.includeRules, ['Knowledge Base/Productivity/']);
+	assert.deepEqual(merged.includeRuleEntries, [{
+		sourceKind: 'absolute-path',
+		sourceValue: 'Knowledge Base/Productivity/',
+		resolvedPath: 'Knowledge Base/Productivity/',
+		enabled: true,
+	}]);
+});
+
+test('rule enabled flags are validated and aligned to rule counts', () => {
+	const merged = mergeLoadedSettings({
+		includeRules: ['docs/**', 'notes/**', 'archive/**'],
+		excludeRules: ['private/**'],
+		includeRuleEnabled: [false, 'invalid'],
+		excludeRuleEnabled: [false, true],
+	});
+
+	assert.deepEqual(merged.includeRuleEnabled, [false, true, true]);
+	assert.deepEqual(merged.excludeRuleEnabled, [false]);
+});
+
 test('invalid boolean fields fall back to defaults', () => {
 	const merged = mergeLoadedSettings({
 		enabled: 'yes',
@@ -92,6 +209,41 @@ test('invalid boolean fields fall back to defaults', () => {
 	assert.equal(merged.caseSensitive, DEFAULT_SETTINGS.caseSensitive);
 	assert.equal(merged.debug, DEFAULT_SETTINGS.debug);
 	assert.equal(merged.debugVerbosePaths, DEFAULT_SETTINGS.debugVerbosePaths);
+	assert.equal(merged.forceAllMarkdownReadOnly, DEFAULT_SETTINGS.forceAllMarkdownReadOnly);
+});
+
+test('missing welcome dismissal version falls back to default', () => {
+	const merged = mergeLoadedSettings({
+		enabled: true,
+	});
+
+	assert.equal(merged.dismissedWelcomeVersion, 0);
+});
+
+test('invalid welcome dismissal version falls back to default', () => {
+	const merged = mergeLoadedSettings({
+		...DEFAULT_SETTINGS,
+		dismissedWelcomeVersion: '1',
+	});
+
+	assert.equal(merged.dismissedWelcomeVersion, 0);
+});
+
+test('missing all-Markdown preset falls back to default', () => {
+	const merged = mergeLoadedSettings({
+		enabled: true,
+	});
+
+	assert.equal(merged.forceAllMarkdownReadOnly, DEFAULT_SETTINGS.forceAllMarkdownReadOnly);
+});
+
+test('invalid all-Markdown preset falls back to default', () => {
+	const merged = mergeLoadedSettings({
+		...DEFAULT_SETTINGS,
+		forceAllMarkdownReadOnly: 'true',
+	});
+
+	assert.equal(merged.forceAllMarkdownReadOnly, DEFAULT_SETTINGS.forceAllMarkdownReadOnly);
 });
 
 test('completely invalid loaded payload is handled safely', () => {
@@ -123,5 +275,5 @@ test('loadSettings handles malformed persisted settings and rebuilds matcher saf
 		includeRules: [],
 		excludeRules: [],
 	});
-	assert.equal(plugin.getCompiledRuleMatcher().shouldForceReadOnly('docs/file.md'), false);
+	assert.equal(plugin.getCompiledRuleMatcher().shouldForceReadOnly('docs/file.md'), true);
 });

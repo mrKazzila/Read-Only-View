@@ -12,6 +12,7 @@ function createSettings(overrides: Partial<ForceReadModeSettings>): ForceReadMod
 	return {
 		...DEFAULT_SETTINGS,
 		enabled: true,
+		forceAllMarkdownReadOnly: false,
 		useGlobPatterns: true,
 		caseSensitive: true,
 		includeRules: [],

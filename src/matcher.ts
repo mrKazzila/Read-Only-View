@@ -23,6 +23,11 @@ type PreparedRule = {
 	matches: (normalizedFilePath: string) => boolean;
 };
 
+type RuleSpec = {
+	raw: string;
+	exact: boolean;
+};
+
 export const GLOB_REGEX_CACHE_CAP = 512;
 const globRegexCache = new Map<string, RegExp>();
 
@@ -130,11 +135,37 @@ export function matchPath(filePath: string, pattern: string, options: MatchPathO
 export function getCompiledRuleMatcherKey(settings: ForceReadModeSettings): string {
 	return [
 		settings.enabled ? '1' : '0',
+		settings.forceAllMarkdownReadOnly ? '1' : '0',
 		settings.useGlobPatterns ? '1' : '0',
 		settings.caseSensitive ? '1' : '0',
 		settings.includeRules.join('\u0000'),
 		settings.excludeRules.join('\u0000'),
+		settings.includeRuleEnabled.map((enabled) => enabled ? '1' : '0').join(''),
+		settings.excludeRuleEnabled.map((enabled) => enabled ? '1' : '0').join(''),
+		(settings.includeRuleEntries ?? []).map((entry) => `${entry.sourceKind}:${entry.resolvedPath ?? ''}:${entry.enabled ? '1' : '0'}`).join('\u0000'),
+		(settings.excludeRuleEntries ?? []).map((entry) => `${entry.sourceKind}:${entry.resolvedPath ?? ''}:${entry.enabled ? '1' : '0'}`).join('\u0000'),
 	].join('\u0001');
+}
+
+function getEnabledRules(rules: string[], enabledStates: boolean[]): string[] {
+	return rules.filter((_, index) => enabledStates[index] !== false);
+}
+
+function getEnabledRuleSpecs(
+	rules: string[],
+	enabledStates: boolean[],
+	entries: ForceReadModeSettings['includeRuleEntries'],
+): RuleSpec[] {
+	if (entries && entries.length > 0) {
+		return entries
+			.filter((entry): entry is typeof entry & { resolvedPath: string } => !!entry.resolvedPath && entry.enabled)
+			.map((entry) => ({
+				raw: entry.resolvedPath,
+				exact: entry.sourceKind !== 'vault-path'
+					&& !(entry.sourceKind === 'absolute-path' && entry.resolvedPath.endsWith('/')),
+			}));
+	}
+	return getEnabledRules(rules, enabledStates).map((raw) => ({ raw, exact: false }));
 }
 
 export function createCompiledRuleMatcher(settings: ForceReadModeSettings): CompiledRuleMatcher {
@@ -142,9 +173,29 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 		useGlobPatterns: settings.useGlobPatterns,
 		caseSensitive: settings.caseSensitive,
 	};
-	const effectiveRules = buildEffectiveRules(settings.includeRules, settings.excludeRules);
-	const prepareRule = (rule: string): PreparedRule => {
+	const effectiveRules = buildEffectiveRules(
+		getEnabledRules(settings.includeRules, settings.includeRuleEnabled),
+		getEnabledRules(settings.excludeRules, settings.excludeRuleEnabled),
+	);
+	const includeSpecs = getEnabledRuleSpecs(
+		settings.includeRules,
+		settings.includeRuleEnabled,
+		settings.includeRuleEntries,
+	).slice(0, effectiveRules.effectiveIncludeRules.length);
+	const excludeSpecs = getEnabledRuleSpecs(
+		settings.excludeRules,
+		settings.excludeRuleEnabled,
+		settings.excludeRuleEntries,
+	).slice(0, effectiveRules.effectiveExcludeRules.length);
+	const prepareRule = (spec: RuleSpec): PreparedRule => {
+		const rule = spec.raw;
 		const normalizedRule = normalizeForCase(normalizeVaultPath(rule), options.caseSensitive);
+		if (spec.exact) {
+			return {
+				raw: rule,
+				matches: (normalizedFilePath: string) => normalizedFilePath === normalizedRule,
+			};
+		}
 		if (options.useGlobPatterns) {
 			const regex = compileGlobToRegex(normalizedRule, true);
 			return {
@@ -158,8 +209,8 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 			matches: (normalizedFilePath: string) => normalizedFilePath.startsWith(prefix),
 		};
 	};
-	const preparedIncludeRules = effectiveRules.effectiveIncludeRules.map(prepareRule);
-	const preparedExcludeRules = effectiveRules.effectiveExcludeRules.map(prepareRule);
+	const preparedIncludeRules = includeSpecs.map(prepareRule);
+	const preparedExcludeRules = excludeSpecs.map(prepareRule);
 
 	const matchRules = (filePath: string, rules: readonly PreparedRule[]): string[] => {
 		const normalizedFilePath = normalizeFilePathForMatch(filePath, options.caseSensitive);
@@ -179,13 +230,21 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 			return false;
 		}
 
+		const hasExcludeMatch = preparedExcludeRules.some((rule) => rule.matches(normalizedFilePath));
+		if (hasExcludeMatch) {
+			return false;
+		}
+
+		if (settings.forceAllMarkdownReadOnly) {
+			return true;
+		}
+
 		const hasIncludeMatch = preparedIncludeRules.some((rule) => rule.matches(normalizedFilePath));
 		if (!hasIncludeMatch) {
 			return false;
 		}
 
-		const hasExcludeMatch = preparedExcludeRules.some((rule) => rule.matches(normalizedFilePath));
-		return !hasExcludeMatch;
+		return true;
 	};
 
 	return {
