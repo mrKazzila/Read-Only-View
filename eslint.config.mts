@@ -41,6 +41,7 @@ export default tseslint.config(
 		},
 	},
 	globalIgnores([
+		'.tmp',
 		'node_modules',
 		'dist',
 		'build-tests',
