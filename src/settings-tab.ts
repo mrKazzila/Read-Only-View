@@ -43,6 +43,7 @@ type DisclosureController = {
 };
 
 type StaticSectionController = {
+	sectionEl: HTMLElement;
 	bodyEl: HTMLElement;
 	setSummary: (summary: string) => void;
 };
@@ -88,76 +89,26 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 		};
 		return [
 			{
-				name: 'Read-only behavior',
-				desc: 'Enable read-only enforcement and choose how it applies to Markdown notes.',
-				aliases: ['Enabled', 'Mode'],
-				render: (setting) => {
-					const containerEl = this.prepareDeclarativeSetting(setting);
-					this.renderHeaderSection(containerEl);
-					const sectionEl = this.createCardSection(containerEl);
-					renderPrimarySettings(sectionEl, this.plugin, refresh);
-					renderModeSelector(sectionEl, this.plugin, refresh);
-				},
-			},
-			{
 				type: 'group',
-				heading: 'Path rules',
+				cls: 'read-only-view-flat-group',
 				items: [
 					{
-						name: 'Path rules',
-						desc: 'Choose folders or notes to keep in Reading view.',
-						render: (setting) => this.renderDeclarativePathRules(setting),
-					},
-				],
-			},
-			{
-				type: 'group',
-				heading: 'Path tester',
-				items: [
-					{
-						name: 'Path tester',
-						desc: 'Test a vault path against the current rules.',
-						render: (setting) => this.renderDeclarativePathTester(setting),
-					},
-				],
-			},
-			{
-				type: 'group',
-				heading: 'Advanced',
-				items: [
-					{
-						name: 'Matching',
-						desc: 'Choose how paths are compared before rules are evaluated.',
-						aliases: ['Use glob patterns', 'Case sensitive'],
-						render: (setting) => {
-							const containerEl = this.prepareDeclarativeSetting(setting);
-							const section = this.createCollapsibleSection(
-								containerEl,
-								'matching',
-								'Matching',
-								'Choose how paths are compared before rules are evaluated.',
-								getMatchingSummary(this.plugin.settings),
-								false,
-							);
-							renderMatchingSettings(section.bodyEl, this.plugin, refresh);
-						},
-					},
-					{
-						name: 'Debug flags',
-						desc: 'Enable extra logging only when diagnosing rule behavior.',
-						aliases: ['Debug logging', 'Debug: verbose paths'],
-						render: (setting) => {
-							const containerEl = this.prepareDeclarativeSetting(setting);
-							const section = this.createCollapsibleSection(
-								containerEl,
-								'debugFlags',
-								'Debug flags',
-								'Enable extra logging only when diagnosing rule behavior.',
-								getDebugSummary(this.plugin.settings),
-								false,
-							);
-							renderDebugSettings(section.bodyEl, this.plugin, refresh);
-						},
+						name: 'Read-only behavior',
+						desc: 'Configure read-only behavior, path rules, matching, and diagnostics.',
+						aliases: [
+							'Enabled',
+							'Mode',
+							'Path rules',
+							'Path tester',
+							'Advanced',
+							'Matching',
+							'Use glob patterns',
+							'Case sensitive',
+							'Debug flags',
+							'Debug logging',
+							'Debug: verbose paths',
+						],
+						render: (setting) => this.renderDeclarativeSettings(setting, refresh),
 					},
 				],
 			},
@@ -193,6 +144,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 				!this.plugin.settings.forceAllMarkdownReadOnly,
 			),
 		);
+		pathRulesSection.sectionEl.addClass('read-only-view-path-rules-card');
 		this.renderRuleEditor(pathRulesSection, headerIndicators);
 
 		const pathTesterSection = this.createStaticWorkflowSection(
@@ -241,9 +193,14 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 		return setting.settingEl;
 	}
 
-	private renderDeclarativePathRules(setting: Setting): () => void {
+	private renderDeclarativeSettings(setting: Setting, refresh: () => void): () => void {
 		const containerEl = this.prepareDeclarativeSetting(setting);
-		const section = this.createStaticWorkflowSection(
+		const headerIndicators = this.renderHeaderSection(containerEl);
+		const modeSectionEl = this.createCardSection(containerEl);
+		renderPrimarySettings(modeSectionEl, this.plugin, refresh);
+		renderModeSelector(modeSectionEl, this.plugin, refresh);
+
+		const pathRulesSection = this.createStaticWorkflowSection(
 			containerEl,
 			'Path rules',
 			'Choose folders or notes to keep in Reading view.',
@@ -255,20 +212,42 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 				!this.plugin.settings.forceAllMarkdownReadOnly,
 			),
 		);
-		const controller = this.renderRuleEditor(section);
-		return () => this.disposeRuleEditor(controller);
-	}
+		pathRulesSection.sectionEl.addClass('read-only-view-path-rules-card');
+		const ruleEditor = this.renderRuleEditor(pathRulesSection, headerIndicators);
 
-	private renderDeclarativePathTester(setting: Setting): () => void {
-		const containerEl = this.prepareDeclarativeSetting(setting);
-		const section = this.createStaticWorkflowSection(
+		const pathTesterSection = this.createStaticWorkflowSection(
 			containerEl,
 			'Path tester',
 			'Test a vault path against the current rules.',
 			getPathTesterSummary(),
 		);
-		const controller = this.renderPathTester(section.bodyEl);
-		return () => this.disposePathTester(controller);
+		const pathTester = this.renderPathTester(pathTesterSection.bodyEl);
+
+		const advancedSectionEl = this.createCardSection(containerEl, 'Advanced');
+		const matchingSection = this.createCollapsibleSection(
+			advancedSectionEl,
+			'matching',
+			'Matching',
+			'Choose how paths are compared before rules are evaluated.',
+			getMatchingSummary(this.plugin.settings),
+			false,
+		);
+		renderMatchingSettings(matchingSection.bodyEl, this.plugin, refresh);
+
+		const debugSection = this.createCollapsibleSection(
+			advancedSectionEl,
+			'debugFlags',
+			'Debug flags',
+			'Enable extra logging only when diagnosing rule behavior.',
+			getDebugSummary(this.plugin.settings),
+			false,
+		);
+		renderDebugSettings(debugSection.bodyEl, this.plugin, refresh);
+
+		return () => {
+			this.disposeRuleEditor(ruleEditor);
+			this.disposePathTester(pathTester);
+		};
 	}
 
 	private renderRuleEditor(
@@ -412,6 +391,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 
 		const bodyEl = sectionEl.createDiv({ cls: 'read-only-view-static-section-body' });
 		return {
+			sectionEl,
 			bodyEl,
 			setSummary: (nextSummary: string) => {
 				summaryEl.setText(nextSummary);

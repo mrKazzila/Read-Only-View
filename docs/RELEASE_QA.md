@@ -23,7 +23,9 @@ Concise manual QA checklist for the next plugin release. Use the detailed releas
 
 ## Welcome, keyboard, and focus
 
-- With an undismissed onboarding version, confirm the welcome modal appears once and **Open settings** opens this plugin's settings page.
+- With plugin data absent, confirm the welcome modal appears and **Open settings** opens this plugin's settings page.
+- Close the welcome modal with Escape or its close control, reload the plugin, and confirm it does not reappear.
+- Update or re-enable an existing installation and confirm the welcome modal does not appear.
 - Tab through both mode buttons, rule-row controls, Path tester, and the **Matching** and **Debug flags** disclosure buttons.
 - Confirm native `Enter`/`Space` activation works, focus indicators stay visible, and disclosure controls expose correct `aria-expanded` state.
 - Add, delete, enable, disable, or edit a rule and confirm focus returns to the corresponding stable control after the UI rerenders.

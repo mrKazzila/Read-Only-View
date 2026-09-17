@@ -20,6 +20,8 @@ export function shouldShowWelcomeModal(settings: ForceReadModeSettings): boolean
 }
 
 export class WelcomeModal extends Modal {
+	private dismissalPromise: Promise<void> | null = null;
+
 	constructor(
 		app: App,
 		private readonly plugin: WelcomeSettingsPlugin,
@@ -65,12 +67,20 @@ export class WelcomeModal extends Modal {
 
 	onClose(): void {
 		this.contentEl.empty();
+		void this.persistDismissal();
 	}
 
 	private async dismiss(): Promise<void> {
-		this.plugin.settings.dismissedWelcomeVersion = WELCOME_VERSION;
-		await this.plugin.saveSettings();
+		await this.persistDismissal();
 		this.close();
+	}
+
+	private persistDismissal(): Promise<void> {
+		if (!this.dismissalPromise) {
+			this.plugin.settings.dismissedWelcomeVersion = WELCOME_VERSION;
+			this.dismissalPromise = this.plugin.saveSettings();
+		}
+		return this.dismissalPromise;
 	}
 
 	private async dismissAndOpenSettings(): Promise<void> {

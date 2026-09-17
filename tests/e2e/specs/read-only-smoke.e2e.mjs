@@ -1,4 +1,4 @@
-/* eslint-disable no-undef */
+/* eslint-disable no-undef, obsidianmd/prefer-active-doc -- Webdriver executes this code inside the active Obsidian test window. */
 import assert from 'node:assert/strict';
 
 import {
@@ -22,6 +22,32 @@ describe('Read Only View desktop smoke tests', () => {
 
 		assert.equal(await getVaultName(), 'demo-vault');
 		assert.equal(await isPluginEnabled('read-only-view'), true);
+	});
+
+	it('keeps settings cards aligned with compact, even gaps', async () => {
+		await browser.execute(() => {
+			const electron = globalThis.require?.('electron');
+			electron?.remote?.getCurrentWindow?.().setSize?.(1800, 1200);
+		});
+		await browser.pause(250);
+		const snapshot = await browser.execute(() => {
+			globalThis.app?.setting?.open?.();
+			globalThis.app?.setting?.openTabById?.('read-only-view');
+			const cards = Array.from(document.querySelectorAll(
+				'.read-only-view-header-card, .read-only-view-section-card',
+			));
+			return cards.map((card) => {
+				const rect = card.getBoundingClientRect();
+				return { top: rect.top, bottom: rect.bottom, width: rect.width };
+			});
+		});
+		assert.ok(snapshot.length >= 5);
+
+		const expectedWidth = snapshot[0].width;
+		assert.ok(snapshot.every(({ width }) => Math.abs(width - expectedWidth) < 0.5));
+		const gaps = snapshot.slice(1).map(({ top }, index) => top - snapshot[index].bottom);
+		assert.ok(gaps[1] > 10 && gaps[1] <= 18);
+		assert.ok(gaps.filter((_, index) => index !== 1).every((gap) => gap > 0 && gap <= 10));
 	});
 
 	it('keeps a protected note in Reading view', async () => {

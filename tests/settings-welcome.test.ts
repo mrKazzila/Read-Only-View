@@ -80,6 +80,43 @@ test('welcome modal close button saves dismissal state for current version', asy
 	}
 });
 
+test('closing the welcome modal saves dismissal state', async () => {
+	const dom = installDomMocks();
+	const { plugin, getSaveCalls } = createPlugin();
+
+	try {
+		const modal = maybeShowWelcomeModal(new App(), plugin, 'read-only-view');
+		assert.ok(modal);
+
+		modal.close();
+		await Promise.resolve();
+
+		assert.equal(plugin.settings.dismissedWelcomeVersion, WELCOME_VERSION);
+		assert.equal(getSaveCalls(), 1);
+	} finally {
+		dom.restore();
+	}
+});
+
+test('welcome dismissal is saved only once when the modal closes repeatedly', async () => {
+	const dom = installDomMocks();
+	const { plugin, getSaveCalls } = createPlugin();
+
+	try {
+		const modal = maybeShowWelcomeModal(new App(), plugin, 'read-only-view');
+		assert.ok(modal);
+
+		modal.close();
+		modal.close();
+		await Promise.resolve();
+
+		assert.equal(plugin.settings.dismissedWelcomeVersion, WELCOME_VERSION);
+		assert.equal(getSaveCalls(), 1);
+	} finally {
+		dom.restore();
+	}
+});
+
 test('welcome modal open settings button saves dismissal state and opens settings when available', async () => {
 	const dom = installDomMocks();
 	const { plugin, getSaveCalls } = createPlugin();
