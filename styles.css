@@ -22,16 +22,30 @@
 .read-only-view-settings {
 	display: flex;
 	flex-direction: column;
-	gap: 1rem;
+	row-gap: var(--size-4-2) !important;
 }
 
 .read-only-view-settings .read-only-view-declarative-setting {
 	display: flex;
 	flex-direction: column;
 	align-items: stretch;
-	gap: 1rem;
+	row-gap: var(--size-4-2) !important;
+	box-sizing: border-box;
+	width: 100%;
 	padding: 0;
 	border: 0;
+}
+
+.read-only-view-settings .read-only-view-flat-group,
+.read-only-view-settings .read-only-view-flat-group > .setting-items {
+	box-sizing: border-box;
+	width: 100%;
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
 }
 
 .read-only-view-header-card,
@@ -44,7 +58,14 @@
 
 .read-only-view-header-card,
 .read-only-view-section-card {
+	box-sizing: border-box;
+	width: 100%;
 	padding: 1rem;
+}
+
+.read-only-view-settings > .read-only-view-path-rules-card,
+.read-only-view-declarative-setting > .read-only-view-path-rules-card {
+	margin-top: var(--size-4-2);
 }
 
 .read-only-view-header-title {
@@ -644,7 +665,7 @@
 
 @media (max-width: 800px) {
 	.read-only-view-settings {
-		gap: 0.85rem;
+		row-gap: var(--size-4-2) !important;
 	}
 
 	.read-only-view-header-card,

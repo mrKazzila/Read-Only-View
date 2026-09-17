@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
 	Setting,
 	type SettingDefinition,
+	type SettingDefinitionGroup,
 	type SettingDefinitionItem,
 } from 'obsidian';
 import { ForceReadModeSettingTab } from '../src/settings-tab.js';
@@ -116,6 +117,7 @@ test('declarative settings expose every searchable setting', () => {
 		'Mode',
 		'Path rules',
 		'Path tester',
+		'Advanced',
 		'Matching',
 		'Use glob patterns',
 		'Case sensitive',
@@ -124,6 +126,12 @@ test('declarative settings expose every searchable setting', () => {
 		'Debug: verbose paths',
 	]);
 	assert.ok(definitions.every((definition) => definition.desc));
+	const groups = tab.getSettingDefinitions().filter(
+		(definition): definition is SettingDefinitionGroup => 'type' in definition && definition.type === 'group',
+	);
+	assert.equal(groups.length, 1);
+	assert.ok(groups.every((group) => group.heading === undefined));
+	assert.ok(groups.every((group) => group.cls === 'read-only-view-flat-group'));
 });
 
 test('declarative primary settings preserve the legacy card composition', () => {
@@ -143,11 +151,39 @@ test('declarative primary settings preserve the legacy card composition', () => 
 		const headerCards = container.querySelectorAll('.read-only-view-header-card');
 		const sectionCards = container.querySelectorAll('.read-only-view-section-card');
 		assert.equal(headerCards.length, 1);
-		assert.equal(sectionCards.length, 1);
+		assert.equal(sectionCards.length, 4);
 		assert.ok(collectTexts(headerCards[0]!).includes('Read Only View'));
 		assert.ok(collectTexts(sectionCards[0]!).includes('Enabled'));
 		assert.ok(collectTexts(sectionCards[0]!).includes('Mode'));
 		assert.equal(sectionCards[0]!.querySelectorAll('.read-only-view-mode-option').length, 2);
+	} finally {
+		dom.restore();
+	}
+});
+
+test('declarative workflow sections render one card with one internal title', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const { plugin } = createPlugin();
+	const tab = new ForceReadModeSettingTab({} as never, plugin as never);
+	tab.containerEl = container as unknown as HTMLElement;
+
+	try {
+		const definition = collectSettingDefinitions(tab.getSettingDefinitions())
+			.find((item) => item.name === 'Read-only behavior');
+		assert.ok(definition?.render);
+		const setting = new Setting(container as unknown as HTMLElement);
+		const cleanup = definition.render(setting, {} as never);
+		const sectionCards = container.querySelectorAll('.read-only-view-section-card');
+		assert.equal(sectionCards.length, 4);
+		assert.equal(container.querySelectorAll('.read-only-view-path-rules-card').length, 1);
+
+		for (const sectionName of ['Path rules', 'Path tester']) {
+			assert.equal(collectTexts(container).filter((text) => text === sectionName).length, 1);
+		}
+		if (typeof cleanup === 'function') {
+			cleanup();
+		}
 	} finally {
 		dom.restore();
 	}
@@ -161,23 +197,31 @@ test('declarative advanced settings render inline collapsible sections', () => {
 	tab.containerEl = container as unknown as HTMLElement;
 
 	try {
-		const matchingDefinition = collectSettingDefinitions(tab.getSettingDefinitions())
-			.find((definition) => definition.name === 'Matching');
-		assert.ok(matchingDefinition?.render);
+		const primaryDefinition = collectSettingDefinitions(tab.getSettingDefinitions())
+			.find((definition) => definition.name === 'Read-only behavior');
+		assert.ok(primaryDefinition?.render);
 		const setting = new Setting(container as unknown as HTMLElement);
-		matchingDefinition.render(setting, {} as never);
+		const cleanup = primaryDefinition.render(setting, {} as never);
 
-		const disclosure = container.querySelector('.read-only-view-disclosure-row');
-		assert.ok(disclosure);
-		assert.ok(!disclosure.matches('.is-open'));
+		const sectionCards = container.querySelectorAll('.read-only-view-section-card');
+		assert.equal(sectionCards.length, 4);
+		assert.equal(collectTexts(container).filter((text) => text === 'Advanced').length, 1);
+
+		const disclosures = container.querySelectorAll('.read-only-view-disclosure-row');
+		assert.equal(disclosures.length, 2);
+		assert.ok(!disclosures[0]!.matches('.is-open'));
+		assert.ok(!disclosures[1]!.matches('.is-open'));
 		assert.ok(collectTexts(container).includes('Glob matching · Case-insensitive'));
 
 		const toggle = container.querySelector('.read-only-view-disclosure-toggle');
 		assert.ok(toggle);
 		toggle.trigger('click');
-		assert.ok(disclosure.matches('.is-open'));
+		assert.ok(disclosures[0]!.matches('.is-open'));
 		assert.ok(collectTexts(container).includes('Use glob patterns'));
 		assert.ok(collectTexts(container).includes('Case sensitive'));
+		if (typeof cleanup === 'function') {
+			cleanup();
+		}
 	} finally {
 		dom.restore();
 	}
@@ -226,7 +270,7 @@ test('declarative rule editor cleanup cancels pending saves', async () => {
 	try {
 		await withFakeTimeouts(async ({ flushAll }) => {
 			const definition = collectSettingDefinitions(tab.getSettingDefinitions())
-				.find((item) => item.name === 'Path rules');
+				.find((item) => item.name === 'Read-only behavior');
 			assert.ok(definition?.render);
 			const setting = new Setting(container as unknown as HTMLElement);
 			const cleanup = definition.render(setting, {} as never);
@@ -259,7 +303,7 @@ test('declarative path tester cleanup cancels pending render work', async () => 
 	try {
 		await withFakeTimeouts(async ({ flushAll }) => {
 			const definition = collectSettingDefinitions(tab.getSettingDefinitions())
-				.find((item) => item.name === 'Path tester');
+				.find((item) => item.name === 'Read-only behavior');
 			assert.ok(definition?.render);
 			const setting = new Setting(container as unknown as HTMLElement);
 			const cleanup = definition.render(setting, {} as never);

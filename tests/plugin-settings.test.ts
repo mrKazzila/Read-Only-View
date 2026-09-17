@@ -13,7 +13,7 @@ import { PATH_SOURCE_INPUT_MAX_LENGTH } from '../src/source-input-limits.js';
 
 type LoadSettingsPlugin = {
 	loadData: () => Promise<unknown>;
-	loadSettings: () => Promise<void>;
+	loadSettings: () => Promise<boolean>;
 	getCompiledRuleMatcher: () => CompiledRuleMatcher;
 	settings: ForceReadModeSettings;
 	compiledRuleMatcher: CompiledRuleMatcher;
@@ -252,6 +252,34 @@ test('completely invalid loaded payload is handled safely', () => {
 		includeRules: [],
 		excludeRules: [],
 	});
+});
+
+test('loadSettings identifies missing persisted data as a fresh install', async () => {
+	for (const loaded of [null, undefined]) {
+		const plugin = createPlugin(loaded);
+
+		assert.equal(await plugin.loadSettings(), true);
+	}
+});
+
+test('loadSettings treats legacy settings without welcome state as an existing install', async () => {
+	const plugin = createPlugin({
+		enabled: true,
+		includeRules: ['docs/**'],
+	});
+
+	assert.equal(await plugin.loadSettings(), false);
+});
+
+test('loadSettings treats valid and malformed persisted payloads as existing installs', async () => {
+	for (const loaded of [
+		{ ...DEFAULT_SETTINGS, dismissedWelcomeVersion: 1 },
+		'broken-payload',
+	]) {
+		const plugin = createPlugin(loaded);
+
+		assert.equal(await plugin.loadSettings(), false);
+	}
 });
 
 test('loadSettings handles malformed persisted settings and rebuilds matcher safely', async () => {

@@ -6,7 +6,7 @@ import { DEFAULT_SETTINGS } from '../src/matcher.js';
 import { createMainTestHarness } from './helpers/test-setup.js';
 
 type PatchablePlugin = ReadOnlyViewPlugin & {
-	loadSettings: () => Promise<void>;
+	loadSettings: () => Promise<boolean>;
 	registerEvent: (unsubscribe: () => void) => void;
 	addCommand: (command: unknown) => unknown;
 	applyAllOpenMarkdownLeaves: (reason: string) => Promise<void>;
@@ -38,7 +38,7 @@ function createEditorEventPlugin() {
 		debug: false,
 		debugVerbosePaths: false,
 	};
-	plugin.loadSettings = async () => undefined;
+	plugin.loadSettings = async () => false;
 	plugin.registerEvent = () => undefined;
 	plugin.addCommand = ((command: unknown) => command) as PatchablePlugin['addCommand'];
 	plugin.applyAllOpenMarkdownLeaves = async () => undefined;

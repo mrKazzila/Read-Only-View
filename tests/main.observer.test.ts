@@ -8,7 +8,7 @@ import { createMockWorkspaceLeaf } from './helpers/obsidian-mocks.js';
 import { createMainTestHarness } from './helpers/test-setup.js';
 
 type PatchablePlugin = ReadOnlyViewPlugin & {
-	loadSettings: () => Promise<void>;
+	loadSettings: () => Promise<boolean>;
 	applyAllOpenMarkdownLeaves: (reason: string) => Promise<void>;
 	registerEvent: (unsubscribe: () => void) => void;
 };
@@ -206,7 +206,7 @@ test('layout-change invalidates leaf container cache', async () => {
 	const container = leaf.view.containerEl as unknown as MockHTMLElement;
 	container.appendChild(nestedNode);
 
-	plugin.loadSettings = async () => undefined;
+	plugin.loadSettings = async () => false;
 	plugin.applyAllOpenMarkdownLeaves = async () => undefined;
 	plugin.registerEvent = () => undefined;
 	(plugin as unknown as { addCommand: (command: unknown) => unknown }).addCommand = () => ({});
@@ -233,7 +233,7 @@ test('layout-change invalidates leaf container cache', async () => {
 test('workspace reconciliation attaches observer for popout document added after load', async () => {
 	const { harness, plugin } = createObserverPlugin();
 
-	plugin.loadSettings = async () => undefined;
+	plugin.loadSettings = async () => false;
 	plugin.applyAllOpenMarkdownLeaves = async () => undefined;
 	plugin.registerEvent = () => undefined;
 	(plugin as unknown as { addCommand: (command: unknown) => unknown }).addCommand = () => ({});
@@ -306,7 +306,7 @@ test('workspace event burst is coalesced into one reapply pass', async () => {
 	const { harness, plugin } = createObserverPlugin();
 	const reapplyReasons: string[] = [];
 
-	plugin.loadSettings = async () => undefined;
+	plugin.loadSettings = async () => false;
 	plugin.applyAllOpenMarkdownLeaves = async (reason: string) => {
 		reapplyReasons.push(reason);
 	};
@@ -341,7 +341,7 @@ test('active-leaf-change uses targeted leaf reapply and skips full-scan reapply'
 	const { harness, leaf, plugin } = createObserverPlugin();
 	const reapplyReasons: string[] = [];
 
-	plugin.loadSettings = async () => undefined;
+	plugin.loadSettings = async () => false;
 	plugin.applyAllOpenMarkdownLeaves = async (reason: string) => {
 		reapplyReasons.push(reason);
 	};
@@ -368,7 +368,7 @@ test('active-leaf-change + file-open uses targeted leaf reapply and skips full-s
 	const { harness, leaf, plugin } = createObserverPlugin();
 	const reapplyReasons: string[] = [];
 
-	plugin.loadSettings = async () => undefined;
+	plugin.loadSettings = async () => false;
 	plugin.applyAllOpenMarkdownLeaves = async (reason: string) => {
 		reapplyReasons.push(reason);
 	};
@@ -396,7 +396,7 @@ test('layout-change in burst keeps full-scan reapply', async () => {
 	const { harness, leaf, plugin } = createObserverPlugin();
 	const reapplyReasons: string[] = [];
 
-	plugin.loadSettings = async () => undefined;
+	plugin.loadSettings = async () => false;
 	plugin.applyAllOpenMarkdownLeaves = async (reason: string) => {
 		reapplyReasons.push(reason);
 	};
@@ -428,7 +428,7 @@ test('re-apply command remains immediate and bypasses workspace event scheduler'
 	const reapplyReasons: string[] = [];
 	const commands = new Map<string, () => Promise<void>>();
 
-	plugin.loadSettings = async () => undefined;
+	plugin.loadSettings = async () => false;
 	plugin.applyAllOpenMarkdownLeaves = async (reason: string) => {
 		reapplyReasons.push(reason);
 	};

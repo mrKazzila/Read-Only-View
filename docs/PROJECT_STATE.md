@@ -64,7 +64,7 @@ High-level modules:
 - `src/settings-path-tester.ts`
   - Path tester section rendering
 - `src/settings-welcome.ts`
-  - Versioned onboarding modal and best-effort settings opening helper
+  - First-install welcome modal and best-effort settings opening helper
 - `src/source-input-limits.ts`
   - Source-input length policy, overflow handling, and display-safe truncation helpers
 - `src/constants.ts`
@@ -240,17 +240,19 @@ UI module split:
 - `src/settings-focus.ts` owns stable focus capture, restoration, and first-control focus.
 - `src/settings-ui-state.ts` owns the pure summary/warning calculation used by the rules section.
 - `src/settings-path-tester.ts` owns the path tester section.
-- `src/settings-welcome.ts` owns the versioned onboarding modal shown for undismissed onboarding versions.
+- `src/settings-welcome.ts` owns the first-install welcome modal.
 - `src/source-input-limits.ts` owns accepted source lengths, overflow state, and display truncation.
 - `src/rule-diagnostics.ts` provides pure helpers used by settings UI (rule diagnostics + path tester computations).
 
 - Welcome modal:
-  - shown only when `dismissedWelcomeVersion < WELCOME_VERSION`
-  - dismissing or using `Open settings` saves the current onboarding version
+  - shown only when plugin data is absent on load; existing data marks an update or restart
+  - updates, re-enabling, and Obsidian restarts do not trigger it
+  - buttons, Escape, and the close control save the current dismissal version through one idempotent path
   - action buttons use separated 44 px targets and inset focus indicators to avoid visual overlap
 - Settings layout keeps the header, combined Enabled/mode card, Path rules, and Path tester workflow permanently visible. `Matching` and `Debug flags` remain inline collapsible sections with ephemeral open state in both renderers.
 - On Obsidian 1.13+, `Read-only behavior` is one custom declarative item with `Enabled` and `Mode` search aliases, preserving the legacy two-card composition instead of allowing the host to split those controls into separate blocks.
-- Obsidian 1.13+ indexes the two Advanced sections and exposes their four control names as search aliases; custom `render` callbacks preserve the plugin-owned accordion controls and their persistence side effects.
+- Obsidian 1.13+ renders the complete settings stack through one custom item inside one heading-free group. The plugin therefore owns every inter-card gap directly; Obsidian cannot insert declarative section spacing between Mode, Path rules, Path tester, and Advanced. The scoped wrapper reset removes host borders/backgrounds, all cards remain full-width, and the stack uses the compact `--size-4-2` gap on desktop and narrow layouts. Path rules adds one extra `--size-4-2` top margin, making only the Mode-to-Path-rules separation twice the base gap.
+- The Advanced declarative item exposes both section names and all four control names as search aliases; its custom `render` callback preserves the plugin-owned accordion controls and their persistence side effects.
 - Obsidian versions before 1.13 use the legacy `display()` path, so the supported runtime baseline remains 1.10.3.
 - Header card:
   - title `Read Only View`
@@ -277,6 +279,7 @@ UI module split:
   - advanced rows show their resolved vault path or a specific inline error without rewriting the active input
   - all-Markdown mode visually marks every include row as inactive, excludes includes from active counts and diagnostics, and preserves each include rule's persisted enabled state
   - exclude rows remain active in all-Markdown mode unless individually disabled
+  - changing a row between include and exclude updates it in place; the type selector is not recreated or programmatically refocused, preventing the native mobile picker from reopening
   - add-rule button
   - zero rules is a valid editor state; deleting the final row does not create a placeholder or empty-line diagnostic
   - inline syntax help and README link

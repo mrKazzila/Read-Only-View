@@ -34,7 +34,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	private compiledRuleMatcherKey = getCompiledRuleMatcherKey(this.settings);
 
 	async onload(): Promise<void> {
-		await this.loadSettings();
+		const isFreshInstall = await this.loadSettings();
 		this.registerEditorExtension(createEditorReadOnlyExtension({
 			shouldForceReadOnlyPath: (path) => this.shouldForceReadOnlyPath(path),
 			onReadOnlyInteraction: (info, reason) => {
@@ -89,7 +89,9 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		this.addSettingTab(new ForceReadModeSettingTab(this.app, this));
 
 		await this.applyAllOpenMarkdownLeaves('onload');
-		maybeShowWelcomeModal(this.app, this, this.manifest.id);
+		if (isFreshInstall) {
+			maybeShowWelcomeModal(this.app, this, this.manifest.id);
+		}
 	}
 
 	onunload(): void {
@@ -108,10 +110,11 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		}
 	}
 
-	async loadSettings(): Promise<void> {
+	async loadSettings(): Promise<boolean> {
 		const loaded: unknown = await this.loadData();
 		this.settings = mergeLoadedSettings(loaded);
 		this.rebuildCompiledRuleMatcher();
+		return loaded === null || loaded === undefined;
 	}
 
 	async saveSettings(): Promise<void> {

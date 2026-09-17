@@ -71,7 +71,7 @@ If the rule does not apply, paste the exact note path into **Path tester** and c
 
 *All Markdown files mode protects every Markdown note unless an exclude rule matches.*
 
-The welcome window is shown once for the current onboarding version and provides a shortcut to the settings page.
+The welcome window is shown only after a new installation. Plugin updates, re-enabling, and Obsidian restarts do not show it again. It provides a shortcut to the settings page.
 
 ## Installation
 
@@ -245,6 +245,8 @@ The settings screen is organized around the main workflow:
 - **Path tester** explains how a source resolves and whether the resulting note is protected.
 - **Advanced** contains collapsible `Matching` and `Debug flags` sections.
 
+Each section title is contained in its single section card; the settings UI does not add a second heading or outer frame around these cards. Top-level cards stay aligned with compact spacing, with extra separation before **Path rules** to distinguish configuration from rule management.
+
 ### Path rules
 
 Each row contains:
@@ -281,6 +283,8 @@ For a system folder, the tester shows the resolved folder and asks for a specifi
 ### Mobile and tablet layout
 
 On narrow phone and tablet settings panes, the interface switches to a stacked layout so rule controls, descriptions, resolved paths, and errors remain readable. Rules created from a system path on desktop continue to work from their saved vault-relative paths on mobile.
+
+Changing a rule between `Include` and `Exclude` updates the existing row in place, so the mobile system picker closes normally after a selection.
 
 ### Advanced
 

@@ -188,6 +188,60 @@ test('rules editor keeps focus on a control when rows rerender', async () => {
 	}
 });
 
+test('rules editor changes rule type in place without refocusing the mobile select', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	container.ownerDocument = dom.document;
+	const committed: Array<{ includeRules: string[]; excludeRules: string[]; reason: string }> = [];
+
+	try {
+		renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			includeRules: ['docs/a.md'],
+			excludeRules: [],
+			useGlobPatterns: true,
+			includeRulesActive: false,
+			onChange: async (state, reason) => {
+				committed.push({
+					includeRules: state.includeRules,
+					excludeRules: state.excludeRules,
+					reason,
+				});
+			},
+		});
+
+		const initialSelect = container.querySelector('select');
+		const initialRow = container.querySelector('.read-only-view-rule-row');
+		const input = container.querySelector('.read-only-view-rule-input');
+		const deleteButton = container.querySelector('.read-only-view-delete-rule-button');
+		assert.ok(initialSelect);
+		assert.ok(initialRow);
+		assert.ok(input);
+		assert.ok(deleteButton);
+		assert.ok(initialRow.matches('.is-inactive-by-mode'));
+
+		initialSelect.focus();
+		initialSelect.value = 'exclude';
+		initialSelect.trigger('change');
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.equal(container.querySelector('select'), initialSelect);
+		assert.equal(dom.document.activeElement, initialSelect);
+		assert.ok(!initialRow.matches('.is-inactive-by-mode'));
+		assert.equal(input.placeholder, 'projects/drafts/');
+		assert.equal(input.getAttr('aria-label'), 'Exclude rule value');
+		assert.equal(deleteButton.getAttr('aria-label'), 'Delete exclude rule');
+		assert.deepEqual(committed.at(-1), {
+			includeRules: [],
+			excludeRules: ['docs/a.md'],
+			reason: 'settings-path-rules',
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
 test('all-Markdown mode visually inactivates only include rules without changing enabled state', () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();
