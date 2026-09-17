@@ -10,6 +10,7 @@ const defaultObsidianPath = process.platform === 'darwin'
 	: null;
 
 const obsidianPath = process.env.OBSIDIAN_PATH ?? defaultObsidianPath;
+const obsidianElectronVersion = process.env.OBSIDIAN_ELECTRON_VERSION ?? '32.2.5';
 
 if (!obsidianPath) {
 	throw new Error(
@@ -56,6 +57,7 @@ export const config = {
 	capabilities: [
 		{
 			browserName: 'electron',
+			browserVersion: obsidianElectronVersion,
 			'wdio:electronServiceOptions': {
 				appBinaryPath: obsidianPath,
 			},

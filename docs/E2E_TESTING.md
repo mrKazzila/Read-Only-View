@@ -64,6 +64,20 @@ OBSIDIAN_PATH="/Applications/Obsidian.app/Contents/MacOS/Obsidian" npm run test:
 OBSIDIAN_PATH="/path/to/Obsidian.exe" npm run test:e2e
 ```
 
+## Obsidian Electron version
+
+The suite selects Chromedriver from the Electron version embedded in Obsidian,
+not from the repository's `electron` development dependency. The tested default
+is Electron `32.2.5`. Override it when testing an Obsidian build based on a
+different Electron version:
+
+```bash
+OBSIDIAN_ELECTRON_VERSION="32.2.5" npm run test:e2e
+```
+
+If the value does not match the Electron runtime used by `OBSIDIAN_PATH`, session
+creation fails with a ChromeDriver/browser version mismatch.
+
 ## Running the suite
 
 Standard run:
