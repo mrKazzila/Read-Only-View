@@ -22,14 +22,18 @@
 .read-only-view-settings {
 	display: flex;
 	flex-direction: column;
-	row-gap: var(--size-4-2) !important;
+}
+
+/* Keep card spacing above Obsidian's settings and mobile gap rules. */
+.modal.mod-settings .read-only-view-settings,
+.modal.mod-settings .read-only-view-settings .read-only-view-declarative-setting {
+	row-gap: var(--size-4-2);
 }
 
 .read-only-view-settings .read-only-view-declarative-setting {
 	display: flex;
 	flex-direction: column;
 	align-items: stretch;
-	row-gap: var(--size-4-2) !important;
 	box-sizing: border-box;
 	width: 100%;
 	padding: 0;
@@ -664,10 +668,6 @@
 }
 
 @media (max-width: 800px) {
-	.read-only-view-settings {
-		row-gap: var(--size-4-2) !important;
-	}
-
 	.read-only-view-header-card,
 	.read-only-view-section-card {
 		border-radius: 16px;
