@@ -35,6 +35,36 @@ test('vault paths retain prefix and glob syntax without requiring an existing fi
 	});
 });
 
+test('vault path copied without an extension resolves to an existing Markdown file', () => {
+	const result = resolveRuleSource(' Inbox/Quick capture ', context());
+	assert.deepEqual(result, {
+		sourceKind: 'vault-path',
+		sourceValue: 'Inbox/Quick capture',
+		resolvedPath: 'Inbox/Quick capture.md',
+		error: null,
+	});
+});
+
+test('vault folder path copied without a trailing slash resolves as a folder', () => {
+	const result = resolveRuleSource(' Knowledge Base/Productivity ', context());
+	assert.deepEqual(result, {
+		sourceKind: 'vault-path',
+		sourceValue: 'Knowledge Base/Productivity',
+		resolvedPath: 'Knowledge Base/Productivity/',
+		error: null,
+	});
+});
+
+test('explicit folder and glob hints are not reinterpreted as Markdown files', () => {
+	const fileAndFolderContext = context({
+		isMarkdownFile: (path) => path === 'Inbox.md',
+		isFolder: (path) => path === 'Inbox',
+	});
+
+	assert.equal(resolveRuleSource('Inbox/', fileAndFolderContext).resolvedPath, 'Inbox/');
+	assert.equal(resolveRuleSource('Inbox*', fileAndFolderContext).resolvedPath, 'Inbox*');
+});
+
 test('Obsidian URL resolves encoded file path and restores omitted Markdown extension', () => {
 	const result = resolveRuleSource(
 		'obsidian://open?vault=demo-vault&file=Inbox%2FQuick%20capture',

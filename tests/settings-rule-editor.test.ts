@@ -395,6 +395,88 @@ test('rules editor keeps Obsidian URL visible and saves its resolved path metada
 	}
 });
 
+test('rules editor recognizes a copied vault note path without the Markdown extension', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	let savedPath: string | undefined;
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				includeRules: [],
+				excludeRules: [],
+				useGlobPatterns: false,
+				resolverContext: {
+					vaultName: 'demo-vault',
+					vaultBasePath: '/vaults/demo-vault',
+					isMarkdownFile: (path) => path === 'Archive/2025/Postmortem template.md',
+					isFolder: () => false,
+				},
+				onChange: async (state) => {
+					savedPath = state.includeRules[0];
+				},
+			});
+			const addButton = container.querySelector('.read-only-view-add-rule-button');
+			assert.ok(addButton);
+			addButton.trigger('click');
+			const input = container.querySelector('.read-only-view-rule-input');
+			assert.ok(input);
+			input.value = 'Archive/2025/Postmortem template';
+			input.trigger('input');
+			await flushAll();
+
+			assert.equal(savedPath, 'Archive/2025/Postmortem template.md');
+			assert.ok(collectTexts(container).includes(
+				'Vault file · Resolved to: Archive/2025/Postmortem template.md',
+			));
+			assert.equal(collectTexts(container).some((text) => text.includes('folder hint applied')), false);
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('rules editor recognizes an existing vault folder without showing a folder-hint warning', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	let savedPath: string | undefined;
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				includeRules: [],
+				excludeRules: [],
+				useGlobPatterns: false,
+				resolverContext: {
+					vaultName: 'demo-vault',
+					vaultBasePath: '/vaults/demo-vault',
+					isMarkdownFile: () => false,
+					isFolder: (path) => path === 'Archive/2024',
+				},
+				onChange: async (state) => {
+					savedPath = state.includeRules[0];
+				},
+			});
+			const addButton = container.querySelector('.read-only-view-add-rule-button');
+			assert.ok(addButton);
+			addButton.trigger('click');
+			const input = container.querySelector('.read-only-view-rule-input');
+			assert.ok(input);
+			input.value = 'Archive/2024';
+			input.trigger('input');
+			await flushAll();
+
+			assert.equal(savedPath, 'Archive/2024/');
+			assert.ok(collectTexts(container).includes('Vault folder · Resolved to: Archive/2024/'));
+			assert.equal(collectTexts(container).some((text) => text.includes('folder hint applied')), false);
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
 test('rules editor imports a system folder as a privacy-safe vault folder rule', async () => {
 	const dom = installDomMocks();
 	const container = new MockHTMLElement();

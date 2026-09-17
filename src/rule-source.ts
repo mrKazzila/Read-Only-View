@@ -176,6 +176,27 @@ export function resolveRuleSource(valueInput: string, context: RuleResolverConte
 		return resolveAbsolutePath(value, context);
 	}
 	const normalized = normalizeVaultPath(value);
+	const hasFolderHint = normalized.endsWith('/');
+	const hasWildcard = normalized.includes('*') || normalized.includes('?');
+	if (!hasFolderHint && !hasWildcard) {
+		const markdownPath = ensureMarkdownExtension(normalized);
+		if (markdownPath && context.isMarkdownFile(markdownPath)) {
+			return {
+				sourceKind: 'vault-path',
+				sourceValue: normalized,
+				resolvedPath: markdownPath,
+				error: null,
+			};
+		}
+		if (context.isFolder(normalized)) {
+			return {
+				sourceKind: 'vault-path',
+				sourceValue: normalized,
+				resolvedPath: `${normalized}/`,
+				error: null,
+			};
+		}
+	}
 	return { sourceKind: 'vault-path', sourceValue: normalized, resolvedPath: normalized, error: null };
 }
 

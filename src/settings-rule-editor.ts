@@ -120,11 +120,15 @@ const FALLBACK_RESOLVER_CONTEXT: RuleResolverContext = {
 
 function resolveRow(row: RuleRowState, context: RuleResolverContext): RuleResolution {
 	const value = row.inputLimitExceeded ? row.acceptedValue : row.value;
-	if (row.storedEntry?.resolvedPath && value === row.storedEntry.sourceValue) {
+	const storedEntry = row.storedEntry;
+	const shouldReuseStoredResolution = storedEntry?.resolvedPath
+		&& value === storedEntry.sourceValue
+		&& (storedEntry.sourceKind !== 'vault-path' || storedEntry.resolvedPath !== storedEntry.sourceValue);
+	if (shouldReuseStoredResolution && storedEntry) {
 		return {
-			sourceKind: row.storedEntry.sourceKind,
-			sourceValue: row.storedEntry.sourceValue,
-			resolvedPath: row.storedEntry.resolvedPath,
+			sourceKind: storedEntry.sourceKind,
+			sourceValue: storedEntry.sourceValue,
+			resolvedPath: storedEntry.resolvedPath,
 			error: null,
 		};
 	}
@@ -530,10 +534,18 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 				});
 				continue;
 			}
-			if (controller.resolution.sourceKind !== 'vault-path' && controller.resolution.resolvedPath) {
+			const resolvedVaultTarget = controller.resolution.sourceKind === 'vault-path'
+				&& controller.resolution.resolvedPath
+				&& controller.resolution.resolvedPath !== controller.resolution.sourceValue;
+			if ((controller.resolution.sourceKind !== 'vault-path' || resolvedVaultTarget)
+				&& controller.resolution.resolvedPath) {
 				const sourceLabel = controller.resolution.sourceKind === 'obsidian-uri'
 					? 'Obsidian URL'
-					: 'System path';
+					: controller.resolution.sourceKind === 'absolute-path'
+						? 'System path'
+						: controller.resolution.resolvedPath.endsWith('/')
+							? 'Vault folder'
+							: 'Vault file';
 				controller.messageEl.createDiv({
 					text: `${sourceLabel} · Resolved to: ${formatSourceValueForDisplay(controller.resolution.resolvedPath)}`,
 					cls: 'read-only-view-rule-inline-message is-resolved',

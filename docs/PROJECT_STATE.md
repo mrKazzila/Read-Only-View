@@ -220,7 +220,8 @@ Command entry points:
 4. Advanced sources are resolved before matching:
    - Obsidian URL entries target one exact existing Markdown file
    - absolute file entries target one exact existing Markdown file; absolute folder entries retain ordinary vault-path matching semantics
-   - ordinary vault-path entries retain prefix/glob semantics
+   - an ordinary vault path without a trailing slash, wildcard, or extension resolves to an existing `<path>.md` note when present
+   - an ordinary vault path matching an existing folder is normalized with a trailing slash; explicit folder paths and glob-bearing vault paths retain their normal prefix/glob semantics
    - unresolved entries are retained for correction but omitted from runtime matching and rule limits
 5. Build effective rule sets from settings using hard-cap policy:
    - include is capped first (`200`)
@@ -276,7 +277,7 @@ UI module split:
     - delete
   - one value field auto-detects vault paths, Obsidian URLs, and system paths
   - input guards allow up to 40,000 characters for paths and 120,000 for percent-encoded Obsidian URLs; overflow is blocked before resolution/persistence and exposed with an accessible invalid state
-  - advanced rows show their resolved vault path or a specific inline error without rewriting the active input
+  - imported sources and normalized vault note/folder paths show their resolved vault path or a specific inline error without rewriting the active input
   - all-Markdown mode visually marks every include row as inactive, excludes includes from active counts and diagnostics, and preserves each include rule's persisted enabled state
   - exclude rows remain active in all-Markdown mode unless individually disabled
   - changing a row between include and exclude updates it in place; the type selector is not recreated or programmatically refocused, preventing the native mobile picker from reopening

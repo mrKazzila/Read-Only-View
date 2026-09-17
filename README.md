@@ -166,6 +166,7 @@ obsidian://open?vault=demo-vault&file=Inbox%2FQuick%20capture
 ```
 
 - A vault path keeps the normal prefix or glob behavior selected in **Advanced → Matching**.
+- A vault path copied without `.md` resolves to that Markdown note when it already exists. An existing folder copied without a trailing `/` is normalized to a folder rule automatically. Add `/` explicitly when a note and folder share the same name and you intend to target the folder.
 - An `obsidian://open` URL targets one existing Markdown note. It must reference the current vault. The `.md` extension may be omitted, and heading or block locators do not change which note is matched.
 - An absolute system path can point to an existing Markdown note or folder inside the current vault. Importing system paths is available on desktop.
 
@@ -258,7 +259,7 @@ Each row contains:
 
 Disable a row when you want to keep it without applying it. Disabled rules do not participate in matching, diagnostics, or active-rule counts. In `All Markdown files` mode, include rows are shown as inactive while exclude rows continue to work.
 
-Resolved Obsidian URLs and system paths show the corresponding vault path below the Value field. Invalid values show an inline explanation. The rules summary and diagnostics reflect the rows that can actually participate in matching.
+Resolved vault note and folder paths, Obsidian URLs, and system paths show the corresponding normalized vault path below the Value field. Invalid values show an inline explanation. The rules summary and diagnostics reflect the rows that can actually participate in matching.
 
 ![Path rules with vault, Obsidian URL, and system path sources](docs/images/community-images/Read-Only-View-path-rules-1200x800.png)
 
