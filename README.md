@@ -284,6 +284,8 @@ For a system folder, the tester shows the resolved folder and asks for a specifi
 
 On narrow phone and tablet settings panes, the interface switches to a stacked layout so rule controls, descriptions, resolved paths, and errors remain readable. Rules created from a system path on desktop continue to work from their saved vault-relative paths on mobile.
 
+Changing a rule between `Include` and `Exclude` updates the existing row in place, so the mobile system picker closes normally after a selection.
+
 ### Advanced
 
 The `Matching` and `Debug flags` sections are collapsed by default and expand inline. Their summaries show the current state, and their individual controls remain discoverable through settings search. Open `Matching` to switch between prefix and glob matching or to change case sensitivity. Debug options are intended only for diagnosing rule behavior.

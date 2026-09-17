@@ -174,14 +174,17 @@ function getRulesChangeReason(previous: RuleEditorUiState, next: RuleEditorUiSta
 	const excludeChanged = previous.excludeText !== next.excludeText;
 	const enabledChanged = previous.includeRuleEnabled.join() !== next.includeRuleEnabled.join()
 		|| previous.excludeRuleEnabled.join() !== next.excludeRuleEnabled.join();
-	if (enabledChanged) {
-		return 'settings-rule-enabled';
-	}
 	if (includeChanged && !excludeChanged) {
 		return 'settings-include-rules';
 	}
 	if (!includeChanged && excludeChanged) {
 		return 'settings-exclude-rules';
+	}
+	if (includeChanged && excludeChanged) {
+		return 'settings-path-rules';
+	}
+	if (enabledChanged) {
+		return 'settings-rule-enabled';
 	}
 	return 'settings-path-rules';
 }
@@ -675,7 +678,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 					excludeIndex++;
 				}
 			}
-			rowControllers.set(row.id, {
+			const controller: RuleRowController = {
 				row,
 				type: row.type,
 				indexWithinType,
@@ -683,7 +686,8 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 				inactiveByMode,
 				messageEl,
 				resolution,
-			});
+			};
+			rowControllers.set(row.id, controller);
 
 			enabledEl.addEventListener('change', () => {
 				row.enabled = enabledEl.checked;
@@ -693,7 +697,17 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 
 			typeSelectEl.addEventListener('change', () => {
 				row.type = typeSelectEl.value === 'exclude' ? 'exclude' : 'include';
-				renderRows();
+				const inactiveByMode = row.type === 'include' && !includeRulesActive;
+				controller.type = row.type;
+				controller.inactiveByMode = inactiveByMode;
+				inputEl.placeholder = row.type === 'include' ? 'projects/' : 'projects/drafts/';
+				inputEl.setAttr('aria-label', `${row.type === 'include' ? 'Include' : 'Exclude'} rule value`);
+				deleteButtonEl.setAttr('aria-label', `Delete ${row.type} rule`);
+				if (inactiveByMode) {
+					rowEl.addClass('is-inactive-by-mode');
+				} else {
+					rowEl.removeClass('is-inactive-by-mode');
+				}
 				syncRows(true);
 			});
 

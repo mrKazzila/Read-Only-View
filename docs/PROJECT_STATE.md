@@ -279,6 +279,7 @@ UI module split:
   - advanced rows show their resolved vault path or a specific inline error without rewriting the active input
   - all-Markdown mode visually marks every include row as inactive, excludes includes from active counts and diagnostics, and preserves each include rule's persisted enabled state
   - exclude rows remain active in all-Markdown mode unless individually disabled
+  - changing a row between include and exclude updates it in place; the type selector is not recreated or programmatically refocused, preventing the native mobile picker from reopening
   - add-rule button
   - zero rules is a valid editor state; deleting the final row does not create a placeholder or empty-line diagnostic
   - inline syntax help and README link
