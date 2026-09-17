@@ -2,7 +2,7 @@ import { ToggleComponent } from 'obsidian';
 import type { ForceReadModeSettings, SettingsTabPlugin } from './plugin-types';
 import { setSettingsFocusKey } from './settings-focus';
 
-type BooleanSettingKey = {
+export type BooleanSettingKey = {
 	[K in keyof ForceReadModeSettings]-?: NonNullable<ForceReadModeSettings[K]> extends boolean ? K : never;
 }[keyof ForceReadModeSettings];
 
@@ -56,6 +56,53 @@ const DEBUG_TOGGLE_SETTING_KEYS: BooleanSettingKey[] = [
 	'debugVerbosePaths',
 ];
 
+export function renderBooleanSetting(
+	containerEl: HTMLElement,
+	plugin: SettingsTabPlugin,
+	refresh: () => void,
+	settingKey: BooleanSettingKey,
+): void {
+	const toggleSetting = TOGGLE_SETTINGS.find((setting) => setting.settingKey === settingKey);
+	if (!toggleSetting) {
+		return;
+	}
+
+	const settingEl = containerEl.createDiv({ cls: 'read-only-view-setting-item' });
+	const infoEl = settingEl.createDiv({ cls: 'read-only-view-setting-info' });
+	infoEl.createDiv({
+		text: toggleSetting.name,
+		cls: 'read-only-view-setting-name',
+	});
+	infoEl.createDiv({
+		text: toggleSetting.description,
+		cls: 'read-only-view-setting-description',
+	});
+
+	const controlEl = settingEl.createDiv({ cls: 'read-only-view-setting-control' });
+	const toggle = new ToggleComponent(controlEl);
+	toggle.toggleEl.addClass('read-only-view-setting-toggle');
+	toggle.toggleEl.setAttr('tabindex', '0');
+	toggle.toggleEl.setAttr('role', 'switch');
+	toggle.toggleEl.setAttr('aria-label', toggleSetting.name);
+	toggle.toggleEl.setAttr(
+		'aria-checked',
+		plugin.settings[toggleSetting.settingKey] ? 'true' : 'false',
+	);
+	setSettingsFocusKey(toggle.toggleEl, `toggle-${toggleSetting.settingKey}`);
+	toggle
+		.setValue(plugin.settings[toggleSetting.settingKey])
+		.onChange(async (value) => {
+			toggle.toggleEl.setAttr('aria-checked', value ? 'true' : 'false');
+			await updateBooleanSetting(
+				plugin,
+				toggleSetting.settingKey,
+				value,
+				refresh,
+				toggleSetting.reapplyReason,
+			);
+		});
+}
+
 function renderToggleSettings(
 	containerEl: HTMLElement,
 	plugin: SettingsTabPlugin,
@@ -66,41 +113,7 @@ function renderToggleSettings(
 		if (!allowedSettingKeys.includes(toggleSetting.settingKey)) {
 			continue;
 		}
-
-		const settingEl = containerEl.createDiv({ cls: 'read-only-view-setting-item' });
-		const infoEl = settingEl.createDiv({ cls: 'read-only-view-setting-info' });
-		infoEl.createDiv({
-			text: toggleSetting.name,
-			cls: 'read-only-view-setting-name',
-		});
-		infoEl.createDiv({
-			text: toggleSetting.description,
-			cls: 'read-only-view-setting-description',
-		});
-
-		const controlEl = settingEl.createDiv({ cls: 'read-only-view-setting-control' });
-		const toggle = new ToggleComponent(controlEl);
-		toggle.toggleEl.addClass('read-only-view-setting-toggle');
-		toggle.toggleEl.setAttr('tabindex', '0');
-		toggle.toggleEl.setAttr('role', 'switch');
-		toggle.toggleEl.setAttr('aria-label', toggleSetting.name);
-		toggle.toggleEl.setAttr(
-			'aria-checked',
-			plugin.settings[toggleSetting.settingKey] ? 'true' : 'false',
-		);
-		setSettingsFocusKey(toggle.toggleEl, `toggle-${toggleSetting.settingKey}`);
-		toggle
-			.setValue(plugin.settings[toggleSetting.settingKey])
-			.onChange(async (value) => {
-				toggle.toggleEl.setAttr('aria-checked', value ? 'true' : 'false');
-				await updateBooleanSetting(
-					plugin,
-					toggleSetting.settingKey,
-					value,
-					refresh,
-					toggleSetting.reapplyReason,
-				);
-			});
+		renderBooleanSetting(containerEl, plugin, refresh, toggleSetting.settingKey);
 	}
 }
 

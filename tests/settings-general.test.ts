@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+	renderDebugSettings,
+	renderMatchingSettings,
 	renderModeSelector,
 	renderPrimarySettings,
 	updateBooleanSetting,
@@ -232,6 +234,33 @@ test('custom settings toggle is exposed as a keyboard-focusable switch', () => {
 		assert.equal(toggle.getAttr('aria-label'), 'Enabled');
 		assert.equal(toggle.getAttr('aria-checked'), 'true');
 		assert.equal(toggle.getAttr('data-read-only-view-focus'), 'toggle-enabled');
+	} finally {
+		dom.restore();
+	}
+});
+
+test('advanced toggles render the default matching and debug states', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const plugin = createPlugin();
+
+	try {
+		renderMatchingSettings(container as unknown as HTMLElement, plugin, () => undefined);
+		renderDebugSettings(container as unknown as HTMLElement, plugin, () => undefined);
+
+		const expectedStates = new Map([
+			['Use glob patterns', 'false'],
+			['Case sensitive', 'true'],
+			['Debug logging', 'false'],
+			['Debug: verbose paths', 'false'],
+		]);
+		const toggles = container.querySelectorAll('.read-only-view-setting-toggle');
+		assert.equal(toggles.length, expectedStates.size);
+		for (const toggle of toggles) {
+			const label = toggle.getAttr('aria-label');
+			assert.ok(label);
+			assert.equal(toggle.getAttr('aria-checked'), expectedStates.get(label));
+		}
 	} finally {
 		dom.restore();
 	}

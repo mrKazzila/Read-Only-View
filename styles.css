@@ -25,6 +25,15 @@
 	gap: 1rem;
 }
 
+.read-only-view-settings .read-only-view-declarative-setting {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 1rem;
+	padding: 0;
+	border: 0;
+}
+
 .read-only-view-header-card,
 .read-only-view-section-card,
 .read-only-view-disclosure-row {

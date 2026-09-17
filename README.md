@@ -40,6 +40,7 @@ On a new installation:
 - `Mode` is set to `All Markdown files`.
 - `Use glob patterns` is off, so ordinary rules use plain path-prefix matching.
 - `Case sensitive` is on.
+- `Debug logging` and `Debug: verbose paths` are off.
 - Exclude rules always take priority.
 
 To protect every Markdown note:
@@ -71,14 +72,6 @@ If the rule does not apply, paste the exact note path into **Path tester** and c
 *All Markdown files mode protects every Markdown note unless an exclude rule matches.*
 
 The welcome window is shown once for the current onboarding version and provides a shortcut to the settings page.
-
-<!-- TODO: screenshot
-Purpose: show the new onboarding experience.
-State: Welcome to read only view modal open with the setup steps and Open settings button visible.
-Platform: desktop; prepare a 1200x800 community preview variant.
-Suggested source: docs/images/Read-Only-View-welcome.png
-Community output: docs/images/community-images/Read-Only-View-welcome-1200x800.png
--->
 
 ## Installation
 
@@ -247,7 +240,7 @@ Value: project_a/archive/**
 The settings screen is organized around the main workflow:
 
 - The header shows the current number of active rules and warns when `All Markdown files` mode is enabled.
-- The mode card contains the global `Enabled` toggle and the two mode choices.
+- The header remains a separate card, followed by one card containing the global `Enabled` toggle and both mode choices.
 - **Path rules** contains one table for include and exclude rules.
 - **Path tester** explains how a source resolves and whether the resulting note is protected.
 - **Advanced** contains collapsible `Matching` and `Debug flags` sections.
@@ -289,17 +282,9 @@ For a system folder, the tester shows the resolved folder and asks for a specifi
 
 On narrow phone and tablet settings panes, the interface switches to a stacked layout so rule controls, descriptions, resolved paths, and errors remain readable. Rules created from a system path on desktop continue to work from their saved vault-relative paths on mobile.
 
-<!-- TODO: screenshot
-Purpose: demonstrate the redesigned responsive settings interface.
-State: Path rules visible in the stacked narrow-screen layout, with the type selector, Value field, enabled control, Delete action, and wrapped resolved-path text readable without horizontal overflow.
-Platform: mobile portrait or a narrow tablet split view; place the device capture on a 1200x800 community preview canvas if needed.
-Suggested source: docs/images/Read-Only-View-mobile-path-rules.png
-Community output: docs/images/community-images/Read-Only-View-mobile-path-rules-1200x800.png
--->
-
 ### Advanced
 
-The `Matching` and `Debug flags` sections are collapsed by default. Open `Matching` to switch between prefix and glob matching or to change case sensitivity. Debug options are intended only for diagnosing rule behavior.
+The `Matching` and `Debug flags` sections are collapsed by default and expand inline. Their summaries show the current state, and their individual controls remain discoverable through settings search. Open `Matching` to switch between prefix and glob matching or to change case sensitivity. Debug options are intended only for diagnosing rule behavior.
 
 ![Expanded Advanced settings](docs/images/community-images/Read-Only-View-advanced-open-1200x800.png)
 

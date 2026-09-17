@@ -1,6 +1,12 @@
+/* eslint-disable @typescript-eslint/no-deprecated, obsidianmd/no-unsupported-api -- This suite verifies both branches of the dual-support settings tab. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import {
+	Setting,
+	type SettingDefinition,
+	type SettingDefinitionItem,
+} from 'obsidian';
 import { ForceReadModeSettingTab } from '../src/settings-tab.js';
 import { installDomMocks, MockHTMLElement } from './helpers/dom-mocks.js';
 
@@ -80,6 +86,201 @@ function collectTexts(root: MockHTMLElement): string[] {
 	return [root.textContent, ...root.getChildren().flatMap((child) => collectTexts(child))]
 		.filter((value) => value.length > 0);
 }
+
+function collectSettingDefinitions(items: SettingDefinitionItem[]): SettingDefinition[] {
+	const definitions: SettingDefinition[] = [];
+	for (const item of items) {
+		if ('type' in item && (item.type === 'group' || item.type === 'list')) {
+			definitions.push(...collectSettingDefinitions(item.items ?? []));
+			continue;
+		}
+		if ('name' in item) {
+			definitions.push(item);
+		}
+	}
+	return definitions;
+}
+
+test('declarative settings expose every searchable setting', () => {
+	const { plugin } = createPlugin();
+	const tab = new ForceReadModeSettingTab({} as never, plugin as never);
+	const definitions = collectSettingDefinitions(tab.getSettingDefinitions());
+
+	const searchTerms = definitions.flatMap((definition) => [
+		definition.name,
+		...(definition.aliases ?? []),
+	]);
+	assert.deepEqual(searchTerms, [
+		'Read-only behavior',
+		'Enabled',
+		'Mode',
+		'Path rules',
+		'Path tester',
+		'Matching',
+		'Use glob patterns',
+		'Case sensitive',
+		'Debug flags',
+		'Debug logging',
+		'Debug: verbose paths',
+	]);
+	assert.ok(definitions.every((definition) => definition.desc));
+});
+
+test('declarative primary settings preserve the legacy card composition', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const { plugin } = createPlugin();
+	const tab = new ForceReadModeSettingTab({} as never, plugin as never);
+	tab.containerEl = container as unknown as HTMLElement;
+
+	try {
+		const primaryDefinition = collectSettingDefinitions(tab.getSettingDefinitions())
+			.find((definition) => definition.name === 'Read-only behavior');
+		assert.ok(primaryDefinition?.render);
+		const setting = new Setting(container as unknown as HTMLElement);
+		primaryDefinition.render(setting, {} as never);
+
+		const headerCards = container.querySelectorAll('.read-only-view-header-card');
+		const sectionCards = container.querySelectorAll('.read-only-view-section-card');
+		assert.equal(headerCards.length, 1);
+		assert.equal(sectionCards.length, 1);
+		assert.ok(collectTexts(headerCards[0]!).includes('Read Only View'));
+		assert.ok(collectTexts(sectionCards[0]!).includes('Enabled'));
+		assert.ok(collectTexts(sectionCards[0]!).includes('Mode'));
+		assert.equal(sectionCards[0]!.querySelectorAll('.read-only-view-mode-option').length, 2);
+	} finally {
+		dom.restore();
+	}
+});
+
+test('declarative advanced settings render inline collapsible sections', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const { plugin } = createPlugin();
+	const tab = new ForceReadModeSettingTab({} as never, plugin as never);
+	tab.containerEl = container as unknown as HTMLElement;
+
+	try {
+		const matchingDefinition = collectSettingDefinitions(tab.getSettingDefinitions())
+			.find((definition) => definition.name === 'Matching');
+		assert.ok(matchingDefinition?.render);
+		const setting = new Setting(container as unknown as HTMLElement);
+		matchingDefinition.render(setting, {} as never);
+
+		const disclosure = container.querySelector('.read-only-view-disclosure-row');
+		assert.ok(disclosure);
+		assert.ok(!disclosure.matches('.is-open'));
+		assert.ok(collectTexts(container).includes('Glob matching · Case-insensitive'));
+
+		const toggle = container.querySelector('.read-only-view-disclosure-toggle');
+		assert.ok(toggle);
+		toggle.trigger('click');
+		assert.ok(disclosure.matches('.is-open'));
+		assert.ok(collectTexts(container).includes('Use glob patterns'));
+		assert.ok(collectTexts(container).includes('Case sensitive'));
+	} finally {
+		dom.restore();
+	}
+});
+
+test('declarative controls refresh through update after a change', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const { plugin, saveCalls, applyReasons } = createPlugin();
+	const tab = new ForceReadModeSettingTab({} as never, plugin as never);
+	tab.containerEl = container as unknown as HTMLElement;
+	let updateCalls = 0;
+	(tab as unknown as { update: () => void }).update = () => {
+		updateCalls += 1;
+	};
+
+	try {
+		const primaryDefinition = collectSettingDefinitions(tab.getSettingDefinitions())
+			.find((definition) => definition.name === 'Read-only behavior');
+		assert.ok(primaryDefinition?.render);
+		const setting = new Setting(container as unknown as HTMLElement);
+		primaryDefinition.render(setting, {} as never);
+
+		const modeButtons = container.querySelectorAll('.read-only-view-mode-option');
+		assert.equal(modeButtons.length, 2);
+		modeButtons[1]!.trigger('click');
+		await Promise.resolve();
+		await Promise.resolve();
+
+		assert.equal(plugin.settings.forceAllMarkdownReadOnly, true);
+		assert.equal(updateCalls, 1);
+		assert.equal(saveCalls.length, 1);
+		assert.deepEqual(applyReasons, ['settings-force-all-markdown-read-only']);
+	} finally {
+		dom.restore();
+	}
+});
+
+test('declarative rule editor cleanup cancels pending saves', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const { plugin, saveCalls, applyReasons } = createPlugin();
+	const tab = new ForceReadModeSettingTab({} as never, plugin as never);
+	tab.containerEl = container as unknown as HTMLElement;
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			const definition = collectSettingDefinitions(tab.getSettingDefinitions())
+				.find((item) => item.name === 'Path rules');
+			assert.ok(definition?.render);
+			const setting = new Setting(container as unknown as HTMLElement);
+			const cleanup = definition.render(setting, {} as never);
+			assert.equal(typeof cleanup, 'function');
+
+			const input = container.querySelector('.read-only-view-rule-input');
+			assert.ok(input);
+			input.value = 'docs/pending-declarative.md';
+			input.trigger('input');
+			if (typeof cleanup === 'function') {
+				cleanup();
+			}
+			await flushAll();
+
+			assert.deepEqual(saveCalls, []);
+			assert.deepEqual(applyReasons, []);
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('declarative path tester cleanup cancels pending render work', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const { plugin } = createPlugin();
+	const tab = new ForceReadModeSettingTab({} as never, plugin as never);
+	tab.containerEl = container as unknown as HTMLElement;
+
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			const definition = collectSettingDefinitions(tab.getSettingDefinitions())
+				.find((item) => item.name === 'Path tester');
+			assert.ok(definition?.render);
+			const setting = new Setting(container as unknown as HTMLElement);
+			const cleanup = definition.render(setting, {} as never);
+			assert.equal(typeof cleanup, 'function');
+
+			const input = container.querySelector('.read-only-view-path-tester input, input');
+			assert.ok(input);
+			input.value = 'docs/a.md';
+			input.trigger('input');
+			if (typeof cleanup === 'function') {
+				cleanup();
+			}
+			await flushAll();
+
+			const texts = collectTexts(container);
+			assert.ok(!texts.includes('Matched include: docs/a.md'));
+		});
+	} finally {
+		dom.restore();
+	}
+});
 
 test('settings tab rerender disposes previous rule editor and cancels pending saves', async () => {
 	const dom = installDomMocks();

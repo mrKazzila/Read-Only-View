@@ -50,6 +50,7 @@ High-level modules:
   - Path-aware `EditorState.readOnly` and `EditorView.editable` gating via `editorInfoField`
 - `src/settings-tab.ts`
   - `ForceReadModeSettingTab` composition entrypoint for sectioned settings UI
+  - Declarative, searchable setting definitions on Obsidian 1.13+ with the legacy `display()` renderer retained for Obsidian 1.10.3-1.12.x
 - `src/settings-general.ts`
   - Enabled control, mutually exclusive mode buttons, and shared save/re-apply side-effect helper
 - `src/settings-rule-editor.ts`
@@ -246,7 +247,10 @@ UI module split:
   - shown only when `dismissedWelcomeVersion < WELCOME_VERSION`
   - dismissing or using `Open settings` saves the current onboarding version
   - action buttons use separated 44 px targets and inset focus indicators to avoid visual overlap
-- Settings layout keeps the header, mode, Path rules, and Path tester workflow permanently visible. Only `Matching` and `Debug flags` are collapsible, with ephemeral open state.
+- Settings layout keeps the header, combined Enabled/mode card, Path rules, and Path tester workflow permanently visible. `Matching` and `Debug flags` remain inline collapsible sections with ephemeral open state in both renderers.
+- On Obsidian 1.13+, `Read-only behavior` is one custom declarative item with `Enabled` and `Mode` search aliases, preserving the legacy two-card composition instead of allowing the host to split those controls into separate blocks.
+- Obsidian 1.13+ indexes the two Advanced sections and exposes their four control names as search aliases; custom `render` callbacks preserve the plugin-owned accordion controls and their persistence side effects.
+- Obsidian versions before 1.13 use the legacy `display()` path, so the supported runtime baseline remains 1.10.3.
 - Header card:
   - title `Read Only View`
   - subtitle `Read-only behavior`
@@ -303,6 +307,7 @@ UI module split:
 - Path-rule help is a single external-link focus target (icon plus label), with visible focus and Enter/Space activation.
 - Advanced disclosure headers use a full-width inset focus indicator that remains visible inside the clipped card, plus `aria-expanded`/`aria-controls`; arrow glyphs are decorative.
 - `Debug: verbose paths` toggle allows full file paths in debug logs; default keeps paths redacted
+- Advanced defaults enable only `Case sensitive`; glob matching and both debug flags are disabled.
 - Persisted settings schema:
   - `forceAllMarkdownReadOnly: boolean`
   - `includeRules: string[]`
@@ -362,8 +367,8 @@ Core config:
   - Obsidian lint preset + repo ignores + test-file overrides
   - default-project allowance sized for the current typed test suite
 - Dependency strategy:
-  - `obsidian` is pinned to an exact version (`1.10.3`) in `package.json`
-  - `minAppVersion` is aligned to the only explicitly pinned and manually tracked compatibility baseline (`1.10.3`)
+  - `obsidian` compile-time API types are pinned to `1.13.1` so the settings tab can expose declarative definitions
+  - `minAppVersion` remains `1.10.3`; APIs introduced after that baseline must have an explicit legacy path or runtime guard
   - version updates are explicit and validated with full lint/test/build and runtime smoke checks
 
 Generated artifacts (not source of truth):

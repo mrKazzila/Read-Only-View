@@ -5,6 +5,7 @@
 		"module": "ESNext",
 		"target": "ES6",
 		"allowJs": true,
+		"skipLibCheck": true,
 		"noImplicitAny": true,
 		"noImplicitThis": true,
 		"noImplicitReturns": true,

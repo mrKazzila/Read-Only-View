@@ -6,7 +6,7 @@ export type OwnedTimeout = {
 
 export type AnimationFrameWindow = Pick<Window, 'requestAnimationFrame' | 'cancelAnimationFrame'>;
 export type OwnedAnimationFrame = {
-	ownerWindow: AnimationFrameWindow | null;
+	ownerWindow: AnimationFrameWindow;
 	id: number;
 };
 
@@ -85,21 +85,9 @@ export function requestOwnedAnimationFrame(
 			id: ownerWindow.requestAnimationFrame(callback),
 		};
 	}
-	if (typeof requestAnimationFrame === 'function') {
-		return {
-			ownerWindow: null,
-			id: requestAnimationFrame(callback),
-		};
-	}
 	return null;
 }
 
 export function cancelOwnedAnimationFrame(frame: OwnedAnimationFrame): void {
-	if (frame.ownerWindow) {
-		frame.ownerWindow.cancelAnimationFrame(frame.id);
-		return;
-	}
-	if (typeof cancelAnimationFrame === 'function') {
-		cancelAnimationFrame(frame.id);
-	}
+	frame.ownerWindow.cancelAnimationFrame(frame.id);
 }

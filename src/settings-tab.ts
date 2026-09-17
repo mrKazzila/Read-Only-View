@@ -1,4 +1,10 @@
-import { App, Plugin, PluginSettingTab } from 'obsidian';
+import {
+	App,
+	Plugin,
+	PluginSettingTab,
+	Setting,
+	type SettingDefinitionItem,
+} from 'obsidian';
 import type { PathTesterController } from './settings-path-tester';
 import {
 	getPathTesterSummary,
@@ -75,7 +81,94 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		const refresh = () => {
+			const declarativeTab = this as unknown as { update?: () => void };
+			declarativeTab.update?.();
+		};
+		return [
+			{
+				name: 'Read-only behavior',
+				desc: 'Enable read-only enforcement and choose how it applies to Markdown notes.',
+				aliases: ['Enabled', 'Mode'],
+				render: (setting) => {
+					const containerEl = this.prepareDeclarativeSetting(setting);
+					this.renderHeaderSection(containerEl);
+					const sectionEl = this.createCardSection(containerEl);
+					renderPrimarySettings(sectionEl, this.plugin, refresh);
+					renderModeSelector(sectionEl, this.plugin, refresh);
+				},
+			},
+			{
+				type: 'group',
+				heading: 'Path rules',
+				items: [
+					{
+						name: 'Path rules',
+						desc: 'Choose folders or notes to keep in Reading view.',
+						render: (setting) => this.renderDeclarativePathRules(setting),
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: 'Path tester',
+				items: [
+					{
+						name: 'Path tester',
+						desc: 'Test a vault path against the current rules.',
+						render: (setting) => this.renderDeclarativePathTester(setting),
+					},
+				],
+			},
+			{
+				type: 'group',
+				heading: 'Advanced',
+				items: [
+					{
+						name: 'Matching',
+						desc: 'Choose how paths are compared before rules are evaluated.',
+						aliases: ['Use glob patterns', 'Case sensitive'],
+						render: (setting) => {
+							const containerEl = this.prepareDeclarativeSetting(setting);
+							const section = this.createCollapsibleSection(
+								containerEl,
+								'matching',
+								'Matching',
+								'Choose how paths are compared before rules are evaluated.',
+								getMatchingSummary(this.plugin.settings),
+								false,
+							);
+							renderMatchingSettings(section.bodyEl, this.plugin, refresh);
+						},
+					},
+					{
+						name: 'Debug flags',
+						desc: 'Enable extra logging only when diagnosing rule behavior.',
+						aliases: ['Debug logging', 'Debug: verbose paths'],
+						render: (setting) => {
+							const containerEl = this.prepareDeclarativeSetting(setting);
+							const section = this.createCollapsibleSection(
+								containerEl,
+								'debugFlags',
+								'Debug flags',
+								'Enable extra logging only when diagnosing rule behavior.',
+								getDebugSummary(this.plugin.settings),
+								false,
+							);
+							renderDebugSettings(section.bodyEl, this.plugin, refresh);
+						},
+					},
+				],
+			},
+		];
+	}
+
 	display(): void {
+		this.renderLegacySettings();
+	}
+
+	private renderLegacySettings(): void {
 		const focusSnapshot = captureSettingsFocus(this.containerEl);
 		this.disposeUiControllers();
 		const { containerEl } = this;
@@ -85,8 +178,8 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 		const headerIndicators = this.renderHeaderSection(containerEl);
 
 		const modeSectionEl = this.createCardSection(containerEl);
-		renderPrimarySettings(modeSectionEl, this.plugin, () => this.display());
-		renderModeSelector(modeSectionEl, this.plugin, () => this.display());
+		renderPrimarySettings(modeSectionEl, this.plugin, () => this.renderLegacySettings());
+		renderModeSelector(modeSectionEl, this.plugin, () => this.renderLegacySettings());
 
 		const pathRulesSection = this.createStaticWorkflowSection(
 			containerEl,
@@ -100,7 +193,90 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 				!this.plugin.settings.forceAllMarkdownReadOnly,
 			),
 		);
-		this.ruleEditor = renderRuleEditor({
+		this.renderRuleEditor(pathRulesSection, headerIndicators);
+
+		const pathTesterSection = this.createStaticWorkflowSection(
+			containerEl,
+			'Path tester',
+			'Test a vault path against the current rules.',
+			getPathTesterSummary(),
+		);
+		this.renderPathTester(pathTesterSection.bodyEl);
+
+		const advancedSectionEl = this.createCardSection(containerEl, 'Advanced');
+		const matchingSection = this.createCollapsibleSection(
+			advancedSectionEl,
+			'matching',
+			'Matching',
+			'Choose how paths are compared before rules are evaluated.',
+			getMatchingSummary(this.plugin.settings),
+			false,
+		);
+		renderMatchingSettings(matchingSection.bodyEl, this.plugin, () => this.renderLegacySettings());
+
+		const debugSection = this.createCollapsibleSection(
+			advancedSectionEl,
+			'debugFlags',
+			'Debug flags',
+			'Enable extra logging only when diagnosing rule behavior.',
+			getDebugSummary(this.plugin.settings),
+			false,
+		);
+		renderDebugSettings(debugSection.bodyEl, this.plugin, () => this.renderLegacySettings());
+
+		if (!restoreSettingsFocus(containerEl, focusSnapshot)) {
+			focusFirstSettingsControl(containerEl);
+		}
+	}
+
+	hide(): void {
+		this.disposeUiControllers();
+		this.sectionOpenState.clear();
+	}
+
+	private prepareDeclarativeSetting(setting: Setting): HTMLElement {
+		this.containerEl.addClass('read-only-view-settings');
+		setting.settingEl.empty();
+		setting.settingEl.addClass('read-only-view-declarative-setting');
+		return setting.settingEl;
+	}
+
+	private renderDeclarativePathRules(setting: Setting): () => void {
+		const containerEl = this.prepareDeclarativeSetting(setting);
+		const section = this.createStaticWorkflowSection(
+			containerEl,
+			'Path rules',
+			'Choose folders or notes to keep in Reading view.',
+			getPathRulesSummary(
+				this.plugin.settings.includeRules,
+				this.plugin.settings.excludeRules,
+				this.plugin.settings.includeRuleEnabled,
+				this.plugin.settings.excludeRuleEnabled,
+				!this.plugin.settings.forceAllMarkdownReadOnly,
+			),
+		);
+		const controller = this.renderRuleEditor(section);
+		return () => this.disposeRuleEditor(controller);
+	}
+
+	private renderDeclarativePathTester(setting: Setting): () => void {
+		const containerEl = this.prepareDeclarativeSetting(setting);
+		const section = this.createStaticWorkflowSection(
+			containerEl,
+			'Path tester',
+			'Test a vault path against the current rules.',
+			getPathTesterSummary(),
+		);
+		const controller = this.renderPathTester(section.bodyEl);
+		return () => this.disposePathTester(controller);
+	}
+
+	private renderRuleEditor(
+		pathRulesSection: StaticSectionController,
+		headerIndicators?: HeaderIndicatorsController,
+	): RuleEditorController {
+		this.ruleEditor?.dispose();
+		const controller = renderRuleEditor({
 			containerEl: pathRulesSection.bodyEl,
 			includeRules: this.plugin.settings.includeRules,
 			excludeRules: this.plugin.settings.excludeRules,
@@ -133,51 +309,45 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 			},
 			onStateChange: ({ includeCount, excludeCount }) => {
 				pathRulesSection.setSummary(buildRulesSummary(includeCount, excludeCount));
-				headerIndicators.setActiveRulesCount(includeCount + excludeCount);
+				if (headerIndicators) {
+					headerIndicators.setActiveRulesCount(includeCount + excludeCount);
+				} else {
+					this.setRenderedActiveRulesCount(includeCount + excludeCount);
+				}
 			},
 		});
+		this.ruleEditor = controller;
+		return controller;
+	}
 
-		const pathTesterSection = this.createStaticWorkflowSection(
-			containerEl,
-			'Path tester',
-			'Test a vault path against the current rules.',
-			getPathTesterSummary(),
-		);
-		this.pathTesterController = renderPathTester(pathTesterSection.bodyEl, {
+	private renderPathTester(containerEl: HTMLElement): PathTesterController {
+		this.pathTesterController?.dispose();
+		const controller = renderPathTester(containerEl, {
 			settings: this.plugin.settings,
 			getCompiledRuleMatcher: this.plugin.getCompiledRuleMatcher?.bind(this.plugin),
 			resolverContext: getRuleResolverContext(this.app),
 		});
+		this.pathTesterController = controller;
+		return controller;
+	}
 
-		const advancedSectionEl = this.createCardSection(containerEl, 'Advanced');
-		const matchingSection = this.createCollapsibleSection(
-			advancedSectionEl,
-			'matching',
-			'Matching',
-			'Choose how paths are compared before rules are evaluated.',
-			getMatchingSummary(this.plugin.settings),
-			false,
-		);
-		renderMatchingSettings(matchingSection.bodyEl, this.plugin, () => this.display());
-
-		const debugSection = this.createCollapsibleSection(
-			advancedSectionEl,
-			'debugFlags',
-			'Debug flags',
-			'Enable extra logging only when diagnosing rule behavior.',
-			getDebugSummary(this.plugin.settings),
-			false,
-		);
-		renderDebugSettings(debugSection.bodyEl, this.plugin, () => this.display());
-
-		if (!restoreSettingsFocus(containerEl, focusSnapshot)) {
-			focusFirstSettingsControl(containerEl);
+	private disposeRuleEditor(controller: RuleEditorController): void {
+		controller.dispose();
+		if (this.ruleEditor === controller) {
+			this.ruleEditor = null;
 		}
 	}
 
-	hide(): void {
-		this.disposeUiControllers();
-		this.sectionOpenState.clear();
+	private disposePathTester(controller: PathTesterController): void {
+		controller.dispose();
+		if (this.pathTesterController === controller) {
+			this.pathTesterController = null;
+		}
+	}
+
+	private setRenderedActiveRulesCount(count: number): void {
+		const badgeEl = this.containerEl.querySelector<HTMLElement>('.read-only-view-status-badge');
+		badgeEl?.setText(`Active rules: ${count}`);
 	}
 
 	private renderHeaderSection(containerEl: HTMLElement): HeaderIndicatorsController {

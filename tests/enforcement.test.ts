@@ -490,6 +490,22 @@ test('requestAnimationFrameSafe falls back to global window', async () => {
 	}
 });
 
+test('requestAnimationFrameSafe returns null when no window owns animation frames', () => {
+	const originalWindow = (globalThis as Record<string, unknown>).window;
+	const originalActiveWindow = (globalThis as Record<string, unknown>).activeWindow;
+
+	(globalThis as Record<string, unknown>).window = undefined;
+	(globalThis as Record<string, unknown>).activeWindow = undefined;
+
+	try {
+		assert.equal(requestAnimationFrameSafe(() => undefined), null);
+		assert.doesNotThrow(() => cancelAnimationFrameSafe(1));
+	} finally {
+		(globalThis as Record<string, unknown>).window = originalWindow;
+		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
+	}
+});
+
 test('requestAnimationFrameSafe prefers provided activeWindow', async () => {
 	const originalWindow = (globalThis as Record<string, unknown>).window;
 	const originalActiveWindow = (globalThis as Record<string, unknown>).activeWindow;

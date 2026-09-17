@@ -13,6 +13,8 @@ import {
 test('source limits distinguish paths from Obsidian URLs', () => {
 	assert.equal(getSourceInputMaxLength('/vault/note.md'), PATH_SOURCE_INPUT_MAX_LENGTH);
 	assert.equal(getSourceInputMaxLength('  OBSIDIAN://open?vault=demo'), OBSIDIAN_URI_INPUT_MAX_LENGTH);
+	assert.equal(getSourceInputMaxLength('\t\nobsidian://open?vault=demo'), OBSIDIAN_URI_INPUT_MAX_LENGTH);
+	assert.equal(getSourceInputMaxLength('notes/obsidian://example.md'), PATH_SOURCE_INPUT_MAX_LENGTH);
 });
 
 test('source input accepts the boundary and truncates one character beyond it', () => {

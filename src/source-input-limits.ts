@@ -9,7 +9,7 @@ export type LimitedSourceInput = {
 };
 
 export function getSourceInputMaxLength(value: string): number {
-	return value.trimStart().toLowerCase().startsWith('obsidian://')
+	return /^\s*obsidian:\/\//i.test(value)
 		? OBSIDIAN_URI_INPUT_MAX_LENGTH
 		: PATH_SOURCE_INPUT_MAX_LENGTH;
 }

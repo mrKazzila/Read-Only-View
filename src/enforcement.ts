@@ -47,10 +47,6 @@ export function cancelAnimationFrameSafe(
 	const frameWindow = resolveAnimationFrameWindow(ownerWindow);
 	if (frameWindow) {
 		frameWindow.cancelAnimationFrame(frameId);
-		return;
-	}
-	if (typeof cancelAnimationFrame === 'function') {
-		cancelAnimationFrame(frameId);
 	}
 }
 
@@ -326,41 +322,6 @@ class DefaultEnforcementService implements EnforcementService {
 					}
 					resolve(true);
 				}, frameWindow);
-				if (!ownedFrame) {
-					resolve(true);
-					return;
-				}
-				pendingFrame = {
-					cancel: () => {
-						if (settled) {
-							return;
-						}
-						settled = true;
-						cancelOwnedAnimationFrame(ownedFrame);
-						if (pendingFrame) {
-							this.pendingAnimationFrames.delete(pendingFrame);
-						}
-						resolve(false);
-					},
-				};
-				this.pendingAnimationFrames.add(pendingFrame);
-			});
-		}
-
-		if (typeof requestAnimationFrame === 'function') {
-			return new Promise((resolve) => {
-				let settled = false;
-				let pendingFrame: PendingAnimationFrame | null = null;
-				const ownedFrame = requestOwnedAnimationFrame(() => {
-					if (settled) {
-						return;
-					}
-					settled = true;
-					if (pendingFrame) {
-						this.pendingAnimationFrames.delete(pendingFrame);
-					}
-					resolve(true);
-				});
 				if (!ownedFrame) {
 					resolve(true);
 					return;
