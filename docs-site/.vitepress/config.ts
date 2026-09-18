@@ -1,5 +1,7 @@
 import { defineConfig } from 'vitepress';
 
+// esbuild 0.28 cannot lower destructuring for Vite 6's default Safari 14 target.
+const browserTargets = ['es2020', 'chrome87', 'edge88', 'firefox78', 'safari14.1'];
 const siteUrl = 'https://mrkazzila.github.io/Read-Only-View/';
 const description = 'Keep selected Obsidian notes in Reading view and prevent accidental edits with local include and exclude path rules.';
 const guides = [
@@ -16,6 +18,10 @@ export default defineConfig({
 	lang: 'en-US',
 	base: '/Read-Only-View/',
 	cleanUrls: true,
+	vite: {
+		build: { target: browserTargets },
+		optimizeDeps: { esbuildOptions: { target: browserTargets } },
+	},
 	sitemap: { hostname: siteUrl },
 	themeConfig: {
 		nav: [

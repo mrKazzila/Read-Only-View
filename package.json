@@ -44,5 +44,13 @@
 	"dependencies": {
 		"@codemirror/state": "^6.5.0",
 		"@codemirror/view": "^6.38.6"
+	},
+	"overrides": {
+		"vitepress": {
+			"vite": {
+				".": "^6.4.3",
+				"esbuild": "$esbuild"
+			}
+		}
 	}
 }

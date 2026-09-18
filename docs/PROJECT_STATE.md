@@ -429,3 +429,7 @@ When plugin behavior changes (matching logic, enforcement behavior, commands, se
 The public guides explicitly cover all-Markdown mode versus Include `**`, a single editable note inside a protected folder, retained disabled rules, supported path sources, Path tester, wildcards, and case sensitivity. Question-based headings and FAQ answers link to concrete setup examples.
 
 Additional public examples cover an all-Markdown vault with editable Daily Notes and Inbox folders, and direct-child folder matching with `Reference/*.md`. `docs-site/docs/troubleshooting.md` diagnoses unexpected read-only/editable results and links to Path tester; navigation, homepage, and FAQ expose these workflows.
+
+Website dependency security: `package.json` scopes a Vite `^6.4.3` override to VitePress. VitePress 1.6.4 otherwise restricts Vite to 5.x, blocking Dependabot security updates and retaining vulnerable esbuild 0.21.x. The nested Vite esbuild override references `$esbuild`, reusing the root 0.28.1 pin to meet Dependabot's reported minimum fixed version; Vite 6 alone would retain esbuild 0.25.x. The overrides leave the plugin build dependency unchanged; recheck dev/production website behavior on upgrades and remove it once a stable VitePress release provides patched dependencies natively.
+
+The website build explicitly targets Safari 14.1 rather than Vite 6's default Safari 14, avoiding esbuild 0.28's unsupported destructuring lowering for older Safari. Chrome 87, Edge 88, Firefox 78, and ES2020 targets are retained; plugin runtime compatibility is unchanged.

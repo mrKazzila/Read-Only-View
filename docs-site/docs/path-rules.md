@@ -2,6 +2,10 @@
 title: Path Rules for Read Only View
 description: Learn how Include and Exclude rules, folder prefixes, exact imported notes, glob patterns, and matching precedence work in Read Only View.
 ---
+
+<script setup>
+import settingsScreenshot from "../../docs/images/community-images/Read-Only-View-path-rules-1200x800.png";
+</script>
 # Path rules
 
 **Path rules** select which Markdown notes stay in Reading view. Open **Settings → Read Only View** to add, disable, or remove a rule.
@@ -18,7 +22,7 @@ New installations start in **All Markdown files** mode. Include rules are retain
 
 Each row has an **Enabled** checkbox, an **Include** or **Exclude** type, a **Value** field, and a Delete button. Disable a row to keep it for later without applying it. Disabled and unresolved rules do not participate in matching or active-rule counts.
 
-![Path rules showing vault paths, Obsidian URLs, and system paths](../../docs/images/community-images/Read-Only-View-path-rules-1200x800.png)
+<img :src="settingsScreenshot" alt="Path rules showing vault paths, Obsidian URLs, and system paths" />
 
 ## Ordinary vault paths
 

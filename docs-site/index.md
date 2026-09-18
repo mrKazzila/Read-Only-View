@@ -27,6 +27,10 @@ features:
     link: /guides/mobile-reading-view
 ---
 
+<script setup>
+import settingsScreenshot from "../docs/images/community-images/Read-Only-View-matched-paths-mode-1200x800.png";
+</script>
+
 ## Get started
 
 In Obsidian, open **Settings → Community plugins → Browse**, search for **Read Only View**, then select **Install** and **Enable**. Requires Obsidian **1.10.3 or newer**; supports desktop and mobile.
@@ -35,7 +39,7 @@ In Obsidian, open **Settings → Community plugins → Browse**, search for **Re
 New installations use **All Markdown files** mode. To protect selected notes or folders, open **Settings → Read Only View**, select **Only matched paths**, and add an **Include** rule under **Path rules**.
 :::
 
-![Read Only View settings with Only matched paths selected](../docs/images/community-images/Read-Only-View-matched-paths-mode-1200x800.png)
+<img :src="settingsScreenshot" alt="Read Only View settings with Only matched paths selected" />
 
 ## Find your workflow
 
