@@ -14,7 +14,8 @@
 		"test:e2e": "npm run build && python3 scripts/create_demo_vault.py --force && wdio run wdio.conf.mjs",
 		"test:e2e:debug": "npm run build && python3 scripts/create_demo_vault.py --force && wdio run wdio.conf.mjs --logLevel info",
 		"docs:dev": "vitepress dev docs-site",
-		"docs:build": "vitepress build docs-site",
+		"docs:build": "vitepress build docs-site && npm run docs:validate",
+		"docs:validate": "node scripts/validate-docs-sitemap.mjs",
 		"docs:preview": "vitepress preview docs-site"
 	},
 	"keywords": [],
