@@ -44,6 +44,7 @@ export default tseslint.config(
 		'.tmp',
 		'node_modules',
 		'dist',
+		'docs-site/.vitepress/**',
 		'build-tests',
 		'demo-vault',
 		'esbuild.config.mjs',

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /Read-Only-View/
+
+Sitemap: https://mrkazzila.github.io/Read-Only-View/sitemap.xml

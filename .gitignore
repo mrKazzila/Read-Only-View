@@ -43,3 +43,6 @@ pnpm-debug.log*
 
 # python
 **/__pycache__
+
+# VitePress cache
+docs-site/.vitepress/cache/

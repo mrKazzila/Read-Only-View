@@ -12,7 +12,10 @@
 		"test": "tsc -p tsconfig.test.json && node tests/helpers/prepare-obsidian-runtime.mjs && node --test build-tests/**/*.test.js",
 		"lint": "eslint .",
 		"test:e2e": "npm run build && python3 scripts/create_demo_vault.py --force && wdio run wdio.conf.mjs",
-		"test:e2e:debug": "npm run build && python3 scripts/create_demo_vault.py --force && wdio run wdio.conf.mjs --logLevel info"
+		"test:e2e:debug": "npm run build && python3 scripts/create_demo_vault.py --force && wdio run wdio.conf.mjs --logLevel info",
+		"docs:dev": "vitepress dev docs-site",
+		"docs:build": "vitepress build docs-site",
+		"docs:preview": "vitepress preview docs-site"
 	},
 	"keywords": [],
 	"license": "0BSD",
@@ -35,6 +38,7 @@
 		"tslib": "2.4.0",
 		"typescript": "^5.8.3",
 		"typescript-eslint": "8.35.1",
+		"vitepress": "1.6.4",
 		"webdriverio": "^9.27.2"
 	},
 	"dependencies": {
