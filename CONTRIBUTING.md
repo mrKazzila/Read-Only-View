@@ -36,6 +36,25 @@ npm test
 npm run lint
 ```
 
+## Documentation website
+
+The public VitePress site lives in `docs-site/`; `docs/` remains internal project documentation and the source of shared screenshots. Use Node.js 22.18+ (Node 22 is also used in CI) and the root npm lockfile:
+
+```bash
+npm ci
+npm run docs:dev
+npm run docs:build
+npm run docs:preview
+```
+
+Open the URL printed by VitePress, including `/Read-Only-View/`. The build checks Markdown links and writes `docs-site/.vitepress/dist/`. Preview that production build to check images and navigation under the repository base path. VitePress configuration and theme files are separate from the Obsidian runtime lint configuration; validate them with the site build.
+
+Reuse images from `docs/images/` with relative Markdown image links; Vite includes them in the site's output without maintaining duplicate source copies. Give each page a unique frontmatter title and description. Canonical URLs and Open Graph tags are generated from page metadata; the homepage also includes factual SoftwareApplication JSON-LD. There is no standalone favicon asset in the current repository, so the site does not invent one.
+
+`.github/workflows/pages.yml` builds pull requests and deploys pushes to `master` through the official Pages artifact/deploy actions. In GitHub **Settings → Pages → Build and deployment → Source**, select **GitHub Actions**. Merge the site changes into `master` (or run **Documentation website** manually on `master`). The resulting URL is <https://mrkazzila.github.io/Read-Only-View/>. Existing plugin CI and release workflows are independent.
+
+The site emits `sitemap.xml` and `robots.txt`. Because this is a project site, its robots file lives at `/Read-Only-View/robots.txt`; crawlers only use robots directives at the origin root. If you maintain `mrkazzila.github.io`, add the sitemap URL to its root robots file, or submit the sitemap directly in your search-engine webmaster tools.
+
 ## Development workflow
 
 ### 1) Run in Obsidian

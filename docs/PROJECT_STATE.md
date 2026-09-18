@@ -416,3 +416,16 @@ When plugin behavior changes (matching logic, enforcement behavior, commands, se
 1. Update this file (`docs/PROJECT_STATE.md`).
 2. Update user-facing docs (`README.md`).
 3. Re-run validation: `just lint && just test && just build`.
+
+## Public documentation website
+
+- `docs-site/` contains the VitePress homepage, five workflow guides, Path rules, Path tester, and FAQ. It documents the checked-in behavior rather than claiming a latest release version.
+- `docs-site/.vitepress/config.ts` owns navigation, the `/Read-Only-View/` base, sitemap, canonical URLs, Open Graph metadata, and homepage SoftwareApplication JSON-LD.
+- Screenshots are imported from `docs/images/community-images/`; there are no duplicated source assets.
+- Root npm scripts: `docs:dev`, `docs:build`, `docs:preview`. Website dependencies are development-only and locked in `package-lock.json`.
+- `.github/workflows/pages.yml` builds PRs against `master` and deploys `master` to GitHub Pages. Plugin CI, releases, and runtime behavior are unchanged.
+- Setup, validation, and the project-site robots.txt limitation are documented in `CONTRIBUTING.md`.
+
+The public guides explicitly cover all-Markdown mode versus Include `**`, a single editable note inside a protected folder, retained disabled rules, supported path sources, Path tester, wildcards, and case sensitivity. Question-based headings and FAQ answers link to concrete setup examples.
+
+Additional public examples cover an all-Markdown vault with editable Daily Notes and Inbox folders, and direct-child folder matching with `Reference/*.md`. `docs-site/docs/troubleshooting.md` diagnoses unexpected read-only/editable results and links to Path tester; navigation, homepage, and FAQ expose these workflows.

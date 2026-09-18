@@ -12,6 +12,8 @@ Keep Markdown notes in Obsidian Reading view, either across the whole vault or o
 
 Privacy: Read Only View makes no network requests, and all rule matching stays local. When you import an absolute system path, the plugin stores only its portable path inside the vault, not the full local path.
 
+Documentation: https://mrkazzila.github.io/Read-Only-View/
+
 ## What it does
 
 Read Only View keeps matching `.md` notes in Reading view to help prevent accidental edits.
