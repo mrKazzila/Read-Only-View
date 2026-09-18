@@ -17,6 +17,9 @@ export default defineConfig({
 	description,
 	lang: 'en-US',
 	base: '/Read-Only-View/',
+	head: [
+		['link', { rel: 'icon', type: 'image/svg+xml', href: '/Read-Only-View/favicon.svg' }],
+	],
 	cleanUrls: true,
 	vite: {
 		build: { target: browserTargets },
