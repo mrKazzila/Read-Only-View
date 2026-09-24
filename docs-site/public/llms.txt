@@ -1,0 +1,29 @@
+# Read Only View
+
+> Read Only View is an Obsidian community plugin that keeps selected Markdown notes and folders in Reading view to help prevent accidental edits.
+
+## Documentation
+
+- [Overview](https://mrkazzila.github.io/Read-Only-View/)
+- [Make one note read-only](https://mrkazzila.github.io/Read-Only-View/guides/make-note-read-only)
+- [Make a folder read-only](https://mrkazzila.github.io/Read-Only-View/guides/make-folder-read-only)
+- [Keep all notes in Reading view](https://mrkazzila.github.io/Read-Only-View/guides/make-all-notes-read-only)
+- [Prevent accidental editing](https://mrkazzila.github.io/Read-Only-View/guides/prevent-accidental-editing)
+- [Mobile Reading view](https://mrkazzila.github.io/Read-Only-View/guides/mobile-reading-view)
+
+## Reference
+
+- [Path rules](https://mrkazzila.github.io/Read-Only-View/docs/path-rules)
+- [Path tester](https://mrkazzila.github.io/Read-Only-View/docs/path-tester)
+- [Troubleshooting](https://mrkazzila.github.io/Read-Only-View/docs/troubleshooting)
+- [FAQ](https://mrkazzila.github.io/Read-Only-View/faq)
+
+## Project
+
+- GitHub: [https://github.com/mrKazzila/Read-Only-View](https://github.com/mrKazzila/Read-Only-View)
+- Obsidian plugin: Read Only View
+
+## Important
+
+Read Only View controls Obsidian's Reading/Edit view behavior.
+It does not modify operating-system file permissions or provide filesystem-level locking.
