@@ -433,3 +433,17 @@ Additional public examples cover an all-Markdown vault with editable Daily Notes
 Website dependency security: `package.json` scopes a Vite `^6.4.3` override to VitePress. VitePress 1.6.4 otherwise restricts Vite to 5.x, blocking Dependabot security updates and retaining vulnerable esbuild 0.21.x. The nested Vite esbuild override references `$esbuild`, reusing the root 0.28.1 pin to meet Dependabot's reported minimum fixed version; Vite 6 alone would retain esbuild 0.25.x. The overrides leave the plugin build dependency unchanged; recheck dev/production website behavior on upgrades and remove it once a stable VitePress release provides patched dependencies natively.
 
 The website build explicitly targets Safari 14.1 rather than Vite 6's default Safari 14, avoiding esbuild 0.28's unsupported destructuring lowering for older Safari. Chrome 87, Edge 88, Firefox 78, and ES2020 targets are retained; plugin runtime compatibility is unchanged.
+
+## Star History analytics (2026-10-01)
+
+This is repository/site tooling, separate from the Obsidian runtime. Python 3.11+ standard-library scripts fetch only GitHub aggregate `/stargazers/history` and `/stargazers/count` endpoints (API version `2026-03-10`). No stargazer listing or identity data is requested.
+
+Pipeline: GitHub aggregate API → `scripts/update_star_history.py` → `docs-site/public/data/star-history.json` → offline `scripts/build_star_analytics.py` → ignored VitePress generated JSON → SVG dashboard at `/star-history`.
+
+`scripts/star_history/` separates API transport, validated normalization/atomic storage, and pure analytics. The JSON schema version is 1, with repository/updated_at metadata and separate `reconstructed` and `snapshots` series. Each point has date/stars/delta; the first delta is null. Reconstruction is cumulative API daily counts, not historical measured totals. Snapshots are collected in UTC, replace only the same date, and allow negative net changes. Missing dates are preserved as gaps. Repeated identical responses do not change the file or timestamp.
+
+`events.json` is manually maintained and starts empty; `events.schema.json` documents date/type/title and the five supported types. Analytics use only snapshots: exact 7/30-day boundary differences, elapsed-day average, best adjacent-calendar-day change, and event-date −2 to +1 difference. Insufficient data yields null. Star growth around an event is an observational metric and does not establish that the event caused the change.
+
+The updater runs at 03:17 UTC daily or manually on master, scoped to the upstream repository, with contents:write only for its update job. It commits only changed history with the existing conventional-commit style. A successful updater triggers Pages through workflow_run; Pages checks upstream repository, branch and successful completion and checks out current master. Builds remain offline, including PRs. Website builds/dev now require Python; no runtime matching or plugin dependencies changed.
+
+Validation: pytest mock tests in `tests/star_history/`, Ruff with scoped configuration in `pyproject.toml`, locked development tools in `uv.lock`, an independent CI job, and existing plugin/site checks. API failures never overwrite the saved history. Weekly pagination must finish within 100 pages; missing/overlapping weeks, conflicting duplicate counts, malformed documents and invalid values are rejected. Boundaries from GitHub may differ from UTC and reconstructed history may be revised; the dashboard explains both limitations.

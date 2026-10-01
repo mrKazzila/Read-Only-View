@@ -188,3 +188,7 @@ This plugin is intended to evaluate rules locally and does not require network a
 ## License
 
 By contributing, you agree that your contributions will be licensed under the repository’s license (see `LICENSE`).
+
+### Star History tooling
+
+Website development/build also requires Python 3.11+ to generate offline analytics from committed aggregate data. See [Star History](README.md#star-history) for collector, event-editing and testing commands. `uv sync --locked --group dev` installs the pinned pytest/Ruff tools; `uv run pytest`, `uv run ruff check .`, and `uv run ruff format --check .` validate this subsystem. It has no Python runtime dependencies and does not run inside Obsidian.

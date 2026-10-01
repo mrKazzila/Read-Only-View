@@ -364,3 +364,53 @@ Repository guidance and contributor workflow live in [CONTRIBUTING.md](CONTRIBUT
 ## License
 
 Licensed under `0BSD`. See [LICENSE](LICENSE).
+
+## Star History
+
+The [Star History dashboard](https://mrkazzila.github.io/Read-Only-View/star-history) displays aggregate data from GitHub's official [Star History and Count REST endpoints](https://docs.github.com/en/rest/activity/starring). No stargazer identities, profiles, avatars or visitor analytics are collected. This tooling runs outside the Obsidian plugin.
+
+Committed data lives in `docs-site/public/data/star-history.json`. It contains two separate daily series:
+
+- `reconstructed`: cumulative daily counts from all available API weeks, **not verified historical total snapshots**. GitHub can revise this history. API day boundaries may differ from UTC; dates use the UTC week timestamp plus the day index. The first week can include dates before repository creation, and the current day is incomplete.
+- `snapshots`: actual total stars at collection time, one observation per UTC date. A same-day rerun replaces that day's observation; missing dates remain missing. Totals may decrease. `delta` compares adjacent available observations, which can span multiple days; the first delta is `null`.
+
+Python 3.11+ is required for these scripts and website builds. The collector uses only the standard library:
+
+```bash
+# Initial historical import, or a subsequent daily update
+python3 scripts/update_star_history.py
+# Development tools, tests and formatting checks
+uv sync --locked --group dev
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
+# Offline site build and preview
+npm run docs:build
+npm run docs:preview
+```
+
+Open `/Read-Only-View/star-history` on the preview server. `npm run docs:dev` and `docs:build` generate dashboard input offline from the saved JSON using `scripts/build_star_analytics.py`; rerun after editing data/events. Generated analytics are ignored by git. The browser never queries GitHub.
+
+Public API requests need no token. Optionally provide `GITHUB_TOKEN` through your environment; never commit it. The collector retrieves up to 100 pages of 30 weeks each and fails rather than save a potentially truncated import. HTTP/rate-limit, network or validation failures return a nonzero exit status and preserve the previous file. Retry after resolving the error or rate limit. Writes use an atomic replace; an identical result preserves the file and `updated_at`.
+
+The **Update star history** workflow runs daily at **03:17 UTC** (06:17 Minsk time), subject to GitHub scheduling delays, and supports manual dispatch on `master`. It uses `contents: write` only in its update job and the automatic `GITHUB_TOKEN` to commit changed history as `chore: update star history`. No PAT or additional secret is required. Repository rules must permit the bot to push to `master`; a rejected push fails without bypassing protections. A successful run triggers the existing Pages workflow through `workflow_run`, because token-authenticated pushes do not trigger ordinary push workflows. Forks do not collect or publish through this trigger.
+
+### Adding project events
+
+Edit `docs-site/public/data/events.json`, initially an empty array. Each entry requires `date` (`YYYY-MM-DD`), `type` and a nonempty `title`. Supported types: `release`, `forum`, `youtube`, `documentation`, `other`. The adjacent `events.schema.json` documents the format; the offline build validates it with equivalent standard-library checks. Add only verified public project events, with no personal information. Events are not discovered automatically.
+
+This is a **fictional format example**, not an actual project event:
+
+```json
+[
+  { "date": "2026-01-15", "type": "other", "title": "Fictional example milestone" }
+]
+```
+
+### Analytics limitations
+
+Current stars and the 7/30-day net-change cards use only observed total snapshots. Windows end on the latest snapshot, whose date is displayed; both exact boundary dates must exist. Otherwise the result is **Insufficient data**, not zero. Intermediate missing dates do not prevent a net difference between known endpoints, but are not interpolated. Average daily growth divides the first-to-last net difference by elapsed calendar days. Best growth day considers only consecutive dates; ties select the earliest. A single snapshot cannot establish growth.
+
+An event's three-day window covers the preceding day, the event day and the following day. Its observed change compares snapshots at event date −2 and +1, requiring both. No removed-star history, end-of-day totals or historical net growth is inferred from the reconstructed API series.
+
+**Star growth around an event is an observational metric and does not establish that the event caused the change.**
