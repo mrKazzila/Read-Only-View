@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [master]
   workflow_dispatch:
+  workflow_run:
+    workflows: [Update star history]
+    types: [completed]
+    branches: [master]
 
 permissions:
   contents: read
@@ -16,6 +20,12 @@ concurrency:
 
 jobs:
   build:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'master' &&
+       github.event.workflow_run.head_repository.full_name == 'mrKazzila/Read-Only-View' &&
+       github.repository == 'mrKazzila/Read-Only-View')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -23,6 +33,11 @@ jobs:
       pages: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && 'master' || github.ref }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
       - uses: actions/setup-node@v7
         with:
           node-version: '22'

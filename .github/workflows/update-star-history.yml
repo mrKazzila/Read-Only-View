@@ -1,0 +1,41 @@
+name: Update star history
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-star-history
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: github.repository == 'mrKazzila/Read-Only-View' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: master
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - name: Update aggregate history
+        run: python3 scripts/update_star_history.py
+      - name: Commit changed history
+        run: |
+          git add -- docs-site/public/data/star-history.json
+          if git diff --cached --quiet; then
+            echo 'Star history unchanged.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'chore: update star history'
+          git push origin HEAD:master
