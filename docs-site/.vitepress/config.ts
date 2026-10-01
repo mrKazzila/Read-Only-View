@@ -31,6 +31,7 @@ export default defineConfig({
 			{ text: 'Guides', link: '/guides/make-note-read-only' },
 			{ text: 'Path rules', link: '/docs/path-rules' },
 			{ text: 'FAQ', link: '/faq' },
+			{ text: 'Star history', link: '/star-history' },
 		],
 		sidebar: [
 			{ text: 'Guides', items: guides },

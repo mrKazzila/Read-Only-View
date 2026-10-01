@@ -46,3 +46,9 @@ pnpm-debug.log*
 
 # VitePress cache
 docs-site/.vitepress/cache/
+
+# Star analytics tooling
+.venv/
+.pytest_cache/
+.ruff_cache/
+docs-site/.vitepress/generated/

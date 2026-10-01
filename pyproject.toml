@@ -1,0 +1,19 @@
+[project]
+name = "read-only-view-star-tools"
+version = "0.0.0"
+requires-python = ">=3.11"
+
+[dependency-groups]
+dev = ["pytest==8.4.2", "ruff==0.13.3"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/star_history"]
+pythonpath = ["scripts"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+include = ["scripts/star_history/**/*.py", "scripts/update_star_history.py", "scripts/build_star_analytics.py", "tests/star_history/**/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
