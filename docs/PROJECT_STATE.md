@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Last updated: 2026-09-17
+Last updated: 2026-10-04
 
 This document is a living system map for the `read-only-view` Obsidian plugin.
 
@@ -26,6 +26,21 @@ This document is a living system map for the `read-only-view` Obsidian plugin.
 ## 1) Architecture
 
 High-level modules:
+
+- `src/path-context-menu.ts` (1.1.3)
+  - Public `file-menu` integration, registered through the plugin lifecycle; native flat `Lock → Reading` / `Unlock` items for non-root `TFolder` and Markdown `TFile`
+  - Persists through `saveSettings`, refreshes editor options, and immediately reapplies enforcement; failed saves restore the previous Include state
+  - Notices explain disabled/global mode, rule caps, Exclude matches, and remaining protection for existing Markdown descendants
+- `src/note-rules.ts` (1.1.3)
+  - Creates exact Obsidian URL Include entries through the existing resolver, independent of prefix/glob mode
+  - Reuses manual note paths and advanced exact entries; Unlock disables all equivalents, preserving parent and Exclude rules
+  - Rejects unrepresentable exact paths without changing rules; persistence and enforcement are shared with folder actions
+- `src/folder-rules.ts` (1.1.3)
+  - Pure folder identity and Include transformations using normalized resolved paths and existing source resolution
+  - Creates/enables `Folder/` in prefix mode or `Folder/**` in glob mode; reuses equivalent entries and adapts them on explicit Lock after mode changes
+  - Unlock disables all exact equivalents without deleting rows; ancestors, Exclude rules, global/enabled switches, Settings UI, and matcher semantics remain unchanged
+  - No ownership metadata or parallel storage; updates Include entries and their runtime arrays through the shared settings converter
+  - No rename/delete migration; root and unrepresentable glob folder names are excluded, existing length/count limits remain in force
 
 - `src/main.ts`
   - Plugin lifecycle (`onload`, `onunload`)

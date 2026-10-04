@@ -69,6 +69,12 @@ projects/
 
 If the rule does not apply, paste the exact note path into **Path tester** and check whether an exclude rule also matches.
 
+In version 1.1.3, you can also right-click a folder or Markdown note in the file explorer and choose **Lock → Reading**. This creates or enables a normal Include rule visible under **Path rules**, and applies it immediately to open notes. Choose **Unlock** to disable all exact Include rules for that folder or note without deleting them. Parent rules, Exclude rules, the plugin's enabled state, and **All Markdown files** mode remain unchanged, so notes may still be protected after unlocking.
+
+New note locks use an exact Obsidian URL Include rule, visible in **Path rules**, that works in both matching modes. Existing rules targeting the same note are reused. Unlocking a note does not override a folder lock. Note paths containing `#`, `*`, or `?` cannot currently be represented by the exact-rule resolver; the action shows a notice without changing rules.
+
+Folder locks use `Folder/` in prefix mode and `Folder/**` in glob mode. Switching matching modes does not rewrite rules automatically: choose **Lock → Reading** again to adapt the existing folder rule without adding a duplicate. Renaming or deleting a folder leaves its rules unchanged, just like manually entered rules. The vault root is not offered this shortcut, and folder names containing `*` or `?` cannot be locked through it in glob mode. Existing rule limits still apply; use **Path tester** to inspect exceptions or inactive rules.
+
 ![All Markdown files mode in Read Only View settings](docs/images/community-images/Read-Only-View-all-markdown-mode-1200x800.png)
 
 *All Markdown files mode protects every Markdown note unless an exclude rule matches.*
