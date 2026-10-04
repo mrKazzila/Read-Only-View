@@ -10,7 +10,7 @@ link-plugin:
 	PLUGIN_DIR="$VAULT/.obsidian/plugins/$PLUGIN_ID"; \
 	if [[ ! -d "$VAULT" ]]; then \
 		echo "Vault not found at $VAULT" >&2; \
-		echo "Default target is ./demo-vault. Run 'just demo-vault' or 'just demo-vault-no-plugin' first," >&2; \
+		echo "Default target is ./demo-vault. Run 'just demo-vault <version>' or 'just demo-vault-no-plugin' first," >&2; \
 		echo "or override the target with VAULT=/path/to/vault just link-plugin." >&2; \
 		exit 1; \
 	fi; \
@@ -35,7 +35,7 @@ unlink-plugin:
 	PLUGIN_DIR="$VAULT/.obsidian/plugins/$PLUGIN_ID"; \
 	if [[ ! -d "$VAULT" ]]; then \
 		echo "Vault not found at $VAULT" >&2; \
-		echo "Default target is ./demo-vault. Run 'just demo-vault-no-plugin' or 'just demo-vault' first," >&2; \
+		echo "Default target is ./demo-vault. Run 'just demo-vault-no-plugin' or 'just demo-vault <version>' first," >&2; \
 		echo "or override the target with VAULT=/path/to/vault just unlink-plugin." >&2; \
 		exit 1; \
 	fi; \
@@ -58,13 +58,13 @@ unlink-plugin:
 
 [group('Local')]
 [doc('Create or refresh the synthetic demo vault with the local plugin linked')]
-demo-vault:
-	@python3 scripts/create_demo_vault.py
+demo-vault version:
+	@python3 scripts/create_demo_vault.py --plugin-version {{quote(version)}}
 
 [group('Local')]
 [doc('Recreate the synthetic demo vault from scratch')]
-demo-vault-reset:
-	@python3 scripts/create_demo_vault.py --force
+demo-vault-reset version:
+	@python3 scripts/create_demo_vault.py --force --plugin-version {{quote(version)}}
 
 [group('Local')]
 [doc('Create the synthetic demo vault without linking plugin files')]

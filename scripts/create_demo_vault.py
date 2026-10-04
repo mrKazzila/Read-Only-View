@@ -85,7 +85,14 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Create notes only without linking the local plugin build.",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--plugin-version",
+        help="Version for the vault-local DEV manifest; defaults to the release manifest.",
+    )
+    args = parser.parse_args()
+    if args.plugin_version is not None and not args.plugin_version.strip():
+        parser.error("--plugin-version must not be empty")
+    return args
 
 
 def build_notes() -> dict[str, str]:
@@ -422,8 +429,8 @@ Short reference note.
         "Reference/Snippets/Shell helpers.md": """# Shell helpers
 
 ```bash
-just demo-vault
-just demo-vault-reset
+just demo-vault 1.1.3.2
+just demo-vault-reset 1.1.3.2
 just demo-vault-no-plugin
 ```
 
@@ -731,7 +738,9 @@ def link_or_copy(source: Path, target: Path) -> str:
         return "copy"
 
 
-def install_plugin(vault_dir: Path, manifest: dict[str, object]) -> list[str]:
+def install_plugin(
+    vault_dir: Path, manifest: dict[str, object], plugin_version: str | None = None,
+) -> list[str]:
     plugin_id = str(manifest["id"])
     plugin_dir = vault_dir / ".obsidian" / "plugins" / plugin_id
     plugin_dir.mkdir(parents=True, exist_ok=True)
@@ -746,8 +755,19 @@ def install_plugin(vault_dir: Path, manifest: dict[str, object]) -> list[str]:
             "Build the plugin first with `just build` or `npm run build`.",
         )
 
-    shutil.copy2(manifest_path, plugin_dir / "manifest.json")
-    messages = [f"manifest.json: copied from {manifest_path.name}"]
+    vault_manifest = dict(manifest)
+    if plugin_version is not None:
+        vault_manifest["version"] = plugin_version
+        vault_manifest["name"] = "Read Only View (DEV)"
+        marker = "[LOCAL DEV BUILD]"
+        description = str(vault_manifest.get("description", "")).strip()
+        if marker not in description:
+            vault_manifest["description"] = f"{description} {marker}".strip()
+    manifest_target = plugin_dir / "manifest.json"
+    if manifest_target.is_symlink():
+        manifest_target.unlink()
+    write_json(manifest_target, vault_manifest)
+    messages = [f"manifest.json: version {vault_manifest.get('version')} (from {manifest_path.name})"]
     messages.append(f"main.js: {link_or_copy(main_js_path, plugin_dir / 'main.js')}")
     if styles_path.is_file():
         messages.append(f"styles.css: {link_or_copy(styles_path, plugin_dir / 'styles.css')}")
@@ -809,7 +829,7 @@ def main() -> int:
         (vault_dir / ".obsidian").mkdir(parents=True, exist_ok=True)
         remove_plugin_install(vault_dir, manifest)
     else:
-        plugin_messages = install_plugin(vault_dir, manifest)
+        plugin_messages = install_plugin(vault_dir, manifest, args.plugin_version)
 
     note_count, max_depth = compute_stats(vault_dir)
     print(f"Demo vault ready: {vault_dir}")

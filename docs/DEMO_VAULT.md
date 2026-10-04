@@ -5,23 +5,25 @@ The demo vault provides a reproducible synthetic Obsidian vault for manual QA, s
 ## Create the vault
 
 ```bash
-just demo-vault
-just demo-vault-reset
+just demo-vault 1.1.3.2
+just demo-vault-reset 1.1.3.2
 just demo-vault-no-plugin
 just link-plugin
 just unlink-plugin
 ```
 
-- `just demo-vault` creates or refreshes `./demo-vault` without deleting unrelated files in that directory.
-- `just demo-vault-reset` removes and recreates `./demo-vault`.
+- `just demo-vault 1.1.3.2` creates or refreshes `./demo-vault` without deleting unrelated files in that directory.
+- `just demo-vault-reset 1.1.3.2` removes and recreates `./demo-vault`.
 - `just demo-vault-no-plugin` creates the synthetic notes and folder structure only.
 - `just link-plugin` attaches the current local dev build to `./demo-vault` by default.
 - `just unlink-plugin` detaches the local dev build from `./demo-vault` without removing notes.
 
-Direct script usage:
+The plugin-installing demo recipes require a version argument, including four-part development versions such as `1.1.3.2`. They write that version and DEV markers into the vault-local manifest without changing the release manifest. `DEV_PLUGIN_VERSION` is not used by these recipes. The machine-local mobile recipe uses the same syntax: `just mobile-sync 1.1.3.2`.
+
+Direct script usage (omitting `--plugin-version` preserves the release metadata for E2E fixtures):
 
 ```bash
-python3 scripts/create_demo_vault.py --force
+python3 scripts/create_demo_vault.py --force --plugin-version 1.1.3.2
 python3 scripts/create_demo_vault.py --force --no-plugin-link
 ```
 
@@ -29,7 +31,7 @@ If `main.js` is missing, the script prints a clear message asking you to build t
 
 ## Open the vault in Obsidian
 
-1. Run `just demo-vault`.
+1. Run `just demo-vault 1.1.3.2`.
 2. Open Obsidian.
 3. Choose **Open folder as vault**.
 4. Select `demo-vault` from the repository root.

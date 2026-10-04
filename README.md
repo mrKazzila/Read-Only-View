@@ -365,6 +365,8 @@ npm run build
 
 Equivalent `just` recipes are available. Use `just link-plugin` to link a local build into the repo's demo vault by default, and `just unlink-plugin` to remove that local install.
 
+Create a demo vault with `just demo-vault 1.1.3.2` or recreate it with `just demo-vault-reset 1.1.3.2`. Both require an explicit version for the vault-local DEV manifest. The machine-local mobile command follows the same form: `just mobile-sync 1.1.3.2`. See [demo vault setup](docs/DEMO_VAULT.md) for details.
+
 Repository guidance and contributor workflow live in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
