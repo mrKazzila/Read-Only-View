@@ -30,7 +30,9 @@ High-level modules:
 
 - `src/path-context-menu.ts` (1.1.3)
   - Public `file-menu` integration, registered through the plugin lifecycle; native flat `Lock → Reading` / `Unlock` items for non-root `TFolder` and Markdown `TFile`
-  - Persists through `saveSettings`, refreshes editor options, and immediately reapplies enforcement; failed saves restore the previous Include state
+  - When Settings is closed, persists through `saveSettings`, refreshes editor options, and immediately reapplies enforcement; failed saves restore the previous Include state
+  - When Settings is open (legacy or declarative), applies the change to the active rule editor draft, refreshes only the rows while preserving row identities/focus, and uses its serialized save/reapply flow
+  - Pending edits and external changes share one save queue; failures remain visible for retry and hidden/disposed editors are not updated
   - Notices explain disabled/global mode, rule caps, Exclude matches, and remaining protection for existing Markdown descendants
 - `src/note-rules.ts` (1.1.3)
   - Creates exact Obsidian URL Include entries through the existing resolver, independent of prefix/glob mode

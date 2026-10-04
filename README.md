@@ -69,7 +69,7 @@ projects/
 
 If the rule does not apply, paste the exact note path into **Path tester** and check whether an exclude rule also matches.
 
-In version 1.1.3, you can also right-click a folder or Markdown note in the file explorer and choose **Lock → Reading**. This creates or enables a normal Include rule visible under **Path rules**, and applies it immediately to open notes. Choose **Unlock** to disable all exact Include rules for that folder or note without deleting them. Parent rules, Exclude rules, the plugin's enabled state, and **All Markdown files** mode remain unchanged, so notes may still be protected after unlocking.
+In version 1.1.3, you can also right-click a folder or Markdown note in the file explorer and choose **Lock → Reading**. This creates or enables a normal Include rule visible under **Path rules**, and applies it immediately to open notes. If Settings is already open, its Path rules list updates immediately while preserving pending edits and focus. Choose **Unlock** to disable all exact Include rules for that folder or note without deleting them. Parent rules, Exclude rules, the plugin's enabled state, and **All Markdown files** mode remain unchanged, so notes may still be protected after unlocking.
 
 New note locks use an exact Obsidian URL Include rule, visible in **Path rules**, that works in both matching modes. Existing rules targeting the same note are reused. Unlocking a note does not override a folder lock. Note paths containing `#`, `*`, or `?` cannot currently be represented by the exact-rule resolver; the action shows a notice without changing rules.
 
