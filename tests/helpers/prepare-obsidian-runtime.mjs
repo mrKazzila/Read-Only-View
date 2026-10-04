@@ -38,6 +38,11 @@ export class App {
   }
 }
 export class WorkspaceLeaf {}
+export class Notice {
+  constructor(message) {
+    this.message = message;
+  }
+}
 export class MarkdownView {}
 export class TFile {
   constructor(path = '') {

@@ -113,7 +113,7 @@ function migrateLegacyRules(rules: string[], enabledStates: boolean[]): RuleEntr
 	});
 }
 
-function buildRuntimeRules(entries: RuleEntry[]): { rules: string[]; enabled: boolean[] } {
+export function buildRuntimeRules(entries: RuleEntry[]): { rules: string[]; enabled: boolean[] } {
 	const resolved = entries.filter((entry): entry is RuleEntry & { resolvedPath: string } =>
 		!!entry.resolvedPath
 		&& entry.sourceValue.length <= getSourceInputMaxLength(entry.sourceValue)
