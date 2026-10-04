@@ -726,7 +726,7 @@ test('rules editor add rule button creates a new row and flushes combined save s
 		assert.deepEqual(committed.at(-1), {
 			includeRules: ['docs/a.md', 'docs/b.md'],
 			excludeRules: [],
-			reason: 'settings-path-rules',
+			reason: 'settings-include-rules',
 		});
 	} finally {
 		dom.restore();

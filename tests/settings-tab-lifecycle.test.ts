@@ -10,6 +10,51 @@ import {
 } from 'obsidian';
 import { ForceReadModeSettingTab } from '../src/settings-tab.js';
 import { installDomMocks, MockHTMLElement } from './helpers/dom-mocks.js';
+import type { SettingsTabPlugin } from '../src/plugin-types.js';
+import { changeFolderRule } from '../src/folder-rules.js';
+
+for (const declarative of [false, true]) {
+	test(`external rule updates preserve drafts and focus, declarative=${declarative}`, async () => {
+		const dom = installDomMocks();
+		const container = new MockHTMLElement();
+		container.ownerDocument = dom.document;
+		const { plugin, saveCalls } = createPlugin();
+		const bridge: SettingsTabPlugin = plugin;
+		const tab = new ForceReadModeSettingTab({} as never, plugin as never);
+		tab.containerEl = container as unknown as HTMLElement;
+		let cleanup: (() => void) | void;
+		try {
+			await withFakeTimeouts(async ({ flushAll }) => {
+				if (declarative) {
+					const definition = collectSettingDefinitions(tab.getSettingDefinitions()).find((item) => item.name === 'Read-only behavior');
+					cleanup = definition?.render?.(new Setting(container as unknown as HTMLElement), {} as never);
+				} else tab.display();
+				const input = container.querySelector('.read-only-view-rule-input');
+				assert.ok(input);
+				input.value = 'docs/pending.md';
+				input.trigger('input');
+				input.focus();
+				const update = (lock: boolean) => bridge.updateOpenRuleEditor?.((settings) => changeFolderRule(settings, 'Archive', lock, {
+					vaultName: 'test', vaultBasePath: null, isMarkdownFile: () => false, isFolder: () => true,
+				}));
+				await update(true);
+				let inputs = container.querySelectorAll('.read-only-view-rule-input');
+				assert.deepEqual(inputs.map((element) => element.value), ['docs/pending.md', 'Archive/**']);
+				assert.equal(container.ownerDocument?.activeElement, inputs[0]);
+				assert.deepEqual(plugin.settings.includeRules, ['docs/pending.md', 'Archive/**']);
+				await flushAll();
+				assert.deepEqual(saveCalls.at(-1)?.includeRules, ['docs/pending.md', 'Archive/**']);
+				await update(false);
+				assert.deepEqual(plugin.settings.includeRuleEnabled, [true, false]);
+				inputs = container.querySelectorAll('.read-only-view-rule-input');
+				assert.equal(inputs.length, 2);
+				if (typeof cleanup === 'function') cleanup();
+				else tab.hide();
+				assert.equal(update(true), undefined);
+			});
+		} finally { tab.hide(); dom.restore(); }
+	});
+}
 
 function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) => Promise<void>): Promise<void> {
 	const originalSetTimeout = globalThis.setTimeout;

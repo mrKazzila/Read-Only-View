@@ -1,7 +1,7 @@
 import { Notice, TFile, TFolder, type Menu, type TAbstractFile, type Vault } from 'obsidian';
 import { changeFolderRule, folderRulePath, hasActiveFolderRule, setFolderRuleEntries } from './folder-rules';
 import { createCompiledRuleMatcher } from './matcher';
-import type { SettingsTabPlugin } from './plugin-types';
+import type { IncludeRuleUpdate, SettingsTabPlugin } from './plugin-types';
 import { createRuleResolverContext } from './rule-source';
 import { changeNoteRule, hasActiveNoteRule } from './note-rules';
 import { buildEffectiveRules } from './rule-limits';
@@ -15,29 +15,42 @@ export async function applyPathRuleAction(
 ): Promise<void> {
 	const isFolder = target instanceof TFolder;
 	if (!isFolder && target.extension.toLowerCase() !== 'md') return;
-	const change = (isFolder ? changeFolderRule : changeNoteRule)(plugin.settings, target.path, lock, createRuleResolverContext(vault));
-	if (change.error) { notify(change.error); return; }
-	if (!change.changed) return;
-	const previous = {
-		includeRuleEntries: plugin.settings.includeRuleEntries,
-		includeRules: plugin.settings.includeRules,
-		includeRuleEnabled: plugin.settings.includeRuleEnabled,
-	};
-	setFolderRuleEntries(plugin.settings, change.entries);
-	try {
-		await plugin.saveSettings();
-	} catch {
-		Object.assign(plugin.settings, previous);
-		plugin.refreshEditorOptions();
-		notify('Could not save the path rule. Please try again.');
-		return;
-	}
-	try {
-		plugin.refreshEditorOptions();
-		await plugin.applyAllOpenMarkdownLeaves('path-context-menu');
-	} catch {
-		notify('Path rule saved, but could not re-apply it to open notes.');
-		return;
+	const update: IncludeRuleUpdate = (settings) => (isFolder ? changeFolderRule : changeNoteRule)(settings, target.path, lock, createRuleResolverContext(vault));
+	const editorUpdate = plugin.updateOpenRuleEditor?.(update);
+	if (editorUpdate) {
+		try {
+			const result = await editorUpdate;
+			if (result.error) notify(result.error);
+			if (result.error || !result.changed) return;
+		} catch {
+			notify('Could not save the path rule. Your changes remain in Settings for retry.');
+			return;
+		}
+	} else {
+		const change = update(plugin.settings);
+		if (change.error) { notify(change.error); return; }
+		if (!change.changed) return;
+		const previous = {
+			includeRuleEntries: plugin.settings.includeRuleEntries,
+			includeRules: plugin.settings.includeRules,
+			includeRuleEnabled: plugin.settings.includeRuleEnabled,
+		};
+		setFolderRuleEntries(plugin.settings, change.entries);
+		try {
+			await plugin.saveSettings();
+		} catch {
+			Object.assign(plugin.settings, previous);
+			plugin.refreshEditorOptions();
+			notify('Could not save the path rule. Please try again.');
+			return;
+		}
+		try {
+			plugin.refreshEditorOptions();
+			await plugin.applyAllOpenMarkdownLeaves('path-context-menu');
+		} catch {
+			notify('Path rule saved, but could not re-apply it to open notes.');
+			return;
+		}
 	}
 	if (!plugin.settings.enabled) {
 		notify('Path rule saved. Read Only View is currently disabled.');

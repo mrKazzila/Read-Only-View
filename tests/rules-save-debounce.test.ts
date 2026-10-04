@@ -3,6 +3,40 @@ import test from 'node:test';
 
 import { DebouncedRuleChangeSaver } from '../src/settings-tab.js';
 
+test('external flush waits for the running save and then persists the latest combined value', async () => {
+	let release: (() => void) | undefined;
+	const gate = new Promise<void>((resolve) => { release = resolve; });
+	const values: string[] = [];
+	const saver = new DebouncedRuleChangeSaver(100, makeState('a.md'), async (value) => {
+		values.push(value.includeText);
+		if (values.length === 1) await gate;
+	}, () => undefined);
+	const first = saver.flush(makeState('draft.md'));
+	let completed = false;
+	const external = saver.flushExternal(makeState('draft.md\nArchive/**')).then(() => { completed = true; });
+	await Promise.resolve();
+	assert.equal(completed, false);
+	// Closing Settings must not cancel an already requested context-menu action.
+	saver.dispose();
+	assert.ok(release);
+	release();
+	await Promise.all([first, external]);
+	assert.deepEqual(values, ['draft.md', 'draft.md\nArchive/**']);
+	assert.equal(completed, true);
+	saver.dispose();
+});
+
+test('external flush reports save failure and supports retry', async () => {
+	let fail = true;
+	const saver = new DebouncedRuleChangeSaver(100, makeState(''), async () => {
+		if (fail) throw new Error('disk full');
+	}, () => undefined);
+	await assert.rejects(saver.flushExternal(makeState('Archive/**')), /Could not save/);
+	fail = false;
+	await saver.flushExternal(makeState('Archive/**'));
+	saver.dispose();
+});
+
 type RuleEditorUiState = {
 	includeRules: string[];
 	excludeRules: string[];

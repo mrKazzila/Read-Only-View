@@ -25,7 +25,14 @@ export interface ForceReadModeSettings {
 	excludeRuleEntries?: RuleEntry[];
 }
 
+export type IncludeRuleUpdate = (settings: ForceReadModeSettings) => {
+	entries: RuleEntry[];
+	changed: boolean;
+	error?: string;
+};
+
 export interface SettingsTabPlugin {
+	updateOpenRuleEditor?: (update: IncludeRuleUpdate) => Promise<{ changed: boolean; error?: string }> | undefined;
 	settings: ForceReadModeSettings;
 	saveSettings: () => Promise<void>;
 	applyAllOpenMarkdownLeaves: (reason: string) => Promise<void>;

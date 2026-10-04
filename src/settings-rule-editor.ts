@@ -10,7 +10,7 @@ import {
 	type RuleResolution,
 	type RuleResolverContext,
 } from './rule-source';
-import type { RuleEntry } from './plugin-types';
+import type { ForceReadModeSettings, IncludeRuleUpdate, RuleEntry } from './plugin-types';
 import {
 	buildSourceInputLimitMessage,
 	formatSourceValueForDisplay,
@@ -71,6 +71,7 @@ function createRuleRow(entry: RuleEntry, type: RuleType, id: number): RuleRowSta
 }
 
 export type RuleEditorController = {
+	applyExternalUpdate: (settings: ForceReadModeSettings, update: IncludeRuleUpdate) => Promise<{ changed: boolean; error?: string }>;
 	dispose: () => void;
 };
 
@@ -215,6 +216,9 @@ export class DebouncedRuleChangeSaver {
 		activeExcludeText: '',
 	};
 	private running = false;
+	private completion: Promise<void> = Promise.resolve();
+	private saveFailed = false;
+	private externalFlushes = 0;
 	private pendingRun = false;
 	private disposed = false;
 	private lastCommittedValue: RuleEditorUiState = {
@@ -272,40 +276,52 @@ export class DebouncedRuleChangeSaver {
 			return;
 		}
 		this.disposed = true;
-		this.pendingRun = false;
+		if (this.externalFlushes === 0) this.pendingRun = false;
 		clearOwnedTimeout(this.timer);
 		this.timer = null;
 	}
 
-	private async runCommit(): Promise<void> {
-		if (this.disposed) {
-			return;
-		}
-		if (this.running) {
-			this.pendingRun = true;
-			return;
-		}
-
-		this.running = true;
+	async flushExternal(value: RuleEditorUiState): Promise<void> {
+		this.externalFlushes++;
 		try {
-			const reason = getRulesChangeReason(this.lastCommittedValue, this.lastValue);
-			await this.commit(this.lastValue, reason);
-			this.lastCommittedValue = this.lastValue;
-			if (!this.disposed) {
-				this.onStateChange('saved');
-			}
-		} catch {
-			if (!this.disposed) {
-				this.onStateChange('error');
-			}
+			await this.flush(value);
+			if (this.saveFailed) throw new Error('Could not save path rules.');
 		} finally {
-			this.running = false;
-			if (!this.disposed && this.pendingRun) {
-				this.pendingRun = false;
-				await this.runCommit();
-			}
+			this.externalFlushes--;
 		}
 	}
+
+	private runCommit(): Promise<void> {
+		if (this.disposed) return Promise.resolve();
+		if (this.running) {
+			this.pendingRun = true;
+			return this.completion;
+		}
+		this.running = true;
+		this.completion = this.drainCommits();
+		return this.completion;
+	}
+
+	private async drainCommits(): Promise<void> {
+		try {
+			do {
+				this.pendingRun = false;
+				const value = this.lastValue;
+				try {
+					await this.commit(value, getRulesChangeReason(this.lastCommittedValue, value));
+					this.lastCommittedValue = value;
+					this.saveFailed = false;
+					if (!this.disposed) this.onStateChange('saved');
+				} catch {
+					this.saveFailed = true;
+					if (!this.disposed) this.onStateChange('error');
+				}
+			} while ((!this.disposed || this.externalFlushes > 0) && this.pendingRun);
+		} finally {
+			this.running = false;
+		}
+	}
+
 }
 
 function renderHelpLink(containerEl: HTMLElement): void {
@@ -784,6 +800,25 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	renderRows();
 
 	return {
+		applyExternalUpdate: async (settings, update) => {
+			const payload = getCurrentPayload();
+			const previous = payload.includeRuleEntries ?? [];
+			const change = update({ ...settings, ...payload });
+			if (change.error || !change.changed) return change;
+			let index = 0;
+			rows = rows.map((row) => {
+				if (row.type !== 'include' || !row.acceptedValue.trim()) return row;
+				const entry = change.entries[index];
+				const oldEntry = previous[index++];
+				return entry && entry !== oldEntry ? createRuleRow(entry, 'include', row.id) : row;
+			});
+			for (const entry of change.entries.slice(previous.length)) {
+				rows.push(createRuleRow(entry, 'include', nextRowId++));
+			}
+			renderRows();
+			await saver.flushExternal(getCurrentPayload());
+			return { changed: true };
+		},
 		dispose: () => {
 			diagnosticsRenderScheduler.dispose();
 			saver.dispose();

@@ -80,6 +80,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 	constructor(app: App, plugin: Plugin & SettingsTabPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
+		plugin.updateOpenRuleEditor = (update) => this.ruleEditor?.applyExternalUpdate(this.plugin.settings, update);
 	}
 
 	getSettingDefinitions(): SettingDefinitionItem[] {
