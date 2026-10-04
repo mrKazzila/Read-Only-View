@@ -21,6 +21,7 @@ import { ForceReadModeSettingTab } from './settings-tab';
 import type { ForceReadModeSettings } from './plugin-types';
 import { maybeShowWelcomeModal } from './settings-welcome';
 import { WorkspaceEventController } from './workspace-events';
+import { ReadOnlyStatusModal } from './read-only-status-modal';
 import { addPathContextMenu } from './path-context-menu';
 
 export { formatPathForDebug } from './debug-log';
@@ -51,7 +52,9 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		});
 
 		this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
-			addPathContextMenu(menu, file, this, this.app.vault);
+			addPathContextMenu(menu, file, this, this.app.vault, (explanation) => {
+				new ReadOnlyStatusModal(this.app, explanation).open();
+			});
 		}));
 
 		this.registerEvent(this.app.workspace.on('file-open', () => {

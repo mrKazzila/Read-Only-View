@@ -1,3 +1,10 @@
+import { ReadOnlyStatusModal } from '../src/read-only-status-modal.js';
+import { installDomMocks, type MockHTMLElement } from './helpers/dom-mocks.js';
+import { App, TFile, TFolder, type Menu, type MenuItem, type Vault } from 'obsidian';
+import { mergeLoadedSettings } from '../src/plugin-settings.js';
+import { explainNote, explainFolder, type ReadOnlyExplanation } from '../src/read-only-explanation.js';
+import { addPathContextMenu, markdownDescendantPaths } from '../src/path-context-menu.js';
+import { RULE_LIMIT_INCLUDE_MAX } from '../src/constants.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -131,4 +138,150 @@ test('path tester helper preserves diagnostics result when reusing a compiled ma
 	);
 
 	assert.deepEqual(withReuse, withoutReuse);
+});
+
+const settingsFor = (overrides = {}) => mergeLoadedSettings({ forceAllMarkdownReadOnly: false, includeRules: ['folder/'], ...overrides });
+
+for (const [name, overrides, path, expected, reason] of [
+	['prefix include', {}, 'folder/a.md', true, 'Matched an Include rule.'],
+	['no include', {}, 'other/a.md', false, 'No Include rule matched this note.'],
+	['exclude', { excludeRules: ['folder/'] }, 'folder/a.md', false, 'An Exclude rule takes priority.'],
+	['global', { forceAllMarkdownReadOnly: true }, 'other/a.md', true, 'All Markdown files mode protects this note.'],
+	['global exclude', { forceAllMarkdownReadOnly: true, excludeRules: ['folder/'] }, 'folder/a.md', false, 'An Exclude rule takes priority.'],
+	['disabled', { enabled: false, forceAllMarkdownReadOnly: true, excludeRules: ['folder/'] }, 'folder/a.md', false, 'Plugin is disabled.'],
+	['glob', { useGlobPatterns: true, includeRules: ['**/README.md'] }, 'folder/sub/README.md', true, 'Matched an Include rule.'],
+	['case sensitive', { caseSensitive: true }, 'Folder/a.md', false, 'No Include rule matched this note.'],
+	['case insensitive', { caseSensitive: false }, 'Folder/a.md', true, 'Matched an Include rule.'],
+] as const) {
+	test(`note explanation: ${name}`, () => {
+		const settings = settingsFor(overrides);
+		const matcher = createCompiledRuleMatcher(settings);
+		const { reason: actualReason, ...result } = explainNote(path, settings, matcher);
+		assert.deepEqual(result, buildPathTesterResult(path, settings, matcher));
+		assert.equal(result.finalReadOnly, expected);
+		assert.equal(result.finalReadOnly, matcher.shouldForceReadOnly(path));
+		assert.equal(actualReason, reason);
+	});
+}
+
+test('diagnostics preserve resolved exact entries, disabled entries and rule limits', () => {
+	const settings = settingsFor({ includeRules: Array.from({ length: RULE_LIMIT_INCLUDE_MAX }, (_, i) => `x${i}/`).concat('folder/') });
+	assert.equal(explainNote('folder/a.md', settings, createCompiledRuleMatcher(settings)).finalReadOnly, false);
+	const resolved = settingsFor({ includeRuleEntries: [
+		{ sourceKind: 'obsidian-uri', sourceValue: 'obsidian://open?vault=test&file=folder%2Fa.md', resolvedPath: 'folder/a.md', enabled: true },
+	] });
+	const matcher = createCompiledRuleMatcher(resolved);
+	assert.equal(explainNote('folder/a.md', resolved, matcher).finalReadOnly, true);
+	assert.equal(explainNote('folder/a.md/child.md', resolved, matcher).finalReadOnly, false);
+	for (const path of ['folder/a.md', 'folder/a.md/child.md']) {
+		const { reason: _reason, ...result } = explainNote(path, resolved, matcher);
+		assert.deepEqual(result, buildPathTesterResult(path, resolved, matcher));
+	}
+	const disabled = settingsFor({ includeRuleEnabled: [false] });
+	assert.equal(explainNote('folder/a.md', disabled, createCompiledRuleMatcher(disabled)).finalReadOnly, false);
+});
+
+test('folder aggregates actual descendants with excludes, globs, global mode and disabled state', () => {
+	const paths = ['folder/a.md', 'folder/sub/README.md'];
+	for (const [overrides, status, protectedCount] of [
+		[{}, 'ALL PROTECTED', 2],
+		[{ excludeRules: ['folder/sub/'] }, 'MIXED', 1],
+		[{ includeRules: [] }, 'NOT PROTECTED', 0],
+		[{ useGlobPatterns: true, includeRules: ['**/README.md'] }, 'MIXED', 1],
+		[{ includeRules: [], forceAllMarkdownReadOnly: true }, 'ALL PROTECTED', 2],
+		[{ forceAllMarkdownReadOnly: true, excludeRules: ['folder/sub/'] }, 'MIXED', 1],
+		[{ enabled: false, forceAllMarkdownReadOnly: true }, 'NOT PROTECTED', 0],
+	] as const) {
+		const settings = settingsFor(overrides);
+		const result = explainFolder(paths, settings, createCompiledRuleMatcher(settings));
+		assert.equal(result.status, status);
+		assert.equal(result.protectedCount, protectedCount);
+		assert.equal(result.total, 2);
+		assert.equal(result.editableCount, 2 - protectedCount);
+	}
+	const settings = settingsFor();
+	assert.equal(explainFolder([], settings, createCompiledRuleMatcher(settings)).status, 'NO MARKDOWN NOTES');
+});
+
+test('folder rule unions follow effective order, deduplicate and bound examples', () => {
+	const settings = settingsFor({ includeRules: ['folder/sub/', 'folder/', 'folder/'], excludeRules: ['folder/'] });
+	const result = explainFolder(['folder/a.md', ...Array.from({ length: 50 }, (_, i) => `folder/sub/${i}.md`)], settings, createCompiledRuleMatcher(settings));
+	assert.deepEqual(result.includeMatches, ['folder/sub/', 'folder/']);
+	assert.deepEqual(result.excludeMatches, ['folder/']);
+	assert.equal(result.editableExamples.length, 5);
+	assert.equal(result.total, 51);
+});
+
+test('menu diagnostics traverse nested Markdown metadata, acquire matcher once and never mutate', () => {
+	const note = (path: string, extension = 'md') => Object.assign(new TFile(), { path, extension });
+	const nested = Object.assign(new TFolder(), { path: 'folder/sub', children: [note('folder/sub/b.MD', 'MD'), note('folder/sub/image.png', 'png')] });
+	const folder = Object.assign(new TFolder(), { path: 'folder', children: [note('folder/a.md'), nested, note('folder/data.json', 'json')] });
+	assert.deepEqual([...markdownDescendantPaths(folder)], ['folder/a.md', 'folder/sub/b.MD']);
+	const settings = settingsFor();
+	const before = structuredClone(settings);
+	let acquisitions = 0;
+	let shown: ReadOnlyExplanation | undefined;
+	const fail = () => { throw new Error('Diagnostics must not mutate'); };
+	const plugin = { settings, saveSettings: fail, refreshEditorOptions: fail, applyAllOpenMarkdownLeaves: fail,
+		getCompiledRuleMatcher: () => { acquisitions++; return createCompiledRuleMatcher(settings); } };
+	for (const target of [folder, note('folder/a.md')]) {
+		const actions = new Map<string, () => void>();
+		const menu = { addItem(callback: (item: MenuItem) => void) {
+			let title = '';
+			const item = { setTitle(value: string) { title = value; return this; }, setIcon() { return this; },
+				onClick(action: () => void) { actions.set(title, action); return this; } };
+			callback(item as unknown as MenuItem);
+		} } as unknown as Menu;
+		addPathContextMenu(menu, target, plugin, {} as Vault, (result) => { shown = result; });
+		assert.equal(acquisitions, target === folder ? 0 : 1);
+		actions.get('Explain read-only status')!();
+		assert.equal(shown?.kind, target === folder ? 'folder' : 'note');
+		assert.deepEqual(settings, before);
+	}
+	assert.equal(acquisitions, 2);
+});
+
+
+test('folder summaries retain the exact rule representation reported by Path tester', () => {
+	const settings = settingsFor();
+	settings.includeRuleEntries = undefined;
+	settings.includeRules = [' folder/ '];
+	const matcher = createCompiledRuleMatcher(settings);
+	const expected = buildPathTesterResult('folder/a.md', settings, matcher).includeMatches;
+	assert.deepEqual(expected, [' folder/ ']);
+	assert.deepEqual(explainFolder(['folder/a.md'], settings, matcher).includeMatches, expected);
+});
+
+
+test('status modal exposes labelled tab stops, initial focus and Close for notes and folders', () => {
+	const dom = installDomMocks();
+	try {
+		const settings = settingsFor();
+		const matcher = createCompiledRuleMatcher(settings);
+		const explanations: ReadOnlyExplanation[] = [
+			{ kind: 'note', path: 'folder/a.md', result: explainNote('folder/a.md', settings, matcher) },
+			{ kind: 'folder', path: 'folder/', result: explainFolder(['folder/a.md'], settings, matcher) },
+			{ kind: 'folder', path: 'empty/', result: explainFolder([], settings, matcher) },
+		];
+		for (const explanation of explanations) {
+			const modal = new ReadOnlyStatusModal(new App(), explanation);
+			modal.open();
+			const content = modal.contentEl as unknown as MockHTMLElement;
+			const regions = content.querySelectorAll('.read-only-view-status-values');
+			assert.equal(regions.length, explanation.kind === 'note' ? 3 : explanation.result.total ? 2 : 0);
+			for (const region of regions) {
+				assert.equal(region.getAttribute('tabindex'), '0');
+				assert.equal(region.getAttribute('role'), 'region');
+				assert.ok(region.getAttribute('aria-label'));
+			}
+			const close = content.querySelector('button');
+			assert.ok(close);
+			assert.equal(close.textContent, 'Close');
+			assert.equal(content.ownerDocument?.activeElement, regions[0] ?? close);
+			close.trigger('click');
+			assert.equal(content.querySelectorAll('button').length, 0);
+		}
+	} finally {
+		dom.restore();
+	}
 });

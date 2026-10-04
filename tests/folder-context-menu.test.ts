@@ -40,17 +40,17 @@ test('Markdown menu callbacks lock and unlock the note while attachments have no
 		onClick(callback: () => Promise<void>) { click = callback; return this; },
 	} as unknown as MenuItem;
 	const menu = { addItem: (callback: (item: MenuItem) => void) => callback(item) } as unknown as Menu;
-	addPathContextMenu(menu, Object.assign(new TFile(), { path: 'image.png', extension: 'png' }), plugin, vault);
+	addPathContextMenu(menu, Object.assign(new TFile(), { path: 'image.png', extension: 'png' }), plugin, vault, () => {});
 	assert.deepEqual(titles, []);
 	const note = Object.assign(new TFile(), { path: 'notes/example.md', extension: 'md' });
-	addPathContextMenu(menu, note, plugin, vault);
+	addPathContextMenu(menu, note, plugin, vault, () => {});
 	assert.ok(click);
 	await click();
 	assert.equal(plugin.settings.includeRuleEntries?.[0]?.enabled, true);
-	addPathContextMenu(menu, note, plugin, vault);
+	addPathContextMenu(menu, note, plugin, vault, () => {});
 	await click();
 	assert.equal(plugin.settings.includeRuleEntries?.[0]?.enabled, false);
-	assert.deepEqual(titles, ['Lock → Reading', 'Unlock']);
+	assert.deepEqual(titles, ['Explain read-only status', 'Lock → Reading', 'Explain read-only status', 'Unlock']);
 });
 
 test('folder menu skips root and reflects enabled rules and mode changes', () => {
@@ -61,15 +61,16 @@ test('folder menu skips root and reflects enabled rules and mode changes', () =>
 		setIcon() { return this; }, onClick() { return this; },
 	} as unknown as MenuItem;
 	const menu = { addItem: (callback: (item: MenuItem) => void) => callback(item) } as unknown as Menu;
-	addPathContextMenu(menu, new TFile(), plugin, vault);
-	addPathContextMenu(menu, folder('/'), plugin, vault);
-	assert.deepEqual(titles, []);
-	addPathContextMenu(menu, folder(), plugin, vault);
+	addPathContextMenu(menu, new TFile(), plugin, vault, () => {});
+	addPathContextMenu(menu, folder('/'), plugin, vault, () => {});
+	assert.deepEqual(titles, ['Explain read-only status']);
+	titles.length = 0;
+	addPathContextMenu(menu, folder(), plugin, vault, () => {});
 	plugin.settings = mergeLoadedSettings({ includeRules: ['notes/'] });
-	addPathContextMenu(menu, folder(), plugin, vault);
+	addPathContextMenu(menu, folder(), plugin, vault, () => {});
 	plugin.settings.useGlobPatterns = true;
-	addPathContextMenu(menu, folder(), plugin, vault);
-	assert.deepEqual(titles, ['Lock → Reading', 'Unlock', 'Lock → Reading']);
+	addPathContextMenu(menu, folder(), plugin, vault, () => {});
+	assert.deepEqual(titles, ['Explain read-only status', 'Lock → Reading', 'Explain read-only status', 'Unlock', 'Explain read-only status', 'Lock → Reading']);
 });
 
 test('actions persist, refresh, and reapply in order; repeated actions are safe', async () => {

@@ -4,6 +4,7 @@ import { createCompiledRuleMatcher } from './matcher';
 import type { IncludeRuleUpdate, SettingsTabPlugin } from './plugin-types';
 import { createRuleResolverContext } from './rule-source';
 import { changeNoteRule, hasActiveNoteRule } from './note-rules';
+import { explainNote, explainFolder, type ReadOnlyExplanation } from './read-only-explanation';
 import { buildEffectiveRules } from './rule-limits';
 
 export async function applyPathRuleAction(
@@ -76,13 +77,34 @@ export async function applyPathRuleAction(
 	if (limits.hardCapExceeded) notify('Path rule saved. Some rules are ignored because the rule limit is exceeded.');
 }
 
+/** Walk only the selected subtree, using already-loaded vault metadata. */
+export function* markdownDescendantPaths(folder: TFolder): Generator<string> {
+	const pending = [...folder.children].reverse();
+	while (pending.length) {
+		const child = pending.pop();
+		if (child instanceof TFolder) {
+			for (let index = child.children.length - 1; index >= 0; index--) pending.push(child.children[index]!);
+		} else if (child instanceof TFile && child.extension.toLowerCase() === 'md') yield child.path;
+	}
+}
+
 export function addPathContextMenu(
 	menu: Menu,
 	file: TAbstractFile,
 	plugin: SettingsTabPlugin,
 	vault: Vault,
+	showExplanation: (explanation: ReadOnlyExplanation) => void,
 ): void {
 	if (!(file instanceof TFolder) && !(file instanceof TFile && file.extension.toLowerCase() === 'md')) return;
+	menu.addItem((item) => item
+		.setTitle('Explain read-only status')
+		.setIcon('info')
+		.onClick(() => {
+			const matcher = plugin.getCompiledRuleMatcher?.() ?? createCompiledRuleMatcher(plugin.settings);
+			showExplanation(file instanceof TFolder
+				? { kind: 'folder', path: `${folderRulePath(file.path)}/`, result: explainFolder(markdownDescendantPaths(file), plugin.settings, matcher) }
+				: { kind: 'note', path: file.path, result: explainNote(file.path, plugin.settings, matcher) });
+		}));
 	if (!folderRulePath(file.path)) return;
 	const lock = !(file instanceof TFolder ? hasActiveFolderRule : hasActiveNoteRule)(plugin.settings, file.path);
 	menu.addItem((item) => item
