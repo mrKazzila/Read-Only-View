@@ -28,6 +28,12 @@ This document is a living system map for the `read-only-view` Obsidian plugin.
 
 High-level modules:
 
+- `src/read-only-explanation.ts` / `src/read-only-status-modal.ts` (1.1.3)
+  - Native **Explain read-only status** modal uses `buildPathTesterResult` with one cached matcher per context-menu operation; no settings saves or enforcement calls
+  - Modal sections are labelled keyboard-focusable regions with visible focus; initial focus goes to the first section (or Close for an empty folder), with a native Close button and standard modal Escape handling
+  - Note reason precedence: disabled → Exclude → All Markdown files → Include → no match; matched rule representations stay identical to Path tester
+  - Folder diagnostics iteratively traverse loaded `TFolder.children`, include nested Markdown `TFile` paths only, and aggregate all/mixed/none/empty status, counts, effective-order deduplicated rule unions, and at most five editable examples
+  - Shared existing `file-menu` handler serves diagnostics for Markdown notes and folders (including root); Lock/Unlock semantics and root restriction remain unchanged
 - `src/path-context-menu.ts` (1.1.3)
   - Public `file-menu` integration, registered through the plugin lifecycle; native flat `Lock → Reading` / `Unlock` items for non-root `TFolder` and Markdown `TFile`
   - When Settings is closed, persists through `saveSettings`, refreshes editor options, and immediately reapplies enforcement; failed saves restore the previous Include state
