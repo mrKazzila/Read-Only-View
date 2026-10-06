@@ -913,7 +913,7 @@
 	overflow-wrap: anywhere;
 }
 
-.modal.read-only-view-status-dialog {
+body:not(.is-phone) .modal.read-only-view-status-dialog {
 	width: 28rem;
 	max-width: calc(100vw - var(--size-4-4));
 	min-width: 0;
@@ -973,4 +973,9 @@
 
 .read-only-view-status-dialog .modal-button-container {
 	margin-top: var(--size-4-4);
+}
+
+/* Phone dismissal moves the modal by its own height, so anchor it at the bottom. */
+.is-phone .modal-container.read-only-view-status-container {
+	align-items: flex-end;
 }

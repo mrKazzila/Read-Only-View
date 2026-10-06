@@ -268,6 +268,8 @@ test('status modal keeps note and folder values static with initial focus on Clo
 			const modal = new ReadOnlyStatusModal(new App(), explanation);
 			modal.open();
 			const content = modal.contentEl as unknown as MockHTMLElement;
+			assert.ok((modal.containerEl as unknown as MockHTMLElement).matches('.read-only-view-status-container'));
+			assert.ok((modal.modalEl as unknown as MockHTMLElement).matches('.read-only-view-status-dialog'));
 			assert.equal(content.querySelectorAll('[tabindex]').length, 0);
 			assert.equal(content.querySelectorAll('[aria-label]').length, 0);
 			if (explanation.kind === 'note') {
@@ -288,8 +290,18 @@ test('status modal keeps note and folder values static with initial focus on Clo
 			assert.ok(close);
 			assert.equal(close.textContent, 'Close');
 			assert.equal(content.ownerDocument?.activeElement, close);
+			let closeCalls = 0;
+			const nativeClose = modal.close.bind(modal);
+			modal.close = () => { closeCalls++; nativeClose(); };
+			const valuesBeforeClose = content.querySelectorAll('code').map((el) => el.textContent);
 			close.trigger('click');
-			assert.equal(content.querySelectorAll('button').length, 0);
+			assert.equal(closeCalls, 1);
+			// Keep layout intact for the host's dismissal; reopening must not duplicate it.
+			assert.deepEqual(content.querySelectorAll('code').map((el) => el.textContent), valuesBeforeClose);
+			modal.open();
+			assert.equal(content.querySelectorAll('button').length, 1);
+			assert.deepEqual(content.querySelectorAll('code').map((el) => el.textContent), valuesBeforeClose);
+			modal.close();
 		}
 	} finally {
 		dom.restore();

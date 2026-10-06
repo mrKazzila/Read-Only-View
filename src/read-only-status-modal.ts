@@ -11,6 +11,7 @@ export class ReadOnlyStatusModal extends Modal {
 		const explanation = this.explanation;
 		contentEl.empty();
 		contentEl.addClass('read-only-view-status-modal');
+		this.containerEl.addClass('read-only-view-status-container');
 		this.modalEl.addClass('read-only-view-status-dialog');
 		// eslint-disable-next-line obsidianmd/ui/sentence-case -- Plugin's proper name.
 		contentEl.createEl('h2', { text: 'Read Only View' });
@@ -58,8 +59,5 @@ export class ReadOnlyStatusModal extends Modal {
 		this.ruleRow(rules, 'Exclude', excludes);
 	}
 
-
-	onClose(): void {
-		this.contentEl.empty();
-	}
+	// Native Modal owns teardown; onOpen clears content if this instance is reused.
 }
