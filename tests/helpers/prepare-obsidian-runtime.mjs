@@ -108,6 +108,8 @@ export class Modal {
         createEl() { return this; },
         createDiv() { return this; },
       };
+    this.modalEl = this.contentEl;
+    this.contentEl = this.modalEl.createDiv();
     this.opened = false;
   }
   onOpen() {}

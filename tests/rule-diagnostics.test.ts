@@ -253,7 +253,7 @@ test('folder summaries retain the exact rule representation reported by Path tes
 });
 
 
-test('status modal exposes labelled tab stops, initial focus and Close for notes and folders', () => {
+test('status modal keeps note and folder values static with initial focus on Close', () => {
 	const dom = installDomMocks();
 	try {
 		const settings = settingsFor();
@@ -261,23 +261,33 @@ test('status modal exposes labelled tab stops, initial focus and Close for notes
 		const explanations: ReadOnlyExplanation[] = [
 			{ kind: 'note', path: 'folder/a.md', result: explainNote('folder/a.md', settings, matcher) },
 			{ kind: 'folder', path: 'folder/', result: explainFolder(['folder/a.md'], settings, matcher) },
+			{ kind: 'folder', path: 'other/', result: explainFolder(['other/a.md'], settings, matcher) },
 			{ kind: 'folder', path: 'empty/', result: explainFolder([], settings, matcher) },
 		];
 		for (const explanation of explanations) {
 			const modal = new ReadOnlyStatusModal(new App(), explanation);
 			modal.open();
 			const content = modal.contentEl as unknown as MockHTMLElement;
-			const regions = content.querySelectorAll('.read-only-view-status-values');
-			assert.equal(regions.length, explanation.kind === 'note' ? 3 : explanation.result.total ? 2 : 0);
-			for (const region of regions) {
-				assert.equal(region.getAttribute('tabindex'), '0');
-				assert.equal(region.getAttribute('role'), 'region');
-				assert.ok(region.getAttribute('aria-label'));
+			assert.equal(content.querySelectorAll('[tabindex]').length, 0);
+			assert.equal(content.querySelectorAll('[aria-label]').length, 0);
+			if (explanation.kind === 'note') {
+				assert.deepEqual(content.querySelectorAll('h3').map((el) => el.textContent), ['Reason', 'Matched rules']);
+				assert.deepEqual(content.querySelectorAll('dt').map((el) => el.textContent), ['Include', 'Exclude']);
+				assert.deepEqual(content.querySelectorAll('code').map((el) => el.textContent), ['folder/a.md', 'folder/']);
+				assert.equal(content.querySelectorAll('[tabindex]').length, 0);
+				assert.equal(content.querySelectorAll('[aria-label]').length, 0);
+			}
+			if (explanation.kind === 'folder') {
+				assert.equal(content.querySelector('strong')?.textContent, explanation.result.status);
+				assert.equal(content.querySelector('code')?.textContent, explanation.path);
+				assert.deepEqual(content.querySelectorAll('dt').map((el) => el.textContent), explanation.result.total ? ['Include', 'Exclude'] : []);
+				const codeValues = content.querySelectorAll('code').map((el) => el.textContent);
+				for (const example of explanation.result.editableExamples) assert.ok(codeValues.includes(example));
 			}
 			const close = content.querySelector('button');
 			assert.ok(close);
 			assert.equal(close.textContent, 'Close');
-			assert.equal(content.ownerDocument?.activeElement, regions[0] ?? close);
+			assert.equal(content.ownerDocument?.activeElement, close);
 			close.trigger('click');
 			assert.equal(content.querySelectorAll('button').length, 0);
 		}

@@ -913,12 +913,64 @@
 	overflow-wrap: anywhere;
 }
 
-.read-only-view-status-modal .read-only-view-status-values {
-	max-height: 12em;
-	overflow-y: auto;
+.modal.read-only-view-status-dialog {
+	width: 28rem;
+	max-width: calc(100vw - var(--size-4-4));
+	min-width: 0;
+	min-height: 0;
+	padding: var(--size-4-4);
 }
 
-.read-only-view-status-modal .read-only-view-status-values:focus-visible {
-	outline: 2px solid var(--interactive-accent);
-	outline-offset: 2px;
+.read-only-view-status-dialog .read-only-view-status-modal {
+	margin-top: 0;
+}
+
+.read-only-view-status-dialog h2 {
+	margin: 0 var(--size-4-6) var(--size-4-2) 0;
+	font-size: var(--font-ui-large);
+}
+
+.read-only-view-status-dialog h3 {
+	margin: var(--size-4-3) 0 var(--size-4-1);
+	font-size: var(--font-ui-small);
+	font-weight: var(--font-semibold);
+	color: var(--text-muted);
+}
+
+.read-only-view-status-dialog p {
+	margin: 0;
+	font-size: var(--font-ui-small);
+}
+
+.read-only-view-status-dialog .read-only-view-status-result {
+	display: block;
+	margin-top: var(--size-4-3);
+	font-size: var(--font-ui-medium);
+}
+
+.read-only-view-status-dialog code {
+	padding: 0;
+	background: none;
+	color: var(--text-normal);
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-smaller);
+	white-space: pre-wrap;
+}
+
+.read-only-view-status-dialog .read-only-view-status-rules {
+	margin: 0;
+	font-size: var(--font-ui-small);
+}
+
+.read-only-view-status-dialog dt {
+	margin-top: var(--size-4-2);
+	color: var(--text-muted);
+}
+
+.read-only-view-status-dialog dd {
+	margin: var(--size-4-1) 0 0 var(--size-4-3);
+}
+
+.read-only-view-status-dialog .modal-button-container {
+	margin-top: var(--size-4-4);
 }
