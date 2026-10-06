@@ -34,6 +34,8 @@ Read-only protection uses two layers:
 
 This additional editor layer is intended to cover contexts such as Page Preview and Hover Preview more directly, though some edge cases still depend on Obsidian's internal view behavior.
 
+In protected CodeMirror editors, Enter (including modifier combinations) is intercepted before editor commands can insert list items, table rows, or newlines in code blocks. This also applies to hover previews, using the previewed note's own protection rules.
+
 ## Quick start
 
 On a new installation:

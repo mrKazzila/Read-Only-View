@@ -200,6 +200,7 @@ Editor-level guard:
 - Implemented in `src/editor-readonly.ts`.
 - Reads `MarkdownFileInfo.file.path` from Obsidian `editorInfoField`.
 - Applies CM6 `EditorState.readOnly=true` and `EditorView.editable=false` only for matched markdown paths.
+- A highest-precedence `keydown` handler consumes Enter (including modifier combinations) before Markdown keymaps can mutate lists, tables, or code blocks. It checks current rules against the editor's own `editorInfoField`, including hover editors without a workspace leaf; other keys and unprotected editors pass through.
 - Observes read-only editor interaction (`pointerdown`, `focus`) and routes it back into `ensurePreview()` for faster return to Reading view.
 - Covers CodeMirror-backed editors without requiring active-leaf lookups.
 - Existing editor instances are reconfigured on settings changes via `workspace.updateOptions()`.
