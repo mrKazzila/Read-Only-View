@@ -4,6 +4,7 @@ import test from 'node:test';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import {
+	blockReadOnlyEnter,
 	createEditorReadOnlyExtension,
 	notifyReadOnlyInteraction,
 } from '../src/editor-readonly.js';
@@ -49,6 +50,61 @@ test('editor read-only extension marks matching path as read-only and non-editab
 
 	assert.equal(state.readOnly, true);
 	assert.equal(state.facet(EditorView.editable), false);
+});
+
+test('Enter is consumed in a protected hover editor without a workspace leaf', async () => {
+	const state = await createStateForInfo({ file: { path: 'docs/snippets.md' } });
+	const calls: string[] = [];
+	const handled = blockReadOnlyEnter({
+		key: 'Enter',
+		preventDefault: () => calls.push('preventDefault'),
+		stopImmediatePropagation: () => calls.push('stopImmediatePropagation'),
+	}, state, {
+		shouldForceReadOnlyPath: (path) => path === 'docs/snippets.md',
+		onReadOnlyInteraction: (info, reason) => calls.push(`${info.file?.path}:${reason}`),
+	});
+
+	assert.equal(handled, true);
+	assert.deepEqual(calls, [
+		'preventDefault',
+		'stopImmediatePropagation',
+		'docs/snippets.md:editor-readonly:enter',
+	]);
+});
+
+test('Enter guard preserves other keys and editable or unidentified editors', async () => {
+	for (const { info, key, protectedPath } of [
+		{ info: { file: { path: 'docs/snippets.md' } }, key: 'ArrowDown', protectedPath: true },
+		{ info: { file: { path: 'docs/snippets.md' } }, key: 'c', protectedPath: true },
+		{ info: { file: { path: 'docs/snippets.md' } }, key: 'Enter', protectedPath: false },
+		{ info: { file: null }, key: 'Enter', protectedPath: true },
+		{ info: null, key: 'Enter', protectedPath: true },
+	]) {
+		const state = await createStateForInfo(info);
+		assert.equal(blockReadOnlyEnter({
+			key,
+			preventDefault: () => assert.fail('Unexpected prevented key'),
+			stopImmediatePropagation: () => assert.fail('Unexpected stopped propagation'),
+		}, state, { shouldForceReadOnlyPath: () => protectedPath }), false);
+	}
+});
+
+test('Enter guard uses current rules when protection changes on an existing editor', async () => {
+	const state = await createStateForInfo({ file: { path: 'docs/snippets.md' } });
+	let protectedPath = false;
+	let prevented = 0;
+	const event = {
+		key: 'Enter',
+		preventDefault: () => { prevented++; },
+		stopImmediatePropagation: () => {},
+	};
+	const dependencies = { shouldForceReadOnlyPath: () => protectedPath };
+	assert.equal(blockReadOnlyEnter(event, state, dependencies), false);
+	protectedPath = true;
+	assert.equal(blockReadOnlyEnter(event, state, dependencies), true);
+	protectedPath = false;
+	assert.equal(blockReadOnlyEnter(event, state, dependencies), false);
+	assert.equal(prevented, 1);
 });
 
 test('editor read-only extension keeps excluded path editable', async () => {
