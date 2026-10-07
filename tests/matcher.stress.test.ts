@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { execPath } from 'node:process';
 import { performance } from 'node:perf_hooks';
 import test from 'node:test';
 
@@ -69,4 +71,45 @@ test('S3) mixed wildcard stress cases (*, **, ?) stay within conservative runtim
 	});
 
 	assert.ok(durationMs <= budgetMs, `Expected <= ${budgetMs}ms, got ${durationMs.toFixed(2)}ms`);
+});
+
+// The parent enforces the deadline even if synchronous matching never returns.
+test('S4) adversarial glob matching completes in an isolated process', () => {
+	const matcherUrl = new URL('../src/matcher.js', import.meta.url).href;
+	const result = spawnSync(execPath, ['--input-type=module', '--eval', `
+		import assert from 'node:assert/strict';
+		import { matchPath, createCompiledRuleMatcher, DEFAULT_SETTINGS } from ${JSON.stringify(matcherUrl)};
+		const options = { useGlobPatterns: true, caseSensitive: true };
+		const cases = [
+			['*a'.repeat(32) + 'b.md', 'a'.repeat(40) + '.md'],
+			['*a'.repeat(32) + '*b*.md', 'a'.repeat(80) + '.md'],
+			['**a'.repeat(32) + '**b**.md', 'a/'.repeat(80) + 'a.md'],
+			['a' + '/**/a'.repeat(24) + '/**/b*.md', 'a/'.repeat(60) + 'c.md'],
+			['*?'.repeat(32) + '*b*.md', 'a'.repeat(80) + '.md'],
+			['*a'.repeat(256) + '*b*.md', 'a'.repeat(1_000) + '.md'],
+		];
+		for (const [pattern, path] of cases) {
+			assert.equal(matchPath(path, pattern, options), false, pattern);
+			const settings = {
+				...DEFAULT_SETTINGS, ...options, enabled: true, forceAllMarkdownReadOnly: false,
+				includeRules: [pattern], excludeRules: [],
+			};
+			assert.equal(createCompiledRuleMatcher(settings).shouldForceReadOnly(path), false);
+			const excluded = createCompiledRuleMatcher({
+				...settings, includeRules: ['**'], excludeRules: [pattern, '**'],
+			});
+			assert.equal(excluded.shouldForceReadOnly(path), false);
+			assert.deepEqual(excluded.matchExcludeRules(path), ['**']);
+		}
+		const matchingPattern = '*a'.repeat(32) + '*.md';
+		const matchingPath = 'a'.repeat(80) + '.md';
+		assert.equal(matchPath(matchingPath, matchingPattern, options), true);
+		assert.equal(createCompiledRuleMatcher({
+			...DEFAULT_SETTINGS, ...options, enabled: true, forceAllMarkdownReadOnly: true,
+			includeRules: [], excludeRules: [matchingPattern],
+		}).shouldForceReadOnly(matchingPath), false);
+
+	`], { timeout: 5_000, killSignal: 'SIGKILL', encoding: 'utf8' });
+	assert.ifError(result.error);
+	assert.equal(result.status, 0, result.stderr);
 });

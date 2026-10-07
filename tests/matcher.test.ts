@@ -416,3 +416,36 @@ test('Z) an imported absolute folder keeps ordinary folder semantics', () => {
 	assert.equal(matcher.shouldForceReadOnly('Knowledge Base/Productivity/Weekly review.md'), true);
 	assert.equal(matcher.shouldForceReadOnly('Knowledge Base/Productivity archive/Weekly review.md'), false);
 });
+
+
+test('bounded matcher preserves glob edge semantics through both public interfaces', () => {
+	const cases: [string, string, boolean][] = [
+		['a/c.md', 'a/**/c.md', true],
+		['a/b/d/c.md', 'a/**/c.md', true],
+		['a/b/d/c.md', 'a/*/c.md', false],
+		['README.md', '**/README.md', false],
+		['a/bc.md', 'a/**c.md', true],
+		['a/b/c.md', 'a/***c.md', true],
+		['a/.md', 'a/?.md', false],
+		['a/😀.md', 'a/?.md', false],
+		['a/😀.md', 'a/??.md', true],
+		['a/x\ny/c.md', 'a/**/c.md', false],
+		['a/x\ny.md', 'a/*.md', true],
+		['a/\n.md', 'a/?.md', true],
+		['a/[x]+(y).md', 'a/[x]+(y).md', true],
+		['a/x.md/extra', 'a/*.md', false],
+	];
+	for (const [path, pattern, expected] of cases) {
+		for (const caseSensitive of [true, false]) {
+			const options = { useGlobPatterns: true, caseSensitive };
+			assert.equal(matchPath(path, pattern, options), expected, `${pattern}: ${path}`);
+			const matcher = createCompiledRuleMatcher(createSettings({ ...options, includeRules: [pattern] }));
+			assert.equal(matcher.matchIncludeRules(path).length > 0, expected, `${pattern}: ${path}`);
+		}
+	}
+	const matcher = createCompiledRuleMatcher(createSettings({
+		caseSensitive: false, includeRules: ['DOCS/**/NOTE-?.md'], excludeRules: ['docs/private/**'],
+	}));
+	assert.equal(matcher.shouldForceReadOnly(' ./Docs//Note-A.MD '), true);
+	assert.equal(matcher.shouldForceReadOnly('Docs\\Private\\Note-A.MD'), false);
+});
