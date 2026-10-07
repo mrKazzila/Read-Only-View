@@ -104,8 +104,12 @@ High-level modules:
   - Source-input length policy, overflow handling, and display-safe truncation helpers
 - `src/constants.ts`
   - Rule volume thresholds and hard limits (`50/150`, `200/300/400`)
+- `src/rule-state.ts`
+  - Owns canonical RuleEntry loading, legacy migration at original enabled-flag indexes, source/path validation, compatibility projections, and effective entry selection
+  - Matcher and context-menu limit checks select from the same validated entries; editor payloads and diagnostics use the shared runtime projection
+  - Legacy string/enabled arrays remain serialized for compatibility; nonempty RuleEntry lists are authoritative, with legacy fallback for empty or absent lists
 - `src/rule-limits.ts`
-  - Single source of truth for effective include/exclude rules after cleanup + caps
+  - Shared include/exclude hard-cap policy applied by canonical rule state and settings diagnostics
   - Line-level ignored index tracking for settings diagnostics/UI
 - `src/popover-observer.ts`
   - Typed popover observer service with explicit lifecycle (`start`, `stop`)
@@ -260,7 +264,7 @@ Command entry points:
    - an ordinary vault path without a trailing slash, wildcard, or extension resolves to an existing `<path>.md` note when present
    - an ordinary vault path matching an existing folder is normalized with a trailing slash; explicit folder paths and glob-bearing vault paths retain their normal prefix/glob semantics
    - unresolved entries are retained for correction but omitted from runtime matching and rule limits
-5. Build effective rule sets from settings using hard-cap policy:
+5. `buildRuleState` filters unresolved, overlength, and disabled entries before applying the hard-cap policy. Matcher specs retain the selected entry identity/source kind; published effective paths and Explorer/Path tester results use that same selection. Matcher cache keys include entry validity. Hard-cap policy:
    - include is capped first (`200`)
    - exclude is capped second (`300`)
    - if total still exceeds `400`, exclude tail is trimmed first (include priority)

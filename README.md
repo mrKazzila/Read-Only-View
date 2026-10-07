@@ -68,6 +68,8 @@ Value: Notes/Summaries/
 
 3. Wait for **Saved.**, then open a note in that folder. It will stay in Reading view.
 
+Unresolved or overlength rules do not apply or consume rule limits. Disabled rules keep their place and can be enabled later. Note protection, the Path tester, and Explorer indicators use the same valid, enabled rules.
+
 **Exclude rules take priority over Include rules.** See the [full matching guide](https://mrkazzila.github.io/Read-Only-View/docs/path-rules) for advanced settings.
 
 **Advanced → Show protection indicators** optionally adds small locks beside protected Markdown notes and folders in the File Explorer. It is off by default, visual only, and uses the same effective protection rules, including exclusions and the global Enabled switch.
