@@ -93,6 +93,9 @@ High-level modules:
   - Enabled control, mutually exclusive mode buttons, and shared save/re-apply side-effect helper
 - `src/settings-rule-editor.ts`
   - Unified Path rules table rendering, row diagnostics, and `DebouncedRuleChangeSaver`
+  - One cached snapshot per editor revision holds row resolutions, active per-type indexes, save payload, limit summary, and diagnostics. Input/type/enabled/add/delete edits and changed external updates invalidate it; rendering and saving reuse it. Each rebuild resolves each loaded row once, including rows beyond matcher caps. DOM, CSS, focus handling, and debounce timing are unchanged.
+  - Regression coverage counts resolver-context lookups at 10/20/450 rows and checks cap/error alignment after type, enabled, deletion, and external ordering changes. This establishes linear resolution work, not measured Obsidian latency.
+  - Validation (2026-10-08): `just lint`, `just test` (340 tests), and `just build` passed. Before/after inspection in the demo vault on Obsidian 1.14.4 confirmed the same desktop dark-theme rule table, messages, and summary with Matching/Debug sections collapsed. Visual validation remains partial: legacy Settings (no legacy app session), light theme, expanded sections, and narrow/mobile layouts were not compared; no mobile session was available.
 - `src/settings-focus.ts`
   - Stable focus keys plus capture/restore helpers for settings and rule-row rerenders
   - First-control focus helper used when opening the settings page
