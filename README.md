@@ -70,6 +70,8 @@ Value: Notes/Summaries/
 
 **Exclude rules take priority over Include rules.** See the [full matching guide](https://mrkazzila.github.io/Read-Only-View/docs/path-rules) for advanced settings.
 
+**Advanced → Show protection indicators** optionally adds small locks beside protected Markdown notes and folders in the File Explorer. It is off by default, visual only, and uses the same effective protection rules, including exclusions and the global Enabled switch.
+
 <a id="rule-examples"></a>
 
 ## Common examples

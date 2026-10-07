@@ -29,6 +29,14 @@ This document is a living system map for the `read-only-view` Obsidian plugin.
 
 ## 1) Architecture
 
+- `src/explorer-indicators.ts`
+  - Optional, visual-only File Explorer locks for Markdown files and folders; `showExplorerProtectionIndicators` defaults to false, including upgrades.
+  - Reuses the compiled matcher: `isPathProtected(path, kind)` shares the runtime decision; folders use a trailing slash, while `shouldForceReadOnly` retains the Markdown-only guard. Folder icons describe matching scope, not a claim that every descendant is protected. Glob rules are evaluated as written; a note-only glob does not imply a protected folder.
+  - Starts on load/enable, reconciles Explorer containers on layout readiness and layout changes, and refreshes after settings saves. Global disable stops it.
+  - Vault create/delete/rename (including moves and folder descendants) invalidate affected tracked rows. Container-scoped observers batch added subtrees and `data-path` changes in microtasks; unchanged rows reuse cached decisions. No full-vault traversal.
+  - Stop/unload disconnects observers, removes event refs/icons and cancels queued work. Selectors `.nav-file-title`, `.nav-folder-title`, and `data-path` are undocumented Explorer DOM conventions isolated in this controller; unsupported markup is skipped. Native icons and theme variables are used.
+  - `tests/explorer-indicators.test.ts` covers shared decisions, defaults, lifecycle cleanup, idempotence, targeted updates and rerenders.
+
 High-level modules:
 
 - `src/read-only-explanation.ts` / `src/read-only-status-modal.ts` (1.1.3)
@@ -282,7 +290,7 @@ UI module split:
 - Settings layout keeps the header, combined Enabled/mode card, Path rules, and Path tester workflow permanently visible. `Matching` and `Debug flags` remain inline collapsible sections with ephemeral open state in both renderers.
 - On Obsidian 1.13+, `Read-only behavior` is one custom declarative item with `Enabled` and `Mode` search aliases, preserving the legacy two-card composition instead of allowing the host to split those controls into separate blocks.
 - Obsidian 1.13+ renders the complete settings stack through one custom item inside one heading-free group. The plugin therefore owns every inter-card gap directly; Obsidian cannot insert declarative section spacing between Mode, Path rules, Path tester, and Advanced. The scoped wrapper reset removes host borders/backgrounds, all cards remain full-width, and the stack uses the compact `--size-4-2` gap on desktop and narrow layouts. Path rules adds one extra `--size-4-2` top margin, making only the Mode-to-Path-rules separation twice the base gap.
-- The Advanced declarative item exposes both section names and all four control names as search aliases; its custom `render` callback preserves the plugin-owned accordion controls and their persistence side effects.
+- The Advanced declarative item exposes both section names and all five control names as search aliases; its custom `render` callback preserves the plugin-owned accordion controls and their persistence side effects.
 - Obsidian versions before 1.13 use the legacy `display()` path, so the supported runtime baseline remains 1.10.3.
 - Header card:
   - title `Read Only View`
@@ -326,6 +334,7 @@ UI module split:
   - system-folder inputs show their resolved vault folder and prompt for a concrete note when match diagnostics are needed
   - long resolved values and matched-rule labels are display-truncated to keep settings usable without changing accepted input
 - Advanced section:
+  - `Show protection indicators` (first control; off by default)
   - `Matching`
     - `Use glob patterns`
     - `Case sensitive`
@@ -341,8 +350,9 @@ UI module split:
 - Path-rule help is a single external-link focus target (icon plus label), with visible focus and Enter/Space activation.
 - Advanced disclosure headers use a full-width inset focus indicator that remains visible inside the clipped card, plus `aria-expanded`/`aria-controls`; arrow glyphs are decorative.
 - `Debug: verbose paths` toggle allows full file paths in debug logs; default keeps paths redacted
-- Advanced defaults enable only `Case sensitive`; glob matching and both debug flags are disabled.
+- Advanced defaults enable only `Case sensitive`; Explorer indicators, glob matching and both debug flags are disabled.
 - Persisted settings schema:
+  - `showExplorerProtectionIndicators: boolean` (default `false`)
   - `forceAllMarkdownReadOnly: boolean`
   - `includeRules: string[]`
   - `excludeRules: string[]`
