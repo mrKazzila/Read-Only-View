@@ -447,6 +447,13 @@ When plugin behavior changes (matching logic, enforcement behavior, commands, se
 2. Update user-facing docs (`README.md`).
 3. Re-run validation: `just lint && just test && just build`.
 
+## Documentation responsibilities
+
+- `README.md` is the user landing page: installation, first rules, common examples, Path tester, commands, limitations, and links to full guides. Its `rule-examples` HTML anchor preserves the existing settings help link.
+- `docs-site/docs/` and `docs-site/guides/` contain advanced user behavior, including matching, source resolution, Lock/Unlock, and context-menu diagnostics.
+- `CONTRIBUTING.md` owns development workflows and Star History maintenance; demo setup details remain in `docs/DEMO_VAULT.md`.
+- This system map retains editor enforcement, remote transaction handling, settings layout, and focus-management details rather than repeating them in the README.
+
 ## Public documentation website
 
 - `docs-site/` contains the VitePress homepage, five workflow guides, Path rules, Path tester, and FAQ. It documents the checked-in behavior rather than claiming a latest release version.

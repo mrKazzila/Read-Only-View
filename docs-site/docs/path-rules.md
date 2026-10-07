@@ -111,6 +111,22 @@ Obsidian URLs may omit `.md`. Heading and block locators do not change which not
 
 If a source cannot be resolved, its value remains visible with an explanation, but it does not match anything. Imported sources require existing targets and do not automatically follow later renames.
 
+## Lock and Unlock
+
+Right-click a Markdown note or folder in the file explorer and choose **Lock → Reading** to create or enable an Include rule. The rule appears under **Path rules** and applies immediately to open notes. Existing rules for the same target are reused.
+
+Choose **Unlock** to disable all exact Include rules for that target without deleting them. It does not disable parent folder rules, change Exclude rules, turn off the plugin, or leave **All Markdown files** mode. A note can therefore remain protected after unlocking; check [Path tester](./path-tester.md) to see why.
+
+### Notes
+
+New note locks use an exact Obsidian URL Include rule that works in both prefix and glob modes. Unlocking a note does not override a folder lock. Note paths containing `#`, `*`, or `?` cannot currently be represented by the exact-rule resolver; the action shows a notice without changing rules.
+
+### Folders
+
+Folder locks use `Folder/` in prefix mode and `Folder/**` in glob mode. Switching matching modes does not rewrite saved rules: choose **Lock → Reading** again to adapt the existing folder rule without adding a duplicate.
+
+Renaming or deleting a folder leaves its rules unchanged. The vault root does not offer the lock shortcut, and folder names containing `*` or `?` cannot be locked this way in glob mode. Existing rule limits still apply.
+
 ## Verify the result
 
 Wait for **Saved.**, then paste a specific Markdown note path into [Path tester](./path-tester.md). If the result is unexpected, check the selected mode, exclude matches, enabled rows, case sensitivity, and matching mode.

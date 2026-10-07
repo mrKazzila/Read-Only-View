@@ -34,6 +34,14 @@ With **Enabled** on, **Only matched paths** selected, glob matching off, an **In
 
 In **All Markdown files**, a note can be read-only without any include matches. The preset determines the result unless an exclude matches. Turning **Enabled** off disables protection.
 
+## Explain read-only status from the context menu
+
+Right-click a Markdown note and choose **Explain read-only status** to see its final status, reason, and matching Include/Exclude rules without opening settings.
+
+For a folder, the same action includes nested Markdown notes and reports **ALL PROTECTED**, **MIXED**, **NOT PROTECTED**, or **NO MARKDOWN NOTES**. It shows counts and up to five editable examples to help locate exceptions.
+
+This action only reports the current configuration. It does not change rules, settings, files, or editor state.
+
 ## Resolve input problems
 
 - **Wrong vault or missing note:** an Obsidian URL must resolve to an existing Markdown note in the current vault.
