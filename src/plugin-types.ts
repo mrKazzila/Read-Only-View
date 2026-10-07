@@ -18,10 +18,12 @@ export interface ForceReadModeSettings {
 	debug: boolean;
 	debugVerbosePaths: boolean;
 	dismissedWelcomeVersion: number;
+	/** Compatibility projections; runtime selection uses RuleEntry lists. */
 	includeRules: string[];
 	excludeRules: string[];
 	includeRuleEnabled: boolean[];
 	excludeRuleEnabled: boolean[];
+	/** Canonical rules. Optional only for legacy callers and saved settings. */
 	includeRuleEntries?: RuleEntry[];
 	excludeRuleEntries?: RuleEntry[];
 }

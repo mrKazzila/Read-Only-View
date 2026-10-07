@@ -5,7 +5,7 @@ import type { IncludeRuleUpdate, SettingsTabPlugin } from './plugin-types';
 import { createRuleResolverContext } from './rule-source';
 import { changeNoteRule, hasActiveNoteRule } from './note-rules';
 import { explainNote, explainFolder, type ReadOnlyExplanation } from './read-only-explanation';
-import { buildEffectiveRules } from './rule-limits';
+import { buildRuleState } from './rule-state';
 
 export async function applyPathRuleAction(
 	plugin: SettingsTabPlugin,
@@ -70,10 +70,7 @@ export async function applyPathRuleAction(
 	} else if (!lock && !plugin.settings.forceAllMarkdownReadOnly && descendants.some((file) => matcher.shouldForceReadOnly(file.path))) {
 		notify(isFolder ? 'Some existing notes in this folder remain protected by another rule.' : 'This note remains protected by another rule.');
 	}
-	const limits = buildEffectiveRules(
-		plugin.settings.includeRules.filter((_, index) => plugin.settings.includeRuleEnabled[index] !== false),
-		plugin.settings.excludeRules.filter((_, index) => plugin.settings.excludeRuleEnabled[index] !== false),
-	);
+	const { limits } = buildRuleState(plugin.settings);
 	if (limits.hardCapExceeded) notify('Path rule saved. Some rules are ignored because the rule limit is exceeded.');
 }
 

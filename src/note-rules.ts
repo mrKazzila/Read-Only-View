@@ -1,3 +1,4 @@
+import { getRuleEntries, isRuntimeRuleEntry } from './rule-state';
 import { normalizeVaultPath } from './path-utils';
 import type { ForceReadModeSettings, RuleEntry } from './plugin-types';
 import type { FolderRuleChange } from './folder-rules';
@@ -12,8 +13,8 @@ function isNoteRule(entry: RuleEntry, path: string, caseSensitive: boolean): boo
 }
 
 export function hasActiveNoteRule(settings: ForceReadModeSettings, path: string): boolean {
-	return (settings.includeRuleEntries ?? []).some((entry) =>
-		entry.enabled && isNoteRule(entry, normalizeVaultPath(path), settings.caseSensitive));
+	return getRuleEntries(settings, 'include').some((entry) =>
+		entry.enabled && isRuntimeRuleEntry(entry) && isNoteRule(entry, normalizeVaultPath(path), settings.caseSensitive));
 }
 
 export function changeNoteRule(
@@ -22,7 +23,7 @@ export function changeNoteRule(
 	lock: boolean,
 	context: RuleResolverContext,
 ): FolderRuleChange {
-	const entries = settings.includeRuleEntries ?? [];
+	const entries = getRuleEntries(settings, 'include');
 	const normalized = normalizeVaultPath(path);
 	if (!normalized.toLowerCase().endsWith('.md')) return { entries, changed: false };
 	const matches = (entry: RuleEntry): boolean => isNoteRule(entry, normalized, settings.caseSensitive);
@@ -33,7 +34,7 @@ export function changeNoteRule(
 		};
 	}
 	if (hasActiveNoteRule(settings, normalized)) return { entries, changed: false };
-	const index = entries.findIndex(matches);
+	const index = entries.findIndex((entry) => isRuntimeRuleEntry(entry) && matches(entry));
 	if (index !== -1) {
 		return { entries: entries.map((entry, i) => i === index ? { ...entry, enabled: true } : entry), changed: true };
 	}

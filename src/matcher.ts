@@ -1,5 +1,5 @@
 import { normalizeVaultPath } from './path-utils';
-import { buildEffectiveRules } from './rule-limits';
+import { buildRuleState, getRuleEntries, isRuntimeRuleEntry } from './rule-state';
 import type { ForceReadModeSettings } from './plugin-types';
 
 export { DEFAULT_SETTINGS } from './plugin-settings';
@@ -134,39 +134,17 @@ export function matchPath(filePath: string, pattern: string, options: MatchPathO
 }
 
 export function getCompiledRuleMatcherKey(settings: ForceReadModeSettings): string {
-	return [
-		settings.enabled ? '1' : '0',
-		settings.forceAllMarkdownReadOnly ? '1' : '0',
-		settings.useGlobPatterns ? '1' : '0',
-		settings.caseSensitive ? '1' : '0',
-		settings.includeRules.join('\u0000'),
-		settings.excludeRules.join('\u0000'),
-		settings.includeRuleEnabled.map((enabled) => enabled ? '1' : '0').join(''),
-		settings.excludeRuleEnabled.map((enabled) => enabled ? '1' : '0').join(''),
-		(settings.includeRuleEntries ?? []).map((entry) => `${entry.sourceKind}:${entry.resolvedPath ?? ''}:${entry.enabled ? '1' : '0'}`).join('\u0000'),
-		(settings.excludeRuleEntries ?? []).map((entry) => `${entry.sourceKind}:${entry.resolvedPath ?? ''}:${entry.enabled ? '1' : '0'}`).join('\u0000'),
-	].join('\u0001');
-}
-
-function getEnabledRules(rules: string[], enabledStates: boolean[]): string[] {
-	return rules.filter((_, index) => enabledStates[index] !== false);
-}
-
-function getEnabledRuleSpecs(
-	rules: string[],
-	enabledStates: boolean[],
-	entries: ForceReadModeSettings['includeRuleEntries'],
-): RuleSpec[] {
-	if (entries && entries.length > 0) {
-		return entries
-			.filter((entry): entry is typeof entry & { resolvedPath: string } => !!entry.resolvedPath && entry.enabled)
-			.map((entry) => ({
-				raw: entry.resolvedPath,
-				exact: entry.sourceKind !== 'vault-path'
-					&& !(entry.sourceKind === 'absolute-path' && entry.resolvedPath.endsWith('/')),
-			}));
-	}
-	return getEnabledRules(rules, enabledStates).map((raw) => ({ raw, exact: false }));
+	const entriesKey = (list: 'include' | 'exclude') => getRuleEntries(settings, list).map((entry) => [
+		entry.sourceKind, entry.resolvedPath, entry.enabled, isRuntimeRuleEntry(entry),
+	]);
+	return JSON.stringify([
+		settings.enabled,
+		settings.forceAllMarkdownReadOnly,
+		settings.useGlobPatterns,
+		settings.caseSensitive,
+		entriesKey('include'),
+		entriesKey('exclude'),
+	]);
 }
 
 export function createCompiledRuleMatcher(settings: ForceReadModeSettings): CompiledRuleMatcher {
@@ -174,20 +152,14 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 		useGlobPatterns: settings.useGlobPatterns,
 		caseSensitive: settings.caseSensitive,
 	};
-	const effectiveRules = buildEffectiveRules(
-		getEnabledRules(settings.includeRules, settings.includeRuleEnabled),
-		getEnabledRules(settings.excludeRules, settings.excludeRuleEnabled),
-	);
-	const includeSpecs = getEnabledRuleSpecs(
-		settings.includeRules,
-		settings.includeRuleEnabled,
-		settings.includeRuleEntries,
-	).slice(0, effectiveRules.effectiveIncludeRules.length);
-	const excludeSpecs = getEnabledRuleSpecs(
-		settings.excludeRules,
-		settings.excludeRuleEnabled,
-		settings.excludeRuleEntries,
-	).slice(0, effectiveRules.effectiveExcludeRules.length);
+	const state = buildRuleState(settings);
+	const toSpec = (entry: typeof state.include[number]): RuleSpec => ({
+		raw: entry.resolvedPath,
+		exact: entry.sourceKind !== 'vault-path'
+			&& !(entry.sourceKind === 'absolute-path' && entry.resolvedPath.endsWith('/')),
+	});
+	const includeSpecs = state.include.map(toSpec);
+	const excludeSpecs = state.exclude.map(toSpec);
 	const prepareRule = (spec: RuleSpec): PreparedRule => {
 		const rule = spec.raw;
 		const normalizedRule = normalizeForCase(normalizeVaultPath(rule), options.caseSensitive);
@@ -251,8 +223,8 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 	};
 
 	return {
-		effectiveIncludeRules: effectiveRules.effectiveIncludeRules,
-		effectiveExcludeRules: effectiveRules.effectiveExcludeRules,
+		effectiveIncludeRules: state.limits.effectiveIncludeRules,
+		effectiveExcludeRules: state.limits.effectiveExcludeRules,
 		matchIncludeRules: (filePath: string) => matchRules(filePath, preparedIncludeRules),
 		matchExcludeRules: (filePath: string) => matchRules(filePath, preparedExcludeRules),
 		isPathProtected,

@@ -1,3 +1,4 @@
+import { buildRuntimeRules, isRuntimeRuleEntry, loadRuleEntries } from './rule-state';
 import { DebouncedRenderScheduler } from './debounced-render';
 import {
 	buildRuleDiagnosticsWithIgnoredLines,
@@ -150,27 +151,25 @@ function buildRulesPayload(
 		.map((row) => resolutionToRuleEntry(resolveRow(row, context), row.enabled));
 	const includeRuleEntries = buildEntries('include');
 	const excludeRuleEntries = buildEntries('exclude');
-	const resolved = (entries: RuleEntry[]) => entries
-		.filter((entry): entry is RuleEntry & { resolvedPath: string } => !!entry.resolvedPath);
-	const resolvedInclude = resolved(includeRuleEntries);
-	const resolvedExclude = resolved(excludeRuleEntries);
-	const includeRules = resolvedInclude.map((entry) => entry.resolvedPath);
-	const excludeRules = resolvedExclude.map((entry) => entry.resolvedPath);
+	const runtimeInclude = buildRuntimeRules(includeRuleEntries);
+	const runtimeExclude = buildRuntimeRules(excludeRuleEntries);
+	const includeRules = runtimeInclude.rules;
+	const excludeRules = runtimeExclude.rules;
 	const includeText = includeRules.join('\n');
 	const excludeText = excludeRules.join('\n');
 	return {
 		includeRules,
 		excludeRules,
-		includeRuleEnabled: resolvedInclude.map((entry) => entry.enabled),
-		excludeRuleEnabled: resolvedExclude.map((entry) => entry.enabled),
+		includeRuleEnabled: runtimeInclude.enabled,
+		excludeRuleEnabled: runtimeExclude.enabled,
 		includeRuleEntries,
 		excludeRuleEntries,
 		includeText,
 		excludeText,
 		activeIncludeText: includeRulesActive
-			? resolvedInclude.filter((entry) => entry.enabled).map((entry) => entry.resolvedPath).join('\n')
+			? runtimeInclude.activeRules.join('\n')
 			: '',
-		activeExcludeText: resolvedExclude.filter((entry) => entry.enabled).map((entry) => entry.resolvedPath).join('\n'),
+		activeExcludeText: runtimeExclude.activeRules.join('\n'),
 	};
 }
 
@@ -375,18 +374,8 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	const ownerWindow = containerEl.ownerDocument?.defaultView;
 	let nextRowId = 1;
 	const resolverContext = options.resolverContext ?? FALLBACK_RESOLVER_CONTEXT;
-	const initialIncludeEntries = options.includeRuleEntries && options.includeRuleEntries.length > 0
-		? options.includeRuleEntries
-		: options.includeRules.map((value, index): RuleEntry => ({
-			sourceKind: 'vault-path', sourceValue: value, resolvedPath: value,
-			enabled: options.includeRuleEnabled?.[index] !== false,
-		}));
-	const initialExcludeEntries = options.excludeRuleEntries && options.excludeRuleEntries.length > 0
-		? options.excludeRuleEntries
-		: options.excludeRules.map((value, index): RuleEntry => ({
-			sourceKind: 'vault-path', sourceValue: value, resolvedPath: value,
-			enabled: options.excludeRuleEnabled?.[index] !== false,
-		}));
+	const initialIncludeEntries = loadRuleEntries(options.includeRuleEntries, options.includeRules, options.includeRuleEnabled);
+	const initialExcludeEntries = loadRuleEntries(options.excludeRuleEntries, options.excludeRules, options.excludeRuleEnabled);
 	let rows: RuleRowState[] = [
 		...initialIncludeEntries.map((entry) => createRuleRow(entry, 'include', nextRowId++)),
 		...initialExcludeEntries.map((entry) => createRuleRow(entry, 'exclude', nextRowId++)),
@@ -521,7 +510,8 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		for (const controller of rowControllers.values()) {
 			controller.resolution = resolveRow(controller.row, resolverContext);
 			controller.indexWithinType = rows
-				.filter((row) => row.type === controller.type && row.enabled && resolveRow(row, resolverContext).resolvedPath)
+				.filter((row) => row.type === controller.type && row.enabled
+					&& isRuntimeRuleEntry(resolutionToRuleEntry(resolveRow(row, resolverContext), row.enabled)))
 				.findIndex((row) => row.id === controller.row.id);
 			controller.messageEl.empty();
 			if (controller.row.inputLimitExceeded) {

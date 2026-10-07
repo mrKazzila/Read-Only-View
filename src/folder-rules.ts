@@ -1,5 +1,5 @@
 import { normalizeVaultPath } from './path-utils';
-import { buildRuntimeRules } from './plugin-settings';
+import { getRuleEntries, isRuntimeRuleEntry, setRuleEntries } from './rule-state';
 import type { ForceReadModeSettings, RuleEntry } from './plugin-types';
 import { resolutionToRuleEntry, resolveRuleSource, type RuleResolverContext } from './rule-source';
 import { PATH_SOURCE_INPUT_MAX_LENGTH } from './source-input-limits';
@@ -23,8 +23,8 @@ function isExactFolderRule(entry: RuleEntry, folder: string, caseSensitive: bool
 
 export function hasActiveFolderRule(settings: ForceReadModeSettings, path: string): boolean {
 	const folder = folderRulePath(path);
-	return (settings.includeRuleEntries ?? []).some((entry) => {
-		if (!entry.enabled || !isExactFolderRule(entry, folder, settings.caseSensitive)) return false;
+	return getRuleEntries(settings, 'include').some((entry) => {
+		if (!entry.enabled || !isRuntimeRuleEntry(entry) || !isExactFolderRule(entry, folder, settings.caseSensitive)) return false;
 		const resolved = normalizeVaultPath(entry.resolvedPath ?? '');
 		return settings.useGlobPatterns
 			? !/[*?]/.test(folder) && resolved.endsWith('/**')
@@ -40,7 +40,7 @@ export function changeFolderRule(
 	lock: boolean,
 	context: RuleResolverContext,
 ): FolderRuleChange {
-	const entries = settings.includeRuleEntries ?? [];
+	const entries = getRuleEntries(settings, 'include');
 	const folder = folderRulePath(path);
 	if (!folder) return { entries, changed: false };
 	const exact = (entry: RuleEntry): boolean => isExactFolderRule(entry, folder, settings.caseSensitive);
@@ -74,8 +74,5 @@ export function changeFolderRule(
 }
 
 export function setFolderRuleEntries(settings: ForceReadModeSettings, entries: RuleEntry[]): void {
-	settings.includeRuleEntries = entries;
-	const runtime = buildRuntimeRules(entries);
-	settings.includeRules = runtime.rules;
-	settings.includeRuleEnabled = runtime.enabled;
+	setRuleEntries(settings, 'include', entries);
 }

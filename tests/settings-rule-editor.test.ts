@@ -1,3 +1,6 @@
+import { mergeLoadedSettings } from '../src/plugin-settings.js';
+import { createCompiledRuleMatcher } from '../src/matcher.js';
+import { changeFolderRule, setFolderRuleEntries } from '../src/folder-rules.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -789,6 +792,68 @@ test('rules editor dispose cancels pending work through owner window after focus
 			assert.deepEqual([...windowA.clearedIds].sort((left, right) => left - right), [1, 2]);
 			assert.deepEqual(windowB.clearedIds, []);
 		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('editor and context-menu updates preserve the same rules through save and reload', async () => {
+	const dom = installDomMocks();
+	const context = { vaultName: 'test', vaultBasePath: null, isFolder: () => true, isMarkdownFile: () => false };
+	const initial = mergeLoadedSettings({
+		forceAllMarkdownReadOnly: false,
+		includeRuleEntries: [
+			{ sourceKind: 'vault-path', sourceValue: 'x'.repeat(40001), resolvedPath: 'Blocked/', enabled: true },
+			{ sourceKind: 'vault-path', sourceValue: 'Disabled/', resolvedPath: 'Disabled/', enabled: false },
+			{ sourceKind: 'vault-path', sourceValue: 'Notes/', resolvedPath: 'Notes/', enabled: true },
+		],
+	});
+	let saved = initial;
+	try {
+		await withFakeTimeouts(async () => {
+			const controller = renderRuleEditor({
+				...initial,
+				containerEl: new MockHTMLElement() as unknown as HTMLElement,
+				resolverContext: context,
+				onChange: async (state) => { saved = mergeLoadedSettings({ ...initial, ...state }); },
+			});
+			await controller.applyExternalUpdate(initial, (settings) => changeFolderRule(settings, 'Added', true, context));
+			const closed = mergeLoadedSettings(initial);
+			setFolderRuleEntries(closed, changeFolderRule(closed, 'Added', true, context).entries);
+			for (const settings of [saved, closed, mergeLoadedSettings(saved), mergeLoadedSettings(closed)]) {
+				const matcher = createCompiledRuleMatcher(settings);
+				assert.deepEqual(matcher.effectiveIncludeRules, ['Notes/', 'Added/']);
+				assert.equal(matcher.shouldForceReadOnly('Notes/A.md'), true);
+				assert.equal(matcher.shouldForceReadOnly('Added/A.md'), true);
+				assert.equal(matcher.shouldForceReadOnly('Blocked/A.md'), false);
+				assert.equal(matcher.shouldForceReadOnly('Disabled/A.md'), false);
+			}
+			controller.dispose();
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('invalid resolved paths do not shift row warnings at the include cap', () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const entries = [
+		{ sourceKind: 'vault-path' as const, sourceValue: 'Invalid/', resolvedPath: 'x'.repeat(40001), enabled: true },
+		...Array.from({ length: 201 }, (_, index) => ({
+			sourceKind: 'vault-path' as const, sourceValue: `Notes${index}/`, resolvedPath: `Notes${index}/`, enabled: true,
+		})),
+	];
+	try {
+		const controller = renderRuleEditor({
+			containerEl: container as unknown as HTMLElement,
+			includeRules: [], excludeRules: [], includeRuleEntries: entries,
+			useGlobPatterns: false, onChange: async () => undefined,
+		});
+		const rows = container.querySelectorAll('.read-only-view-rule-row');
+		assert.equal(collectTexts(rows[200]!).includes('Ignored due to rule limit.'), false);
+		assert.equal(collectTexts(rows[201]!).includes('Ignored due to rule limit.'), true);
+		controller.dispose();
 	} finally {
 		dom.restore();
 	}

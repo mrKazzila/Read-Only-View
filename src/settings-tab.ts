@@ -1,3 +1,4 @@
+import { setRuleEntries } from './rule-state';
 import {
 	App,
 	Plugin,
@@ -272,12 +273,8 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 			useGlobPatterns: this.plugin.settings.useGlobPatterns,
 			includeRulesActive: !this.plugin.settings.forceAllMarkdownReadOnly,
 			onChange: async (state, reason) => {
-				this.plugin.settings.includeRules = state.includeRules;
-				this.plugin.settings.excludeRules = state.excludeRules;
-				this.plugin.settings.includeRuleEnabled = state.includeRuleEnabled;
-				this.plugin.settings.excludeRuleEnabled = state.excludeRuleEnabled;
-				this.plugin.settings.includeRuleEntries = state.includeRuleEntries ?? [];
-				this.plugin.settings.excludeRuleEntries = state.excludeRuleEntries ?? [];
+				setRuleEntries(this.plugin.settings, 'include', state.includeRuleEntries ?? []);
+				setRuleEntries(this.plugin.settings, 'exclude', state.excludeRuleEntries ?? []);
 				await this.plugin.saveSettings();
 				this.plugin.refreshEditorOptions();
 				await this.plugin.applyAllOpenMarkdownLeaves(reason);

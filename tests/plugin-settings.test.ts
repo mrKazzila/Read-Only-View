@@ -10,6 +10,23 @@ import {
 } from '../src/matcher.js';
 import { DEFAULT_SETTINGS, mergeLoadedSettings } from '../src/plugin-settings.js';
 import { PATH_SOURCE_INPUT_MAX_LENGTH } from '../src/source-input-limits.js';
+import { buildPathTesterResult } from '../src/rule-diagnostics.js';
+
+test('an overlength source cannot displace the next valid rule in runtime consumers', () => {
+	const settings = mergeLoadedSettings({
+		forceAllMarkdownReadOnly: false,
+		includeRuleEntries: [
+			{ sourceKind: 'vault-path', sourceValue: 'x'.repeat(40001), resolvedPath: 'Blocked/', enabled: true },
+			{ sourceKind: 'vault-path', sourceValue: 'Notes/', resolvedPath: 'Notes/', enabled: true },
+		],
+	});
+	const matcher = createCompiledRuleMatcher(settings);
+	assert.deepEqual(matcher.effectiveIncludeRules, ['Notes/']);
+	assert.equal(matcher.shouldForceReadOnly('Notes/A.md'), true);
+	assert.equal(matcher.shouldForceReadOnly('Blocked/A.md'), false);
+	assert.equal(matcher.isPathProtected('Notes', 'folder'), true);
+	assert.deepEqual(buildPathTesterResult('Notes/A.md', settings).includeMatches, ['Notes/']);
+});
 
 type LoadSettingsPlugin = {
 	loadData: () => Promise<unknown>;
@@ -305,4 +322,73 @@ test('loadSettings handles malformed persisted settings and rebuilds matcher saf
 		excludeRules: [],
 	});
 	assert.equal(plugin.getCompiledRuleMatcher().shouldForceReadOnly('docs/file.md'), true);
+});
+
+test('legacy invalid rows retain enabled flags at their original indexes', () => {
+	const settings = mergeLoadedSettings({
+		forceAllMarkdownReadOnly: false,
+		includeRules: [null, 'Disabled/', 'Notes/'],
+		includeRuleEnabled: [true, false, true],
+	});
+	const matcher = createCompiledRuleMatcher(settings);
+	assert.deepEqual(matcher.effectiveIncludeRules, ['Notes/']);
+	assert.equal(matcher.shouldForceReadOnly('Disabled/A.md'), false);
+	assert.equal(matcher.shouldForceReadOnly('Notes/A.md'), true);
+});
+
+test('changing source validity invalidates the matcher cache', () => {
+	const settings = mergeLoadedSettings({
+		forceAllMarkdownReadOnly: false,
+		includeRules: ['Notes/'],
+	});
+	const before = getCompiledRuleMatcherKey(settings);
+	settings.includeRuleEntries![0]!.sourceValue = 'x'.repeat(40001);
+	assert.notEqual(getCompiledRuleMatcherKey(settings), before);
+	assert.equal(createCompiledRuleMatcher(settings).shouldForceReadOnly('Notes/A.md'), false);
+});
+
+for (const list of ['include', 'exclude'] as const) {
+	test(`${list} validation preserves enabled alignment, exact semantics, and cap boundaries`, () => {
+		const entry = (path: string, enabled = true) => ({
+			sourceKind: 'vault-path', sourceValue: path, resolvedPath: path, enabled,
+		});
+		const count = list === 'include' ? 200 : 300;
+		const settings = mergeLoadedSettings({
+			forceAllMarkdownReadOnly: list === 'exclude',
+			[`${list}RuleEntries`]: [
+				{ ...entry('BadSource/'), sourceValue: 'x'.repeat(40001) },
+				{ ...entry('BadPath/'), resolvedPath: 'x'.repeat(40001) },
+				{ ...entry('Missing/'), resolvedPath: null },
+				entry('Disabled/', false),
+				...Array.from({ length: count - 1 }, (_, index) => entry(`Folder${index}/`)),
+				{ ...entry('Exact.md'), sourceKind: 'obsidian-uri' },
+				entry('Overflow/'),
+			],
+		});
+		const matcher = createCompiledRuleMatcher(settings);
+		const rules = list === 'include' ? matcher.effectiveIncludeRules : matcher.effectiveExcludeRules;
+		assert.equal(rules.length, count);
+		assert.equal(rules.at(-1), 'Exact.md');
+		const matches = list === 'include' ? matcher.matchIncludeRules : matcher.matchExcludeRules;
+		for (const path of ['BadSource/A.md', 'Disabled/A.md', 'Missing/A.md', 'Overflow/A.md', 'Exact.md-extra.md']) {
+			assert.deepEqual(matches(path), []);
+		}
+		assert.deepEqual(matches('Exact.md'), ['Exact.md']);
+		assert.equal(buildPathTesterResult('Exact.md', settings).finalReadOnly, list === 'include');
+	});
+}
+
+test('total cap retains include priority after invalid and disabled entries are removed', () => {
+	const settings = mergeLoadedSettings({
+		forceAllMarkdownReadOnly: false,
+		includeRules: Array.from({ length: 200 }, (_, index) => `Notes/${index}/`),
+		excludeRules: [null, 'Disabled/', ...Array.from({ length: 201 }, (_, index) => `Notes/${index}/`)],
+		excludeRuleEnabled: [true, false],
+	});
+	const matcher = createCompiledRuleMatcher(settings);
+	assert.equal(matcher.effectiveIncludeRules.length, 200);
+	assert.equal(matcher.effectiveExcludeRules.length, 200);
+	assert.deepEqual(matcher.matchExcludeRules('Notes/199/A.md'), ['Notes/199/']);
+	assert.deepEqual(matcher.matchExcludeRules('Notes/200/A.md'), []);
+	assert.equal(matcher.shouldForceReadOnly('Notes/199/A.md'), false);
 });
