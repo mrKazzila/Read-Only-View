@@ -20,6 +20,7 @@ const fileNoMatch = 'project_a/project_a.md';
 function createSettings(overrides: Partial<ForceReadModeSettings>): ForceReadModeSettings {
     return {
         enabled: true,
+        showExplorerProtectionIndicators: false,
         forceAllMarkdownReadOnly: false,
         useGlobPatterns: true,
         caseSensitive: true,

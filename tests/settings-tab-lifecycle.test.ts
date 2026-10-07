@@ -29,6 +29,10 @@ for (const declarative of [false, true]) {
 					const definition = collectSettingDefinitions(tab.getSettingDefinitions()).find((item) => item.name === 'Read-only behavior');
 					cleanup = definition?.render?.(new Setting(container as unknown as HTMLElement), {} as never);
 				} else tab.display();
+				const texts = (element: MockHTMLElement): string[] => [element.textContent, ...element.getChildren().flatMap(texts)];
+				const labels = texts(container);
+				assert.ok(labels.indexOf('Show protection indicators') > labels.indexOf('Advanced'));
+				assert.ok(labels.indexOf('Show protection indicators') < labels.indexOf('Matching'));
 				const input = container.querySelector('.read-only-view-rule-input');
 				assert.ok(input);
 				input.value = 'docs/pending.md';
@@ -100,6 +104,7 @@ function createPlugin() {
 	const applyReasons: string[] = [];
 	const plugin = {
 		settings: {
+			showExplorerProtectionIndicators: false,
 			enabled: true,
 			forceAllMarkdownReadOnly: false,
 			useGlobPatterns: true,
@@ -163,6 +168,7 @@ test('declarative settings expose every searchable setting', () => {
 		'Path rules',
 		'Path tester',
 		'Advanced',
+		'Show protection indicators',
 		'Matching',
 		'Use glob patterns',
 		'Case sensitive',

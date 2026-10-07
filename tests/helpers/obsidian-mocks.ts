@@ -127,6 +127,7 @@ export function createMockWorkspaceLeaf(options: CreateMockLeafOptions = {}): Mo
 type WorkspaceEventCallback = (...args: unknown[]) => unknown;
 
 export type MockWorkspace = {
+	onLayoutReady: (callback: () => void) => void;
 	getLeavesOfType: (type: string) => MockWorkspaceLeaf[];
 	getLeavesOfTypeCalls: string[];
 	updateOptions: () => void;
@@ -146,6 +147,7 @@ export function createMockWorkspace(options: CreateMockWorkspaceOptions = {}): M
 	let updateOptionsCalls = 0;
 
 	return {
+		onLayoutReady: (callback) => callback(),
 		getLeavesOfType: (type: string) => {
 			getLeavesOfTypeCalls.push(type);
 			if (type === 'markdown') {

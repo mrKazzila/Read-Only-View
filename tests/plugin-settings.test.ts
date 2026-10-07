@@ -37,6 +37,7 @@ function createPlugin(loadDataValue: unknown): LoadSettingsPlugin {
 test('valid persisted settings are preserved', () => {
 	const loaded: ForceReadModeSettings = {
 		enabled: false,
+		showExplorerProtectionIndicators: false,
 		forceAllMarkdownReadOnly: true,
 		useGlobPatterns: true,
 		caseSensitive: false,

@@ -13,6 +13,7 @@ import {
 import {
 	getDebugSummary,
 	getMatchingSummary,
+	renderBooleanSetting,
 	renderDebugSettings,
 	renderMatchingSettings,
 	renderModeSelector,
@@ -102,6 +103,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 							'Path rules',
 							'Path tester',
 							'Advanced',
+							'Show protection indicators',
 							'Matching',
 							'Use glob patterns',
 							'Case sensitive',
@@ -157,6 +159,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 		this.renderPathTester(pathTesterSection.bodyEl);
 
 		const advancedSectionEl = this.createCardSection(containerEl, 'Advanced');
+		renderBooleanSetting(advancedSectionEl, this.plugin, () => {}, 'showExplorerProtectionIndicators');
 		const matchingSection = this.createCollapsibleSection(
 			advancedSectionEl,
 			'matching',
@@ -225,6 +228,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 		const pathTester = this.renderPathTester(pathTesterSection.bodyEl);
 
 		const advancedSectionEl = this.createCardSection(containerEl, 'Advanced');
+		renderBooleanSetting(advancedSectionEl, this.plugin, () => {}, 'showExplorerProtectionIndicators');
 		const matchingSection = this.createCollapsibleSection(
 			advancedSectionEl,
 			'matching',

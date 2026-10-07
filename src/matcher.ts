@@ -11,6 +11,7 @@ export interface MatchPathOptions {
 }
 
 export interface CompiledRuleMatcher {
+	isPathProtected: (path: string, kind: 'file' | 'folder') => boolean;
 	effectiveIncludeRules: readonly string[];
 	effectiveExcludeRules: readonly string[];
 	matchIncludeRules: (filePath: string) => string[];
@@ -220,13 +221,15 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 		return rules.filter((rule) => rule.matches(normalizedFilePath)).map((rule) => rule.raw);
 	};
 
-	const shouldForceReadOnlyPath = (filePath: string): boolean => {
+	const isPathProtected = (path: string, kind: 'file' | 'folder'): boolean => {
 		if (!settings.enabled) {
 			return false;
 		}
 
-		const normalizedFilePath = normalizeFilePathForMatch(filePath, options.caseSensitive);
-		if (!normalizedFilePath.toLowerCase().endsWith('.md')) {
+		const normalizedPath = normalizeFilePathForMatch(path, options.caseSensitive);
+		const normalizedFilePath = kind === 'folder' && !normalizedPath.endsWith('/')
+			? `${normalizedPath}/` : normalizedPath;
+		if (!normalizedPath || (kind === 'file' && !normalizedFilePath.toLowerCase().endsWith('.md'))) {
 			return false;
 		}
 
@@ -252,7 +255,8 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 		effectiveExcludeRules: effectiveRules.effectiveExcludeRules,
 		matchIncludeRules: (filePath: string) => matchRules(filePath, preparedIncludeRules),
 		matchExcludeRules: (filePath: string) => matchRules(filePath, preparedExcludeRules),
-		shouldForceReadOnly: shouldForceReadOnlyPath,
+		isPathProtected,
+		shouldForceReadOnly: (path) => isPathProtected(path, 'file'),
 	};
 }
 

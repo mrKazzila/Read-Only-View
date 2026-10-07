@@ -979,3 +979,17 @@ body:not(.is-phone) .modal.read-only-view-status-dialog {
 .is-phone .modal-container.read-only-view-status-container {
 	align-items: flex-end;
 }
+
+.read-only-view-protection-indicator {
+	display: inline-flex;
+	align-items: center;
+	flex-shrink: 0;
+	margin-inline-start: var(--size-2-2);
+	color: var(--text-muted);
+	pointer-events: none;
+}
+
+.read-only-view-protection-indicator svg {
+	width: var(--icon-xs);
+	height: var(--icon-xs);
+}

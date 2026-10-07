@@ -15,6 +15,11 @@ type ToggleSettingConfig = {
 
 const TOGGLE_SETTINGS: ToggleSettingConfig[] = [
 	{
+		name: 'Show protection indicators',
+		description: 'Show a lock indicator next to protected notes and folders in the File Explorer.',
+		settingKey: 'showExplorerProtectionIndicators',
+	},
+	{
 		name: 'Enabled',
 		description: 'Enable or disable read-only enforcement globally.',
 		settingKey: 'enabled',

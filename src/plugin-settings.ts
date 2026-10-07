@@ -7,6 +7,7 @@ import {
 
 export const DEFAULT_SETTINGS: ForceReadModeSettings = {
 	enabled: true,
+	showExplorerProtectionIndicators: false,
 	forceAllMarkdownReadOnly: true,
 	useGlobPatterns: false,
 	caseSensitive: true,
@@ -23,6 +24,7 @@ export const DEFAULT_SETTINGS: ForceReadModeSettings = {
 
 type BooleanSettingKey =
 	| 'enabled'
+	| 'showExplorerProtectionIndicators'
 	| 'forceAllMarkdownReadOnly'
 	| 'useGlobPatterns'
 	| 'caseSensitive'
@@ -156,6 +158,7 @@ export function mergeLoadedSettings(
 
 	return {
 		enabled: parseBooleanSetting(loaded, 'enabled'),
+		showExplorerProtectionIndicators: parseBooleanSetting(loaded, 'showExplorerProtectionIndicators'),
 		forceAllMarkdownReadOnly: parseBooleanSetting(loaded, 'forceAllMarkdownReadOnly'),
 		useGlobPatterns: parseBooleanSetting(loaded, 'useGlobPatterns'),
 		caseSensitive: parseBooleanSetting(loaded, 'caseSensitive'),

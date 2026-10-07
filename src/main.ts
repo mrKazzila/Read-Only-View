@@ -23,12 +23,14 @@ import { maybeShowWelcomeModal } from './settings-welcome';
 import { WorkspaceEventController } from './workspace-events';
 import { ReadOnlyStatusModal } from './read-only-status-modal';
 import { addPathContextMenu } from './path-context-menu';
+import { ExplorerIndicatorController } from './explorer-indicators';
 
 export { formatPathForDebug } from './debug-log';
 
 export default class ReadOnlyViewPlugin extends Plugin {
 	settings: ForceReadModeSettings = { ...DEFAULT_SETTINGS };
 
+	private explorerIndicators: ExplorerIndicatorController | null = null;
 	private enforcementService: EnforcementService | null = null;
 	private popoverObserverService: PopoverObserverService | null = null;
 	private workspaceEventController: WorkspaceEventController | null = null;
@@ -37,6 +39,9 @@ export default class ReadOnlyViewPlugin extends Plugin {
 
 	async onload(): Promise<void> {
 		const isFreshInstall = await this.loadSettings();
+		this.explorerIndicators = new ExplorerIndicatorController(this.app, () => this.getCompiledRuleMatcher());
+		this.syncExplorerIndicators();
+		this.app.workspace.onLayoutReady(() => this.explorerIndicators?.refresh());
 		this.registerEditorExtension(createEditorReadOnlyExtension({
 			shouldForceReadOnlyPath: (path) => this.shouldForceReadOnlyPath(path),
 			onReadOnlyInteraction: (info, reason) => {
@@ -103,6 +108,8 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	}
 
 	onunload(): void {
+		this.explorerIndicators?.stop();
+		this.explorerIndicators = null;
 		if (this.workspaceEventController) {
 			this.workspaceEventController.stop();
 			this.workspaceEventController = null;
@@ -127,7 +134,17 @@ export default class ReadOnlyViewPlugin extends Plugin {
 
 	async saveSettings(): Promise<void> {
 		this.rebuildCompiledRuleMatcher();
+		this.syncExplorerIndicators();
 		await this.saveData(this.settings);
+	}
+
+	private syncExplorerIndicators(): void {
+		if (this.settings.showExplorerProtectionIndicators && this.settings.enabled) {
+			this.explorerIndicators?.start();
+			this.explorerIndicators?.refresh();
+		} else {
+			this.explorerIndicators?.stop();
+		}
 	}
 
 	private async setPluginEnabled(enabled: boolean, reason: string): Promise<void> {

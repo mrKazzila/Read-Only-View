@@ -37,6 +37,7 @@ export class App {
     this.setting = undefined;
   }
 }
+export function setIcon(element, icon) { element.setAttr("data-icon", icon); }
 export class WorkspaceLeaf {}
 export class Notice {
   constructor(message) {

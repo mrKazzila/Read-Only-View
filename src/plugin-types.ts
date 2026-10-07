@@ -11,6 +11,7 @@ export interface RuleEntry {
 
 export interface ForceReadModeSettings {
 	enabled: boolean;
+	showExplorerProtectionIndicators: boolean;
 	forceAllMarkdownReadOnly: boolean;
 	useGlobPatterns: boolean;
 	caseSensitive: boolean;
