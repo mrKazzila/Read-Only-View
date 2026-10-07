@@ -75,7 +75,7 @@ test('plugin registers the editor read-only extension on load', async () => {
 	}
 });
 
-test('editor-paste blocks read-only MarkdownFileInfo input and enforces preview with one leaf lookup scan', async () => {
+test('editor-paste blocks read-only MarkdownFileInfo input and enforces preview with lookup and attachment checks', async () => {
 	const { harness, leaf, plugin } = createEditorEventPlugin();
 
 	try {
@@ -96,7 +96,7 @@ test('editor-paste blocks read-only MarkdownFileInfo input and enforces preview 
 		assert.equal(evt.defaultPrevented, true);
 		assert.equal(leaf.setViewStateCalls.length, 1);
 		assert.deepEqual(leaf.setViewStateCalls[0]?.arg, { replace: true });
-		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, baselineScans + 1);
+		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, baselineScans + 2);
 	} finally {
 		harness.restore();
 	}
@@ -128,7 +128,7 @@ test('editor-paste does nothing for non-read-only file and avoids leaf scan', as
 	}
 });
 
-test('editor-paste resolves MarkdownView directly without extra leaf scan', async () => {
+test('editor-paste resolves MarkdownView directly and checks attachment before writing', async () => {
 	const { harness, leaf, plugin } = createEditorEventPlugin();
 
 	try {
@@ -148,7 +148,7 @@ test('editor-paste resolves MarkdownView directly without extra leaf scan', asyn
 
 		assert.equal(evt.defaultPrevented, true);
 		assert.equal(leaf.setViewStateCalls.length, 1);
-		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, baselineScans);
+		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, baselineScans + 1);
 	} finally {
 		harness.restore();
 	}

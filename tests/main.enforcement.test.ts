@@ -4,7 +4,7 @@ import test from 'node:test';
 import ReadOnlyViewPlugin from '../src/main.js';
 import { DEFAULT_SETTINGS } from '../src/matcher.js';
 import { createMockWorkspaceLeaf, type MockWorkspaceLeaf } from './helpers/obsidian-mocks.js';
-import { createMainTestHarness } from './helpers/test-setup.js';
+import { createMainTestHarness, withFakeAnimationFrames } from './helpers/test-setup.js';
 
 type TestPluginState = {
 	enforcing: boolean;
@@ -114,7 +114,7 @@ test('enforcement queues pending reapply when called during an active run', asyn
 		releaseFirstCall();
 		await activeRun;
 
-		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 2);
+		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 3);
 	} finally {
 		harness.restore();
 	}
@@ -180,3 +180,29 @@ test('enforcement uses setViewState(nextState, false) fallback when replace call
 		harness.restore();
 	}
 });
+
+
+for (const change of ['navigation', 'disable', 'exclude', 'unload', 'close'] as const) {
+	test(`enforcement cancels a pending transition after ${change}`, async () => {
+		const leaf = createMockWorkspaceLeaf({ filePath: 'docs/A.md', mode: 'source' });
+		const { harness, plugin, state } = createPluginForEnforcement([leaf]);
+		try {
+			await withFakeAnimationFrames(async ({ flushNextFrame, pendingFrameCount }) => {
+				const pending = plugin.applyAllOpenMarkdownLeaves('current-state');
+				assert.equal(pendingFrameCount(), 1);
+				switch (change) {
+					case 'navigation': leaf.setFilePath('docs/B.md'); break;
+					case 'disable': state.settings.enabled = false; break;
+					case 'exclude': state.settings.excludeRules = ['docs/**']; break;
+					case 'unload': plugin.onunload(); break;
+					case 'close': harness.leaves.splice(0); break;
+				}
+				await flushNextFrame();
+				await pending;
+				assert.equal(leaf.setViewStateCalls.length, 0);
+			});
+		} finally {
+			harness.restore();
+		}
+	});
+}
