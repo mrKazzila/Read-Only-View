@@ -5,20 +5,37 @@ The demo vault provides a reproducible synthetic Obsidian vault for manual QA, s
 ## Create the vault
 
 ```bash
-just demo-vault 1.1.3.2
-just demo-vault-reset 1.1.3.2
-just demo-vault-no-plugin
+just demo 1.1.3.2
+just demo-reset 1.1.3.2
+just demo-no-plugin
 just link-plugin
 just unlink-plugin
 ```
 
-- `just demo-vault 1.1.3.2` creates or refreshes `./demo-vault` without deleting unrelated files in that directory.
-- `just demo-vault-reset 1.1.3.2` removes and recreates `./demo-vault`.
-- `just demo-vault-no-plugin` creates the synthetic notes and folder structure only.
+- `just demo 1.1.3.2` builds the plugin and creates or refreshes `./demo-vault` without deleting unrelated files in that directory.
+- `just demo-reset 1.1.3.2` builds the plugin, then removes and recreates `./demo-vault`.
+- `just demo-no-plugin` creates the synthetic notes and folder structure only.
 - `just link-plugin` attaches the current local dev build to `./demo-vault` by default.
 - `just unlink-plugin` detaches the local dev build from `./demo-vault` without removing notes.
 
-The plugin-installing demo recipes require a version argument, including four-part development versions such as `1.1.3.2`. They write that version and DEV markers into the vault-local manifest without changing the release manifest. `DEV_PLUGIN_VERSION` is not used by these recipes. The machine-local mobile recipe uses the same syntax: `just mobile-sync 1.1.3.2`.
+The plugin-installing demo recipes require a version argument, including four-part development versions such as `1.1.3.2`. They write that version and DEV markers into the vault-local manifest without changing the release manifest. `DEV_PLUGIN_VERSION` is not used by these recipes. The machine-local mobile recipe uses the same syntax: `just demo-mobile 1.1.3.2`.
+
+### Machine-local mobile commands
+
+Desktop commands are available from `just/development.just` in a fresh checkout. Mobile commands appear under `[Local]` only when the optional, Git-ignored `just/local.just` exists. The group label itself does not protect private paths.
+
+Copy `just/local.example.just` to `just/local.just` if you do not already have a local file. Otherwise, merge the mobile recipes into your existing local file. Set `MOBILE_VAULT` in your environment or configure the destination only in that ignored file; never put personal paths in tracked recipes or documentation.
+
+```bash
+export MOBILE_VAULT="/path/to/mobile-test-vault"
+just demo-mobile 1.1.3.11
+just demo-all 1.1.3.11
+```
+
+- `demo-mobile` builds and copies ordinary plugin files into an existing mobile vault for iCloud synchronization; it does not use symlinks.
+- `demo-all` runs the desktop demo workflow, then copies the same build and version to the mobile vault without rebuilding. If mobile installation fails, the desktop installation has already completed.
+- Neither command waits for iCloud delivery or reloads the plugin on a device.
+- The old `demo-vault`, `demo-vault-reset`, `demo-vault-no-plugin`, and `mobile-sync` command names have been replaced; remove old desktop recipe definitions from existing local files to avoid duplicate `link-plugin` and `unlink-plugin` recipes.
 
 Direct script usage (omitting `--plugin-version` preserves the release metadata for E2E fixtures):
 
@@ -31,7 +48,7 @@ If `main.js` is missing, the script prints a clear message asking you to build t
 
 ## Open the vault in Obsidian
 
-1. Run `just demo-vault 1.1.3.2`.
+1. Run `just demo 1.1.3.2`.
 2. Open Obsidian.
 3. Choose **Open folder as vault**.
 4. Select `demo-vault` from the repository root.
@@ -41,7 +58,7 @@ The script copies `manifest.json`, links `main.js` and optional `styles.css` by 
 
 If you want to create the vault structure first and attach the plugin later:
 
-1. Run `just demo-vault-no-plugin`.
+1. Run `just demo-no-plugin`.
 2. Run `just link-plugin`.
 3. Open `demo-vault` in Obsidian.
 

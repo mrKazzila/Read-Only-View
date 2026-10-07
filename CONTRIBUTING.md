@@ -77,7 +77,11 @@ This plugin can be loaded from a vault folder.
    * optional: `styles.css`
 
 **Option B: Local dev install (recommended)**
-Use the repo-supported `just` workflow so rebuilds land in place while the vault gets a dev-marked manifest copy:
+Build and prepare the synthetic desktop vault with `just demo 1.1.3.11`. To recreate it from scratch, use `just demo-reset 1.1.3.11`. These shared commands require no local configuration.
+
+For mobile testing, configure the ignored `just/local.just` using `just/local.example.just` and the [mobile setup instructions](docs/DEMO_VAULT.md#machine-local-mobile-commands). Then use `just demo-mobile 1.1.3.11` or `just demo-all 1.1.3.11` to install one build on desktop and mobile. Keep personal paths only in local configuration.
+
+To attach an already-built plugin to an existing vault, use the repo-supported `just` workflow so rebuilds land in place while the vault gets a dev-marked manifest copy:
 
 ```bash
 just link-plugin

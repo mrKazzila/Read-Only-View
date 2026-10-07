@@ -429,9 +429,9 @@ Short reference note.
         "Reference/Snippets/Shell helpers.md": """# Shell helpers
 
 ```bash
-just demo-vault 1.1.3.2
-just demo-vault-reset 1.1.3.2
-just demo-vault-no-plugin
+just demo 1.1.3.2
+just demo-reset 1.1.3.2
+just demo-no-plugin
 ```
 
 Use these commands when preparing a clean recording vault.

@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Last updated: 2026-10-04
+Last updated: 2026-10-07
 
 This document is a living system map for the `read-only-view` Obsidian plugin.
 
@@ -11,8 +11,11 @@ This document is a living system map for the `read-only-view` Obsidian plugin.
 - The workflow symlinks `main.js` and optional `styles.css` into the target vault plugin directory.
 - `manifest.json` is generated as a vault-local DEV copy so the installed test build is visibly marked without mutating the repo release manifest.
 - `just unlink-plugin` removes only that local dev install from the vault and also removes the plugin id from `.obsidian/community-plugins.json`; vault notes remain intact.
-- Synthetic QA vault generation uses `python3 scripts/create_demo_vault.py` or the wrapper recipes `just demo-vault 1.1.3.2`, `just demo-vault-reset 1.1.3.2`, and `just demo-vault-no-plugin`.
-- Plugin-installing demo recipes require a version argument and write a vault-local DEV manifest; the machine-local `mobile-sync` recipe also requires a version. Direct script calls without `--plugin-version` retain release metadata for E2E compatibility.
+- Synthetic QA vault generation uses `python3 scripts/create_demo_vault.py` or the wrapper recipes `just demo 1.1.3.2`, `just demo-reset 1.1.3.2`, and `just demo-no-plugin`.
+- Plugin-installing demo recipes require a version argument and write a vault-local DEV manifest; the machine-local `demo-mobile` recipe also requires a version. Direct script calls without `--plugin-version` retain release metadata for E2E compatibility.
+- Shared desktop recipes (`demo`, `demo-reset`, `demo-no-plugin`, `link-plugin`, `unlink-plugin`) live in `just/development.just` under Development and contain no personal paths. `demo` and `demo-reset` build before installation.
+- Optional `demo-mobile` and `demo-all` recipes live only in ignored `just/local.just` under Local; `just/local.example.just` provides an environment-based template using `MOBILE_VAULT`. Group labels do not provide privacy.
+- `demo-mobile` builds and copies regular files into the existing mobile vault. `demo-all` runs `demo` followed by the private mobile copy recipe, building once and installing the same version in both destinations. A mobile failure leaves the completed desktop installation in place; neither recipe waits for cloud delivery.
 - The demo vault lives at `./demo-vault`, is ignored by git, and contains only synthetic Markdown notes plus optional linked plugin files for safe screenshots and recordings.
 - When plugin linking is enabled, the generator copies `manifest.json`, links `main.js`, links optional `styles.css`, writes plugin `data.json`, and enables the plugin in `.obsidian/community-plugins.json`.
 - Demo vault default rules use prefix mode and configure:
@@ -200,6 +203,7 @@ Editor-level guard:
 - Implemented in `src/editor-readonly.ts`.
 - Reads `MarkdownFileInfo.file.path` from Obsidian `editorInfoField`.
 - Applies CM6 `EditorState.readOnly=true` and `EditorView.editable=false` only for matched markdown paths.
+- A CM6 `changeFilter` rejects document changes for protected paths, including unannotated context-menu insertions, replacements, deletions, and undo/redo. It reads current matching rules from the transaction's starting editor context rather than relying on cached facets. Selection/effect-only transactions and changes explicitly marked `Transaction.remote=true` pass through. The filter has no view-changing callbacks during transaction construction.
 - A highest-precedence `keydown` handler consumes Enter (including modifier combinations) before Markdown keymaps can mutate lists, tables, or code blocks. It checks current rules against the editor's own `editorInfoField`, including hover editors without a workspace leaf; other keys and unprotected editors pass through.
 - Observes read-only editor interaction (`pointerdown`, `focus`) and routes it back into `ensurePreview()` for faster return to Reading view.
 - Covers CodeMirror-backed editors without requiring active-leaf lookups.
@@ -412,6 +416,7 @@ Generated artifacts (not source of truth):
 - `tests/helpers/prepare-obsidian-runtime.mjs` rewrites extensionless local imports in `build-tests/src/*.js`; update it if the test runtime layout changes.
 - `ensurePreview` uses `setViewState` with `{ replace: true }` and fallback call style; API behavior can differ across Obsidian versions.
 - Editor-level protection assumes the target markdown context is CodeMirror-backed and exposes `editorInfoField`.
+- CM6 transactions with `filter: false` bypass the change guard by API design, as do state replacements; this is not a security boundary. External refreshes that use ordinary unannotated transactions are blocked, so compatibility with Obsidian's file-refresh behavior requires manual verification.
 - Matching is intentionally limited to `.md`; attachments and other extensions are untouched.
 - New absolute paths can be resolved only with desktop `FileSystemAdapter`; already resolved entries remain portable on mobile.
 - Advanced imports require the target note or folder to exist when first imported and do not track later renames.

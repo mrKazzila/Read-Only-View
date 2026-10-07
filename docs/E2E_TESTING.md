@@ -102,7 +102,7 @@ Each run does the following:
 If you want to inspect the fixture before running tests:
 
 ```bash
-just demo-vault-reset 1.1.3.2
+just demo-reset 1.1.3.2
 ```
 
 ## Artifacts and troubleshooting

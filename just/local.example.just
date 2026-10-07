@@ -1,75 +1,44 @@
-# Copy this file to just/local.just and edit paths for your machine.
-# Generate a vault-local manifest copy so Obsidian shows a DEV build without changing the repo release manifest.
+# Copy this file to just/local.just to enable machine-local commands.
+# Set MOBILE_VAULT in your environment or edit only the ignored local copy.
 
 [group('Local')]
-[doc('Install a local dev build into an Obsidian test vault')]
-link-plugin:
+[doc('Build and copy regular plugin files into the local mobile test vault')]
+demo-mobile version: (_validate-demo-version version) build
+	@just _demo-mobile-install {{quote(version)}}
+
+[group('Local')]
+[doc('Build once and install the same version into desktop and mobile test vaults')]
+demo-all version:
+	@just demo {{quote(version)}}
+	@just _demo-mobile-install {{quote(version)}}
+
+[private]
+_demo-mobile-install version:
 	@REPO="$(pwd)"; \
-	VAULT="${VAULT:-$REPO/demo-vault}"; \
+	MOBILE_VAULT="${MOBILE_VAULT:?Set MOBILE_VAULT to your mobile test vault path}"; \
 	PLUGIN_ID="read-only-view"; \
-	PLUGIN_DIR="$VAULT/.obsidian/plugins/$PLUGIN_ID"; \
-	if [[ ! -d "$VAULT" ]]; then \
-		echo "Vault not found at $VAULT" >&2; \
-		echo "Default target is ./demo-vault. Run 'just demo-vault <version>' or 'just demo-vault-no-plugin' first," >&2; \
-		echo "or override the target with VAULT=/path/to/vault just link-plugin." >&2; \
+	PLUGIN_DIR="$MOBILE_VAULT/.obsidian/plugins/$PLUGIN_ID"; \
+	if [[ ! -d "$MOBILE_VAULT" ]]; then \
+		echo "Mobile test vault not found at $MOBILE_VAULT" >&2; \
 		exit 1; \
 	fi; \
-	mkdir -p "$VAULT/.obsidian"; \
 	mkdir -p "$PLUGIN_DIR"; \
-	ln -sf "$REPO/main.js" "$PLUGIN_DIR/main.js"; \
-	REPO="$REPO" PLUGIN_DIR="$PLUGIN_DIR" DEV_PLUGIN_VERSION="${DEV_PLUGIN_VERSION:-999.0.0}" node -e 'const fs = require("fs"); const path = require("path"); const repo = process.env.REPO; const pluginDir = process.env.PLUGIN_DIR; const sourcePath = path.join(repo, "manifest.json"); let source; try { source = fs.readFileSync(sourcePath, "utf8"); } catch (error) { console.error(`Failed to read ${sourcePath}: ${error.message}`); process.exit(1); } let manifest; try { manifest = JSON.parse(source); } catch (error) { console.error(`Invalid JSON in ${sourcePath}: ${error.message}`); process.exit(1); } manifest.id = "read-only-view"; manifest.name = "Read Only View (DEV)"; manifest.version = process.env.DEV_PLUGIN_VERSION || "999.0.0"; const devMarker = "[LOCAL DEV BUILD]"; const description = typeof manifest.description === "string" ? manifest.description.trim() : ""; manifest.description = description.includes(devMarker) ? description : `${description} ${devMarker}`.trim(); const targetPath = path.join(pluginDir, "manifest.json"); fs.writeFileSync(targetPath, `${JSON.stringify(manifest, null, "\t")}\n`);'; \
+	cp "$REPO/main.js" "$PLUGIN_DIR/.main.js.tmp"; \
+	mv -f "$PLUGIN_DIR/.main.js.tmp" "$PLUGIN_DIR/main.js"; \
 	if [[ -f "$REPO/styles.css" ]]; then \
-		ln -sf "$REPO/styles.css" "$PLUGIN_DIR/styles.css"; \
+		cp "$REPO/styles.css" "$PLUGIN_DIR/.styles.css.tmp"; \
+		mv -f "$PLUGIN_DIR/.styles.css.tmp" "$PLUGIN_DIR/styles.css"; \
 	fi; \
-	VAULT="$VAULT" PLUGIN_ID="$PLUGIN_ID" node -e 'const fs = require("fs"); const path = require("path"); const vault = process.env.VAULT; const pluginId = process.env.PLUGIN_ID; const targetPath = path.join(vault, ".obsidian", "community-plugins.json"); let plugins = []; try { plugins = JSON.parse(fs.readFileSync(targetPath, "utf8")); } catch (error) { if (error.code !== "ENOENT") { console.error(`Failed to read ${targetPath}: ${error.message}`); process.exit(1); } } if (!Array.isArray(plugins)) { plugins = []; } if (!plugins.includes(pluginId)) { plugins.push(pluginId); } fs.writeFileSync(targetPath, `${JSON.stringify(plugins, null, 2)}\n`);'; \
-	echo "Installed local dev build at $PLUGIN_DIR"; \
-	echo "Target vault: $VAULT"; \
-	echo "Dev manifest version: ${DEV_PLUGIN_VERSION:-999.0.0}"
-
-[group('Local')]
-[doc('Remove the local dev build from an Obsidian test vault')]
-unlink-plugin:
-	@REPO="$(pwd)"; \
-	VAULT="${VAULT:-$REPO/demo-vault}"; \
-	PLUGIN_ID="read-only-view"; \
-	PLUGIN_DIR="$VAULT/.obsidian/plugins/$PLUGIN_ID"; \
-	if [[ ! -d "$VAULT" ]]; then \
-		echo "Vault not found at $VAULT" >&2; \
-		echo "Default target is ./demo-vault. Run 'just demo-vault-no-plugin' or 'just demo-vault <version>' first," >&2; \
-		echo "or override the target with VAULT=/path/to/vault just unlink-plugin." >&2; \
+	REPO="$REPO" PLUGIN_DIR="$PLUGIN_DIR" DEV_PLUGIN_VERSION={{quote(version)}} node -e 'const fs = require("fs"); const path = require("path"); const sourcePath = path.join(process.env.REPO, "manifest.json"); const manifest = JSON.parse(fs.readFileSync(sourcePath, "utf8")); manifest.name = "Read Only View (DEV)"; manifest.version = process.env.DEV_PLUGIN_VERSION; const marker = "[LOCAL DEV BUILD]"; manifest.description = manifest.description.includes(marker) ? manifest.description : `${manifest.description.trim()} ${marker}`; const tempPath = path.join(process.env.PLUGIN_DIR, ".manifest.json.tmp"); const targetPath = path.join(process.env.PLUGIN_DIR, "manifest.json"); fs.writeFileSync(tempPath, `${JSON.stringify(manifest, null, "\t")}\n`); fs.renameSync(tempPath, targetPath);'; \
+	if find "$PLUGIN_DIR" -maxdepth 1 -type l | grep -q .; then \
+		echo "Plugin directory still contains symbolic links:" >&2; \
+		find "$PLUGIN_DIR" -maxdepth 1 -type l >&2; \
 		exit 1; \
 	fi; \
-	if [[ ! -d "$PLUGIN_DIR" ]]; then \
-		echo "No local plugin directory found at $PLUGIN_DIR" >&2; \
-		exit 1; \
-	fi; \
-	echo "This will remove the local dev plugin directory:"; \
+	echo "Copied mobile dev build as regular files:"; \
 	echo "  $PLUGIN_DIR"; \
-	read -r -p "Type YES to continue: " CONFIRM; \
-	if [[ "$CONFIRM" != "YES" ]]; then \
-		echo "Aborted. Nothing was removed."; \
-		exit 1; \
-	fi; \
-	rm -rf "$PLUGIN_DIR"; \
-	VAULT="$VAULT" PLUGIN_ID="$PLUGIN_ID" node -e 'const fs = require("fs"); const path = require("path"); const vault = process.env.VAULT; const pluginId = process.env.PLUGIN_ID; const targetPath = path.join(vault, ".obsidian", "community-plugins.json"); let plugins; try { plugins = JSON.parse(fs.readFileSync(targetPath, "utf8")); } catch (error) { if (error.code === "ENOENT") { process.exit(0); } console.error(`Failed to read ${targetPath}: ${error.message}`); process.exit(1); } if (!Array.isArray(plugins)) { process.exit(0); } const filtered = plugins.filter((entry) => entry !== pluginId); if (filtered.length === 0) { fs.rmSync(targetPath, { force: true }); process.exit(0); } fs.writeFileSync(targetPath, `${JSON.stringify(filtered, null, 2)}\n`);'; \
-	echo "Removed local dev plugin from $PLUGIN_DIR"; \
-	echo "Target vault: $VAULT"; \
-	echo "Demo vault notes were left untouched."
+	shasum -a 256 "$PLUGIN_DIR/main.js" "$PLUGIN_DIR/manifest.json" "$PLUGIN_DIR/styles.css"
 
-[group('Local')]
-[doc('Create or refresh the synthetic demo vault with the local plugin linked')]
-demo-vault version:
-	@python3 scripts/create_demo_vault.py --plugin-version {{quote(version)}}
-
-[group('Local')]
-[doc('Recreate the synthetic demo vault from scratch')]
-demo-vault-reset version:
-	@python3 scripts/create_demo_vault.py --force --plugin-version {{quote(version)}}
-
-[group('Local')]
-[doc('Create the synthetic demo vault without linking plugin files')]
-demo-vault-no-plugin:
-	@python3 scripts/create_demo_vault.py --no-plugin-link
 [group('Release')]
 [doc('Run release preflight checks for a target version (x.y.z)')]
 release-preflight version:

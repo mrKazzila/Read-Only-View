@@ -36,6 +36,8 @@ This additional editor layer is intended to cover contexts such as Page Preview 
 
 In protected CodeMirror editors, Enter (including modifier combinations) is intercepted before editor commands can insert list items, table rows, or newlines in code blocks. This also applies to hover previews, using the previewed note's own protection rules.
 
+Document changes from editor commands, including context-menu insertions of tables, links, and other elements, are also blocked in protected CodeMirror editors. Text selection and copying remain available. Updates explicitly marked by the editor as remote are allowed.
+
 ## Quick start
 
 On a new installation:
@@ -369,7 +371,7 @@ npm run build
 
 Equivalent `just` recipes are available. Use `just link-plugin` to link a local build into the repo's demo vault by default, and `just unlink-plugin` to remove that local install.
 
-Create a demo vault with `just demo-vault 1.1.3.2` or recreate it with `just demo-vault-reset 1.1.3.2`. Both require an explicit version for the vault-local DEV manifest. The machine-local mobile command follows the same form: `just mobile-sync 1.1.3.2`. See [demo vault setup](docs/DEMO_VAULT.md) for details.
+Create a demo vault with `just demo 1.1.3.2` or recreate it with `just demo-reset 1.1.3.2`. Both build the plugin first and require an explicit version for the vault-local DEV manifest. Optional machine-local commands are `just demo-mobile 1.1.3.2` for mobile and `just demo-all 1.1.3.2` for desktop and mobile with a single build. These commands are defined only in the ignored `just/local.just`, keeping personal vault paths out of Git. See [demo vault setup](docs/DEMO_VAULT.md) for details.
 
 Repository guidance and contributor workflow live in [CONTRIBUTING.md](CONTRIBUTING.md).
 
