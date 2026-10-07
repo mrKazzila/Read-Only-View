@@ -3,10 +3,14 @@ import assert from 'node:assert/strict';
 
 import {
 	assertModeRemains,
+	assertSyntheticVault,
+	setExplorerIndicators,
+	waitForExplorerIndicator,
 	getVaultBasePath,
 	getVaultName,
 	isPluginEnabled,
 	openMarkdownFile,
+	openPluginSettings,
 	setActiveMarkdownMode,
 	testOverlimitPathInput,
 	testPathInPluginSettings,
@@ -16,6 +20,10 @@ import {
 } from '../helpers/obsidian-app.mjs';
 
 describe('Read Only View desktop smoke tests', () => {
+	before(async () => {
+		await waitForVaultReady();
+		await assertSyntheticVault();
+	});
 	it('loads the plugin in the generated demo vault', async () => {
 		await waitForVaultReady();
 		await waitForPluginEnabled('read-only-view');
@@ -30,9 +38,8 @@ describe('Read Only View desktop smoke tests', () => {
 			electron?.remote?.getCurrentWindow?.().setSize?.(1800, 1200);
 		});
 		await browser.pause(250);
+		await openPluginSettings();
 		const snapshot = await browser.execute(() => {
-			globalThis.app?.setting?.open?.();
-			globalThis.app?.setting?.openTabById?.('read-only-view');
 			const cards = Array.from(document.querySelectorAll(
 				'.read-only-view-header-card, .read-only-view-section-card',
 			));
@@ -117,4 +124,51 @@ describe('Read Only View desktop smoke tests', () => {
 		await waitForMode('source');
 		await assertModeRemains('source');
 	});
+	it('updates real Explorer locks after toggles, exclusions, rename, pane recreation and unload', async () => {
+		const original = 'Read Only/Docs/API overview.md';
+		const moved = 'Read Only/Drafts/API overview smoke.md';
+		try {
+			await setExplorerIndicators(true);
+			await openMarkdownFile(original);
+			await waitForExplorerIndicator(original, 1);
+			await waitForExplorerIndicator('Read Only', 1);
+			await waitForExplorerIndicator('Read Only/Drafts/Editable draft.md', 0);
+			await assertSyntheticVault();
+			await browser.execute(async (from, to) => {
+				const app = globalThis.app;
+				await app.vault.rename(app.vault.getAbstractFileByPath(from), to);
+			}, original, moved);
+			await waitForExplorerIndicator(moved, 0);
+			await browser.execute(async (from, to) => {
+				const app = globalThis.app;
+				await app.vault.rename(app.vault.getAbstractFileByPath(from), to);
+			}, moved, original);
+			await waitForExplorerIndicator(original, 1);
+			// Ask the host to build a new Explorer pane; no synthetic DOM rows.
+			await browser.execute(async () => {
+				const workspace = globalThis.app.workspace;
+				for (const leaf of workspace.getLeavesOfType('file-explorer')) leaf.detach();
+				await workspace.getLeftLeaf(false).setViewState({ type: 'file-explorer', active: true });
+			});
+			await waitForExplorerIndicator(original, 1);
+			await setExplorerIndicators(false);
+			await waitForExplorerIndicator(original, 0);
+			assert.equal((await $$('.read-only-view-protection-indicator')).length, 0);
+			await setExplorerIndicators(true);
+			await waitForExplorerIndicator(original, 1);
+			await browser.execute(async () => globalThis.app.plugins.disablePlugin('read-only-view'));
+			await browser.waitUntil(async () => (await $$('.read-only-view-protection-indicator')).length === 0);
+		} finally {
+			await assertSyntheticVault();
+			await browser.execute(async (from, to) => {
+				const app = globalThis.app;
+				const file = app.vault.getAbstractFileByPath(from);
+				if (file) await app.vault.rename(file, to);
+				await app.plugins.enablePlugin('read-only-view');
+			}, moved, original);
+			await waitForPluginEnabled('read-only-view');
+			await setExplorerIndicators(false);
+		}
+	});
+
 });

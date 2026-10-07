@@ -1,3 +1,4 @@
+import { setRuleEntries } from '../src/rule-state.js';
 import { changeSettings } from '../src/settings-lifecycle.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -19,16 +20,25 @@ function fixture() {
 	let lookups = 0;
 	const files = new Map<string, TFile | TFolder>();
 	const listeners = new Map<string, (...args: unknown[]) => void>();
+	const callbacks = new Map<string, Set<(...args: unknown[]) => void>>();
 	const events = {
 		on: (name: string, callback: (...args: unknown[]) => void) => {
-			listeners.set(name, callback);
-			return name;
+			const group = callbacks.get(name) ?? new Set();
+			group.add(callback);
+			callbacks.set(name, group);
+			listeners.set(name, (...args) => { for (const handler of group) handler(...args); });
+			return { name, callback };
 		},
-		offref: (name: string) => listeners.delete(name),
+		offref: ({ name, callback }: { name: string; callback: (...args: unknown[]) => void }) => {
+			const group = callbacks.get(name);
+			group?.delete(callback);
+			if (!group?.size) { callbacks.delete(name); listeners.delete(name); }
+		},
 	};
 	let leaves = [{ view: { containerEl: container } }];
 	const app = {
-		workspace: { ...events, getLeavesOfType: () => leaves },
+		workspace: { ...events, onLayoutReady: (callback: () => void) => callback(),
+			getLeavesOfType: (type: string) => type === 'file-explorer' ? leaves : [] },
 		vault: { ...events, getAbstractFileByPath: (path: string) => { lookups++; return files.get(path) ?? null; } },
 	} as unknown as App;
 	const counts = { rowVisits: 0, matcherCalls: 0, lookups: 0 };
@@ -174,33 +184,33 @@ test('stopping cancels queued rendering, including across a restart', async () =
 
 test('saving the feature/global toggles synchronizes Explorer immediately and persists the setting', async () => {
 	const f = fixture();
+	const plugin = new ReadOnlyViewPlugin(f.app, {} as never);
 	try {
-		const plugin = new ReadOnlyViewPlugin(f.app, {} as never);
-		plugin.settings = { ...f.settings };
-		const controller = new ExplorerIndicatorController(f.app, () => plugin.getCompiledRuleMatcher());
-		Object.assign(plugin, { explorerIndicators: controller });
+		plugin.loadData = async () => ({ ...f.settings });
 		let persisted = false;
 		plugin.saveData = async (data: unknown) => {
 			persisted = mergeLoadedSettings(data).showExplorerProtectionIndicators;
 		};
 		const note = f.add('Notes/Test.md');
-		await changeSettings(plugin, () => undefined);
-		assert.equal(f.listeners.size, 0);
+		await plugin.onload();
+		const baselineListeners = f.listeners.size;
+		assert.equal(note.querySelector(iconSelector), null);
 		await changeSettings(plugin, (draft) => { draft.showExplorerProtectionIndicators = true; });
 		assert.equal(persisted, true);
 		assert.ok(note.querySelector(iconSelector));
 		await changeSettings(plugin, (draft) => { draft.enabled = false; });
 		assert.equal(note.querySelector(iconSelector), null);
-		assert.equal(f.listeners.size, 0);
+		assert.equal(f.listeners.size, baselineListeners);
 		await changeSettings(plugin, (draft) => { draft.enabled = true; });
 		assert.ok(note.querySelector(iconSelector));
 		const saving = changeSettings(plugin, (draft) => { draft.showExplorerProtectionIndicators = false; });
 		assert.equal(note.querySelector(iconSelector), null);
-		assert.equal(f.listeners.size, 0);
+		assert.equal(f.listeners.size, baselineListeners);
 		await saving;
 		assert.equal(persisted, false);
-		controller.stop();
-	} finally { f.dom.restore(); }
+		plugin.onunload();
+		assert.equal(note.querySelector(iconSelector), null);
+	} finally { plugin.onunload(); f.dom.restore(); }
 });
 
 // Deterministic operation counts, not a browser timing benchmark.
@@ -240,23 +250,50 @@ test('profile targeted Explorer work with 2000 visible rows', async (t) => {
 	} finally { f.controller.stop(); f.dom.restore(); }
 });
 
-test('debug saves reuse Explorer decisions while protection changes update locks', async () => {
+test('debug saves preserve existing Explorer icons while protection changes update locks', async () => {
 	const f = fixture();
 	const plugin = new ReadOnlyViewPlugin(f.app, {} as never);
-	plugin.settings = { ...f.settings, showExplorerProtectionIndicators: true };
+	plugin.loadData = async () => ({ ...f.settings, showExplorerProtectionIndicators: true });
 	plugin.saveData = async () => {};
-	const controller = new ExplorerIndicatorController(f.app, () => plugin.getCompiledRuleMatcher(), f.counts);
-	Object.assign(plugin, { explorerIndicators: controller });
 	try {
 		const note = f.add('Notes/Test.md');
-		await changeSettings(plugin, () => undefined);
-		assert.ok(note.querySelector(iconSelector));
-		Object.assign(f.counts, { rowVisits: 0, matcherCalls: 0, lookups: 0 });
-		await changeSettings(plugin, (draft) => { draft.debug = true; });
-		assert.deepEqual(f.counts, { rowVisits: 0, matcherCalls: 0, lookups: 0 });
-		await changeSettings(plugin, (draft) => { draft.excludeRules = ['Notes/']; });
+		await plugin.onload();
+		const icon = note.querySelector(iconSelector);
+		assert.ok(icon);
+		const lookups = f.lookups();
+		await changeSettings(plugin, (draft) => { draft.debugVerbosePaths = true; });
+		assert.equal(note.querySelector(iconSelector), icon);
+		assert.equal(f.lookups(), lookups);
+		await changeSettings(plugin, (draft) => {
+			setRuleEntries(draft, 'exclude', [{ sourceKind: 'vault-path', sourceValue: 'Notes/', resolvedPath: 'Notes/', enabled: true }]);
+		});
 		assert.equal(note.querySelector(iconSelector), null);
-	} finally { controller.stop(); f.dom.restore(); }
+	} finally { plugin.onunload(); f.dom.restore(); }
+});
+
+test('failed indicator save restores the visible locks and allows a later successful save', async () => {
+	const f = fixture();
+	const plugin = new ReadOnlyViewPlugin(f.app, {} as never);
+	plugin.loadData = async () => ({ ...f.settings, showExplorerProtectionIndicators: true });
+	plugin.saveData = async () => { throw new Error('storage unavailable'); };
+	try {
+		const note = f.add('Notes/Test.md');
+		await plugin.onload();
+		assert.ok(note.querySelector(iconSelector));
+		const saving = changeSettings(plugin, (draft) => { draft.showExplorerProtectionIndicators = false; });
+		assert.equal(note.querySelector(iconSelector), null);
+		await assert.rejects(saving, /storage unavailable/);
+		assert.ok(note.querySelector(iconSelector));
+		let persisted: unknown;
+		plugin.saveData = async (data: unknown) => { persisted = data; };
+		await changeSettings(plugin, (draft) => { draft.showExplorerProtectionIndicators = false; });
+		assert.equal(mergeLoadedSettings(persisted).showExplorerProtectionIndicators, false);
+		assert.equal(note.querySelector(iconSelector), null);
+		await changeSettings(plugin, (draft) => { draft.showExplorerProtectionIndicators = true; });
+		plugin.onunload();
+		assert.equal(note.querySelector(iconSelector), null);
+		assert.ok(MockMutationObserver.instances.every((observer) => observer.disconnected));
+	} finally { plugin.onunload(); f.dom.restore(); }
 });
 
 test('folder rename invalidates descendants in every pane before and after DOM paths change', async () => {
