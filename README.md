@@ -117,6 +117,8 @@ Use your own note's URL to protect exactly that note. You can also right-click a
 
 In **All Markdown files**, saved Include rules are retained but inactive. In **Only matched paths**, notes without a matching enabled Include remain editable.
 
+Glob matching uses a bounded polynomial-time algorithm so repeated wildcards cannot trigger exponential backtracking. Existing pattern semantics and rule limits are unchanged.
+
 For glob patterns, case sensitivity, imported paths, and edge cases, see [Path rules](https://mrkazzila.github.io/Read-Only-View/docs/path-rules).
 
 ## Path Tester

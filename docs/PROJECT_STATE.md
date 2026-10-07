@@ -128,7 +128,7 @@ High-level modules:
   - Timed burst scheduling and cleanup for `file-open`, `active-leaf-change`, and `layout-change`
 - `src/matcher.ts`
   - `normalizeVaultPath(path)`
-  - `compileGlobToRegex(pattern, caseSensitive)` with bounded FIFO cache (`cap=512`)
+  - `compileGlobToRegex(pattern, caseSensitive)` retains its legacy name and cached `.test(path)` interface; it now returns a compiled glob object, not a `RegExp` (FIFO cache cap `512`)
   - `clearGlobRegexCache()` service API for explicit cache invalidation (used in tests/tooling)
   - `matchPath(filePath, pattern, options)`
   - `shouldForceReadOnly(filePath, settings)`
@@ -255,8 +255,12 @@ Command entry points:
 ### C. Matching flow
 
 1. Normalize path (trim, slash normalization, remove leading `./`, collapse `//`).
-2. If `useGlobPatterns=true`: anchored regex (`^...$`) using internal glob conversion.
-   - Compiled regex entries are cached with fixed FIFO cap (`512`) to bound memory for highly unique rule sets.
+2. If `useGlobPatterns=true`: anchored dynamic-programming glob matching, without backtracking regexes.
+   - For pattern length P and normalized path length N, matching takes O(P × N) worst-case time and O(N) scratch space; compiled tokens take O(P) space. Each token advances a row of reachable path offsets, so even short repeated-wildcard patterns cannot cause exponential exploration.
+   - Fixed literal ends are checked directly; literal runs scan candidate positions and rows skip unreachable leading offsets to keep common long-path matches cheap.
+   - Preserves `*`/`?` within segments, `**` across segments, optional directories in `/**/`, UTF-16 code-unit matching, and the old regex dot's exclusion of line terminators for `**`. Normalization, case handling, prefix mode, and Exclude precedence are unchanged.
+   - Compiled glob entries are cached with fixed FIFO cap (`512`). Existing source-input length and rule-count caps are unchanged; the polynomial bound is not a fixed wall-clock guarantee for arbitrarily large inputs.
+   - Adversarial tests exercise `matchPath` and compiled Include/Exclude rules in a child process with a parent-enforced 5-second timeout and SIGKILL. Node APIs are confined to tests.
 3. If `useGlobPatterns=false`: literal prefix mode with optional folder slash hint.
 4. Advanced sources are resolved before matching:
    - Obsidian URL entries target one exact existing Markdown file
