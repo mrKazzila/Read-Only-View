@@ -4,7 +4,7 @@ import { changeFolderRule, setFolderRuleEntries } from '../src/folder-rules.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { renderRuleEditor } from '../src/settings-rule-editor.js';
+import { renderRuleEditor, type RuleEditorUiState } from '../src/settings-rule-editor.js';
 import { PATH_SOURCE_INPUT_MAX_LENGTH } from '../src/source-input-limits.js';
 import { installDomMocks, MockHTMLElement } from './helpers/dom-mocks.js';
 
@@ -47,6 +47,42 @@ function collectTexts(root: MockHTMLElement): string[] {
 	return [root.textContent, ...root.getChildren().flatMap((child) => collectTexts(child))]
 		.filter((value) => value.length > 0);
 }
+
+test('each editor revision resolves rows once across summary, diagnostics, and save', async () => {
+	const dom = installDomMocks();
+	try {
+		for (const count of [10, 20, 450]) {
+			await withFakeTimeouts(async ({ flushAll }) => {
+				const container = new MockHTMLElement();
+				let resolverCalls = 0;
+				let saved: RuleEditorUiState | undefined;
+				const controller = renderRuleEditor({
+					containerEl: container as unknown as HTMLElement,
+					includeRules: Array.from({ length: count }, (_, index) => `Note${index}.md`),
+					excludeRules: [], useGlobPatterns: true,
+					resolverContext: {
+						vaultName: 'test', vaultBasePath: null,
+						isMarkdownFile: () => { resolverCalls++; return true; },
+						isFolder: () => false,
+					},
+					onChange: async (state) => { saved = state; },
+				});
+				assert.equal(resolverCalls, count, 'one lookup per row on mount');
+				resolverCalls = 0;
+				const input = container.querySelector('.read-only-view-rule-input')!;
+				input.value = 'Changed.md';
+				input.trigger('input');
+				await flushAll();
+				assert.equal(resolverCalls, count, 'one lookup per row after editing and flushing');
+				assert.equal(saved?.includeRules[0], 'Changed.md');
+				assert.equal(saved?.includeRules.length, count);
+				controller.dispose();
+			});
+		}
+	} finally {
+		dom.restore();
+	}
+});
 
 function withOwnedFakeTimeoutWindows(
 	callback: (tools: {
@@ -854,6 +890,104 @@ test('invalid resolved paths do not shift row warnings at the include cap', () =
 		assert.equal(collectTexts(rows[200]!).includes('Ignored due to rule limit.'), false);
 		assert.equal(collectTexts(rows[201]!).includes('Ignored due to rule limit.'), true);
 		controller.dispose();
+	} finally {
+		dom.restore();
+	}
+});
+
+
+test('cap diagnostics and saved rules stay aligned after type, enabled, and delete edits', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	const committed: RuleEditorUiState[] = [];
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			const controller = renderRuleEditor({
+				containerEl: container as unknown as HTMLElement,
+				includeRules: ['obsidian://open?vault=Other&file=Missing', 'Disabled/',
+					...Array.from({ length: 201 }, (_, index) => `Include${index}/`)],
+				includeRuleEntries: [
+					{ sourceKind: 'obsidian-uri', sourceValue: 'obsidian://open?vault=Other&file=Missing', resolvedPath: null, enabled: true },
+					{ sourceKind: 'vault-path', sourceValue: 'Disabled/', resolvedPath: 'Disabled/', enabled: false },
+					...Array.from({ length: 201 }, (_, index) => ({
+						sourceKind: 'vault-path' as const, sourceValue: `Include${index}/`, resolvedPath: `Include${index}/`, enabled: true,
+					})),
+				],
+				excludeRules: Array.from({ length: 201 }, (_, index) => `Exclude${index}/`),
+				useGlobPatterns: false,
+				onChange: async (state) => { committed.push(state); },
+			});
+			const summary = () => container.querySelector('.read-only-view-rules-summary')!.textContent;
+			const row = (value: string) => container.querySelectorAll('.read-only-view-rule-row')
+				.find((item) => item.querySelector('.read-only-view-rule-input')?.value === value)!;
+			const ignored = (value: string) => collectTexts(row(value)).includes('Ignored due to rule limit.');
+			assert.equal(summary(), 'Include: 200 rules · Exclude: 200 rules · Total: 400 (+2 ignored)');
+			assert.ok(ignored('Include200/'));
+			assert.ok(ignored('Exclude200/'));
+			assert.ok(row('obsidian://open?vault=Other&file=Missing').querySelector('.is-error'));
+
+			const type = row('Include200/').querySelector('select')!;
+			type.value = 'exclude';
+			type.trigger('change');
+			await flushAll();
+			assert.equal(summary(), 'Include: 200 rules · Exclude: 200 rules · Total: 400 (+2 ignored)');
+			assert.equal(ignored('Include200/'), false);
+			assert.ok(ignored('Exclude199/'));
+			assert.deepEqual(committed.at(-1)?.excludeRules.slice(0, 2), ['Include200/', 'Exclude0/']);
+
+			const enabled = row('Include0/').querySelector('.read-only-view-rule-enabled-toggle')!;
+			enabled.checked = false;
+			enabled.trigger('change');
+			await flushAll();
+			assert.equal(summary(), 'Include: 199 rules · Exclude: 201 rules · Total: 400 (+1 ignored)');
+			assert.equal(ignored('Exclude199/'), false);
+			assert.ok(ignored('Exclude200/'));
+			assert.deepEqual(committed.at(-1)?.includeRuleEnabled.slice(0, 2), [false, false]);
+
+			row('Include200/').querySelector('button')!.trigger('click');
+			await flushAll();
+			assert.equal(summary(), 'Include: 199 rules · Exclude: 201 rules · Total: 400');
+			assert.equal(ignored('Exclude200/'), false);
+			assert.equal(committed.at(-1)?.excludeRules[0], 'Exclude0/');
+			assert.equal(committed.at(-1)?.includeRuleEntries?.[0]?.resolvedPath, null);
+			assert.equal(committed[0]?.excludeRules[0], 'Include200/', 'later revisions do not mutate submitted payloads');
+			controller.dispose();
+		});
+	} finally {
+		dom.restore();
+	}
+});
+
+test('external reordering rebuilds cap indexes while preserving row focus and submitted snapshots', async () => {
+	const dom = installDomMocks();
+	const container = new MockHTMLElement();
+	container.ownerDocument = dom.document;
+	const settings = mergeLoadedSettings({
+		forceAllMarkdownReadOnly: false,
+		includeRules: Array.from({ length: 201 }, (_, index) => `Notes${index}/`),
+	});
+	let saved: RuleEditorUiState | undefined;
+	try {
+		await withFakeTimeouts(async ({ flushAll }) => {
+			const controller = renderRuleEditor({
+				...settings, containerEl: container as unknown as HTMLElement,
+				onChange: async (state) => { saved = state; },
+			});
+			container.querySelector('.read-only-view-rule-input')!.focus();
+			await controller.applyExternalUpdate(settings, (draft) => ({
+				changed: true, entries: [...draft.includeRuleEntries!].reverse(),
+			}));
+			await flushAll();
+			const rows = container.querySelectorAll('.read-only-view-rule-row');
+			assert.equal(rows[0]!.querySelector('.read-only-view-rule-input')!.value, 'Notes200/');
+			assert.equal(rows[200]!.querySelector('.read-only-view-rule-input')!.value, 'Notes0/');
+			assert.equal(collectTexts(rows[0]!).includes('Ignored due to rule limit.'), false);
+			assert.ok(collectTexts(rows[200]!).includes('Ignored due to rule limit.'));
+			assert.equal(dom.document.activeElement, rows[0]!.querySelector('.read-only-view-rule-input'));
+			assert.equal(saved?.includeRules[0], 'Notes200/');
+			assert.equal(saved?.includeRules[200], 'Notes0/');
+			controller.dispose();
+		});
 	} finally {
 		dom.restore();
 	}
