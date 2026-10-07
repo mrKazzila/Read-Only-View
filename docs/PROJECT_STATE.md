@@ -32,10 +32,10 @@ This document is a living system map for the `read-only-view` Obsidian plugin.
 - `src/explorer-indicators.ts`
   - Optional, visual-only File Explorer locks for Markdown files and folders; `showExplorerProtectionIndicators` defaults to false, including upgrades.
   - Reuses the compiled matcher: `isPathProtected(path, kind)` shares the runtime decision; folders use a trailing slash, while `shouldForceReadOnly` retains the Markdown-only guard. Folder icons describe matching scope, not a claim that every descendant is protected. Glob rules are evaluated as written; a note-only glob does not imply a protected folder.
-  - Starts on load/enable, reconciles Explorer containers on layout readiness and layout changes, and refreshes after settings saves. Global disable stops it.
-  - Vault create/delete/rename (including moves and folder descendants) invalidate affected tracked rows. Container-scoped observers batch added subtrees and `data-path` changes in microtasks; unchanged rows reuse cached decisions. No full-vault traversal.
+  - Starts on load/enable, reconciles Explorer containers on layout readiness and layout changes, and refreshes tracked rows only when the revision-backed compiled matcher changes. Unrelated debug saves do no row work; global disable stops it.
+  - Vault create/delete/rename (including moves and folder descendants) invalidate affected tracked rows. A path/ancestor→rows index reaches exact paths and folder descendants across panes without scanning unrelated rows. Index storage is proportional to tracked rows times path depth. Container-scoped observers batch added subtrees and `data-path` changes in microtasks; unchanged rows reuse cached decisions. Removed DOM subtrees supply local cleanup candidates; pane closure checks all tracked rows because disconnecting its observer can discard pending removal records. No full-vault traversal.
   - Stop/unload disconnects observers, removes event refs/icons and cancels queued work. Selectors `.nav-file-title`, `.nav-folder-title`, and `data-path` are undocumented Explorer DOM conventions isolated in this controller; unsupported markup is skipped. Native icons and theme variables are used.
-  - `tests/explorer-indicators.test.ts` covers shared decisions, defaults, lifecycle cleanup, idempotence, targeted updates and rerenders.
+  - `tests/explorer-indicators.test.ts` covers shared decisions, defaults, lifecycle cleanup, idempotence, targeted updates, rerenders, multi-document panes, delayed folder renames and removal cleanup. Optional `ExplorerWorkCounts` counters measure candidate/render row visits, matcher calls and vault lookups; see [the operation profile](EXPLORER_INVALIDATION_PROFILE.md).
 
 High-level modules:
 
