@@ -1,5 +1,6 @@
 import {
 	Plugin,
+	Notice,
 	MarkdownView,
 	WorkspaceLeaf,
 	type MarkdownFileInfo,
@@ -10,7 +11,7 @@ import {
 	getCompiledRuleMatcherKey,
 	type CompiledRuleMatcher,
 } from './matcher';
-import { shouldReapplyAfterEnabledChange } from './command-controls';
+import { changeSettings } from './settings-lifecycle';
 import { formatPathForDebug } from './debug-log';
 import { createEditorReadOnlyExtension } from './editor-readonly';
 import { createEnforcementService, type EnforcementService } from './enforcement';
@@ -36,6 +37,8 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	private workspaceEventController: WorkspaceEventController | null = null;
 	private compiledRuleMatcher: CompiledRuleMatcher = createCompiledRuleMatcher(this.settings);
 	private compiledRuleMatcherKey = getCompiledRuleMatcherKey(this.settings);
+	private rulesRevision = 0;
+	private compiledRulesRevision = 0;
 
 	async onload(): Promise<void> {
 		const isFreshInstall = await this.loadSettings();
@@ -132,10 +135,17 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		return loaded === null || loaded === undefined;
 	}
 
-	async saveSettings(): Promise<void> {
-		this.rebuildCompiledRuleMatcher();
+	async saveSettings(snapshot: ForceReadModeSettings = this.settings): Promise<void> {
+		await this.saveData(snapshot);
+	}
+
+	settingsChanged(): void {
+		const key = getCompiledRuleMatcherKey(this.settings);
+		if (key !== this.compiledRuleMatcherKey) {
+			this.compiledRuleMatcherKey = key;
+			this.rulesRevision++;
+		}
 		this.syncExplorerIndicators();
-		await this.saveData(this.settings);
 	}
 
 	private syncExplorerIndicators(): void {
@@ -152,12 +162,11 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		if (previousEnabled === enabled) {
 			return;
 		}
-		this.settings.enabled = enabled;
-		await this.saveSettings();
-		this.refreshEditorOptions();
-		this.logDebug('set-enabled', { enabled: this.settings.enabled, reason });
-		if (shouldReapplyAfterEnabledChange(previousEnabled, enabled)) {
-			await this.applyAllOpenMarkdownLeaves(reason);
+		try {
+			await changeSettings(this, (draft) => { draft.enabled = enabled; }, reason);
+			this.logDebug('set-enabled', { enabled: this.settings.enabled, reason });
+		} catch {
+			new Notice('Could not save or apply settings. Please try again.');
 		}
 	}
 
@@ -218,8 +227,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	}
 
 	getCompiledRuleMatcher(): CompiledRuleMatcher {
-		const nextKey = getCompiledRuleMatcherKey(this.settings);
-		if (nextKey !== this.compiledRuleMatcherKey) {
+		if (this.compiledRulesRevision !== this.rulesRevision) {
 			this.rebuildCompiledRuleMatcher();
 		}
 		return this.compiledRuleMatcher;
@@ -228,6 +236,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	private rebuildCompiledRuleMatcher(): void {
 		this.compiledRuleMatcher = createCompiledRuleMatcher(this.settings);
 		this.compiledRuleMatcherKey = getCompiledRuleMatcherKey(this.settings);
+		this.compiledRulesRevision = this.rulesRevision;
 	}
 
 	private invalidateLeafContainerCache(): void {

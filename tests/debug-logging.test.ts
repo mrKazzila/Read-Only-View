@@ -20,7 +20,7 @@ function createPluginWithLeaf() {
 		throwOnReplaceCall: true,
 	});
 	const harness = createMainTestHarness({ leaves: [leaf] });
-	const plugin = Object.create(ReadOnlyViewPlugin.prototype) as ReadOnlyViewPlugin;
+	const plugin = new ReadOnlyViewPlugin(harness.app as never, {} as never);
 	const state = plugin as unknown as TestPluginState & {
 		app: unknown;
 		settings: typeof DEFAULT_SETTINGS;
@@ -38,6 +38,7 @@ function createPluginWithLeaf() {
 		debug: false,
 		debugVerbosePaths: false,
 	};
+	plugin.settingsChanged();
 	state.enforcing = false;
 	state.pendingReapply = null;
 	state.lastForcedAt = new WeakMap<object, number>();

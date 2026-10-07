@@ -1,11 +1,12 @@
-import { App, Modal } from 'obsidian';
+import { changeSettings } from './settings-lifecycle';
+import { App, Modal, Notice } from 'obsidian';
 import type { ForceReadModeSettings } from './plugin-types';
 
 export const WELCOME_VERSION = 1;
 
 type WelcomeSettingsPlugin = {
 	settings: ForceReadModeSettings;
-	saveSettings: () => Promise<void>;
+	saveSettings: (snapshot?: ForceReadModeSettings) => Promise<void>;
 };
 
 type AppWithOptionalSettings = App & {
@@ -67,25 +68,35 @@ export class WelcomeModal extends Modal {
 
 	onClose(): void {
 		this.contentEl.empty();
-		void this.persistDismissal();
+		void this.tryPersistDismissal();
 	}
 
-	private async dismiss(): Promise<void> {
-		await this.persistDismissal();
+	private async dismiss(): Promise<boolean> {
+		if (!await this.tryPersistDismissal()) return false;
 		this.close();
+		return true;
+	}
+
+	private async tryPersistDismissal(): Promise<boolean> {
+		try {
+			await this.persistDismissal();
+			return true;
+		} catch {
+			this.dismissalPromise = null;
+			new Notice('Could not save settings. Please try again.');
+			return false;
+		}
 	}
 
 	private persistDismissal(): Promise<void> {
 		if (!this.dismissalPromise) {
-			this.plugin.settings.dismissedWelcomeVersion = WELCOME_VERSION;
-			this.dismissalPromise = this.plugin.saveSettings();
+			this.dismissalPromise = changeSettings(this.plugin, (draft) => { draft.dismissedWelcomeVersion = WELCOME_VERSION; });
 		}
 		return this.dismissalPromise;
 	}
 
 	private async dismissAndOpenSettings(): Promise<void> {
-		await this.dismiss();
-		openPluginSettingsBestEffort(this.app, this.pluginId);
+		if (await this.dismiss()) openPluginSettingsBestEffort(this.app, this.pluginId);
 	}
 }
 

@@ -29,7 +29,7 @@ import {
 	setSettingsFocusKey,
 } from './settings-focus';
 
-type RuleSaveState = 'saving' | 'saved' | 'error';
+export type RuleSaveState = 'saving' | 'saved' | 'error';
 type RuleType = 'include' | 'exclude';
 
 const RULES_SAVE_DEBOUNCE_MS = 400;
@@ -72,11 +72,12 @@ function createRuleRow(entry: RuleEntry, type: RuleType, id: number): RuleRowSta
 }
 
 export type RuleEditorController = {
+	setInheritedSaveState: (state: RuleSaveState) => void;
 	applyExternalUpdate: (settings: ForceReadModeSettings, update: IncludeRuleUpdate) => Promise<{ changed: boolean; error?: string }>;
 	dispose: () => void;
 };
 
-type RuleEditorUiState = {
+export type RuleEditorUiState = {
 	includeRules: string[];
 	excludeRules: string[];
 	includeRuleEnabled: boolean[];
@@ -437,6 +438,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	diagnosticsEl.setAttr('id', diagnosticsId);
 	diagnosticsEl.setAttr('aria-live', 'polite');
 
+	let hasLocalChanges = false;
 	const setSaveState = (state: RuleSaveState) => {
 		if (state === 'saving') {
 			saveStatusEl.setText('Saving...');
@@ -609,6 +611,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	);
 
 	const syncRows = (flush = false) => {
+		hasLocalChanges = true;
 		const payload = getCurrentPayload();
 		saver.schedule(payload);
 		if (flush) {
@@ -790,11 +793,17 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	renderRows();
 
 	return {
+		setInheritedSaveState: (state) => { if (!hasLocalChanges) setSaveState(state); },
 		applyExternalUpdate: async (settings, update) => {
+			hasLocalChanges = true;
 			const payload = getCurrentPayload();
 			const previous = payload.includeRuleEntries ?? [];
 			const change = update({ ...settings, ...payload });
-			if (change.error || !change.changed) return change;
+			if (change.error) return change;
+			if (!change.changed) {
+				await saver.flushExternal(payload);
+				return change;
+			}
 			let index = 0;
 			rows = rows.map((row) => {
 				if (row.type !== 'include' || !row.acceptedValue.trim()) return row;

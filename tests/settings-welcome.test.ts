@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { setImmediate } from 'node:timers';
 
 import { App } from 'obsidian';
 import { DEFAULT_SETTINGS } from '../src/plugin-settings.js';
@@ -146,8 +147,7 @@ test('welcome modal open settings button saves dismissal state and opens setting
 		const openButton = findButtonByText(modal.contentEl as unknown as MockHTMLElement, 'Open settings');
 		assert.ok(openButton);
 		openButton.trigger('click');
-		await Promise.resolve();
-		await Promise.resolve();
+		await new Promise<void>((resolve) => setImmediate(resolve));
 
 		assert.equal(plugin.settings.dismissedWelcomeVersion, WELCOME_VERSION);
 		assert.equal(getSaveCalls(), 1);

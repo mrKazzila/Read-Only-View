@@ -15,7 +15,7 @@ type TestPluginState = {
 
 function createPluginForEnforcement(leaves: MockWorkspaceLeaf[]) {
 	const harness = createMainTestHarness({ leaves });
-	const plugin = Object.create(ReadOnlyViewPlugin.prototype) as ReadOnlyViewPlugin;
+	const plugin = new ReadOnlyViewPlugin(harness.app as never, {} as never);
 	const state = plugin as unknown as TestPluginState & {
 		app: unknown;
 		settings: typeof DEFAULT_SETTINGS;
@@ -32,6 +32,7 @@ function createPluginForEnforcement(leaves: MockWorkspaceLeaf[]) {
 		excludeRules: [],
 		debug: false,
 	};
+	plugin.settingsChanged();
 	state.enforcing = false;
 	state.pendingReapply = null;
 	state.lastForcedAt = new WeakMap<object, number>();
@@ -58,7 +59,7 @@ test('enforcement exits early when plugin is disabled', async () => {
 	const { harness, plugin, state } = createPluginForEnforcement([leaf]);
 
 	try {
-		state.settings.enabled = false;
+		state.settings.enabled = false; plugin.settingsChanged();
 		await plugin.applyAllOpenMarkdownLeaves('disabled-test');
 
 		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 0);
@@ -151,6 +152,7 @@ test('enforcement applies only to matching markdown files', async () => {
 	]);
 	state.settings.includeRules = ['docs/**'];
 	state.settings.excludeRules = [];
+	plugin.settingsChanged();
 
 	try {
 		await plugin.applyAllOpenMarkdownLeaves('md-filter-test');
@@ -192,8 +194,8 @@ for (const change of ['navigation', 'disable', 'exclude', 'unload', 'close'] as 
 				assert.equal(pendingFrameCount(), 1);
 				switch (change) {
 					case 'navigation': leaf.setFilePath('docs/B.md'); break;
-					case 'disable': state.settings.enabled = false; break;
-					case 'exclude': state.settings.excludeRules = ['docs/**']; break;
+					case 'disable': state.settings.enabled = false; plugin.settingsChanged(); break;
+					case 'exclude': state.settings.excludeRules = ['docs/**']; plugin.settingsChanged(); break;
 					case 'unload': plugin.onunload(); break;
 					case 'close': harness.leaves.splice(0); break;
 				}

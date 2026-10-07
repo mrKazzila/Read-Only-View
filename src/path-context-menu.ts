@@ -1,3 +1,4 @@
+import { changeSettings } from './settings-lifecycle';
 import { Notice, TFile, TFolder, type Menu, type TAbstractFile, type Vault } from 'obsidian';
 import { changeFolderRule, folderRulePath, hasActiveFolderRule, setFolderRuleEntries } from './folder-rules';
 import { createCompiledRuleMatcher } from './matcher';
@@ -31,25 +32,14 @@ export async function applyPathRuleAction(
 		const change = update(plugin.settings);
 		if (change.error) { notify(change.error); return; }
 		if (!change.changed) return;
-		const previous = {
-			includeRuleEntries: plugin.settings.includeRuleEntries,
-			includeRules: plugin.settings.includeRules,
-			includeRuleEnabled: plugin.settings.includeRuleEnabled,
-		};
-		setFolderRuleEntries(plugin.settings, change.entries);
 		try {
-			await plugin.saveSettings();
+			await changeSettings(plugin, (draft) => {
+				const rebased = update(draft);
+				if (rebased.error) throw new Error(rebased.error);
+				setFolderRuleEntries(draft, rebased.entries);
+			}, 'path-context-menu');
 		} catch {
-			Object.assign(plugin.settings, previous);
-			plugin.refreshEditorOptions();
-			notify('Could not save the path rule. Please try again.');
-			return;
-		}
-		try {
-			plugin.refreshEditorOptions();
-			await plugin.applyAllOpenMarkdownLeaves('path-context-menu');
-		} catch {
-			notify('Path rule saved, but could not re-apply it to open notes.');
+			notify('Could not save or apply the path rule. Please try again.');
 			return;
 		}
 	}

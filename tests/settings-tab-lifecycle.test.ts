@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-deprecated, obsidianmd/no-unsupported-api -- This suite verifies both branches of the dual-support settings tab. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { setImmediate } from 'node:timers';
 
 import {
 	Setting,
@@ -299,8 +300,7 @@ test('declarative controls refresh through update after a change', async () => {
 		const modeButtons = container.querySelectorAll('.read-only-view-mode-option');
 		assert.equal(modeButtons.length, 2);
 		modeButtons[1]!.trigger('click');
-		await Promise.resolve();
-		await Promise.resolve();
+		await new Promise<void>((resolve) => setImmediate(resolve));
 
 		assert.equal(plugin.settings.forceAllMarkdownReadOnly, true);
 		assert.equal(updateCalls, 1);

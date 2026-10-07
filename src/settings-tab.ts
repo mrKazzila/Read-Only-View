@@ -1,3 +1,4 @@
+import { changeSettings } from './settings-lifecycle';
 import { setRuleEntries } from './rule-state';
 import {
 	App,
@@ -24,6 +25,8 @@ import {
 	getPathRulesSummary,
 	renderRuleEditor,
 	type RuleEditorController,
+	type RuleEditorUiState,
+	type RuleSaveState,
 } from './settings-rule-editor';
 import type { SettingsTabPlugin } from './plugin-types';
 import { createRuleResolverContext, type RuleResolverContext } from './rule-source';
@@ -76,6 +79,8 @@ function getActiveRulesCount(settings: SettingsTabPlugin['settings']): number {
 export class ForceReadModeSettingTab extends PluginSettingTab {
 	plugin: SettingsTabPlugin;
 	private ruleEditor: RuleEditorController | null = null;
+	private settingsSession = 0;
+	private ruleSave: { draft: RuleEditorUiState; status: RuleSaveState } | null = null;
 	private pathTesterController: PathTesterController | null = null;
 	private readonly sectionOpenState = new Map<SettingsSectionKey, boolean>();
 
@@ -187,6 +192,8 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 	}
 
 	hide(): void {
+		this.settingsSession++;
+		this.ruleSave = null;
 		this.disposeUiControllers();
 		this.sectionOpenState.clear();
 	}
@@ -261,23 +268,38 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 		headerIndicators?: HeaderIndicatorsController,
 	): RuleEditorController {
 		this.ruleEditor?.dispose();
+		const session = this.settingsSession;
+		const draft = this.ruleSave?.draft ?? this.plugin.settings;
 		const controller = renderRuleEditor({
 			containerEl: pathRulesSection.bodyEl,
-			includeRules: this.plugin.settings.includeRules,
-			excludeRules: this.plugin.settings.excludeRules,
-			includeRuleEnabled: this.plugin.settings.includeRuleEnabled,
-			excludeRuleEnabled: this.plugin.settings.excludeRuleEnabled,
-			includeRuleEntries: this.plugin.settings.includeRuleEntries,
-			excludeRuleEntries: this.plugin.settings.excludeRuleEntries,
+			includeRules: draft.includeRules,
+			excludeRules: draft.excludeRules,
+			includeRuleEnabled: draft.includeRuleEnabled,
+			excludeRuleEnabled: draft.excludeRuleEnabled,
+			includeRuleEntries: draft.includeRuleEntries,
+			excludeRuleEntries: draft.excludeRuleEntries,
 			resolverContext: getRuleResolverContext(this.app),
 			useGlobPatterns: this.plugin.settings.useGlobPatterns,
 			includeRulesActive: !this.plugin.settings.forceAllMarkdownReadOnly,
 			onChange: async (state, reason) => {
-				setRuleEntries(this.plugin.settings, 'include', state.includeRuleEntries ?? []);
-				setRuleEntries(this.plugin.settings, 'exclude', state.excludeRuleEntries ?? []);
-				await this.plugin.saveSettings();
-				this.plugin.refreshEditorOptions();
-				await this.plugin.applyAllOpenMarkdownLeaves(reason);
+				const attempt = { draft: state, status: 'saving' as RuleSaveState };
+				if (session === this.settingsSession) this.ruleSave = attempt;
+				try {
+					await changeSettings(this.plugin, (draft) => {
+						setRuleEntries(draft, 'include', state.includeRuleEntries ?? []);
+						setRuleEntries(draft, 'exclude', state.excludeRuleEntries ?? []);
+					}, reason);
+					attempt.status = 'saved';
+					if (this.ruleSave === attempt) this.ruleSave = null;
+				} catch (error) {
+					attempt.status = 'error';
+					throw error;
+				} finally {
+					if (session === this.settingsSession && this.ruleEditor !== controller
+						&& (!this.ruleSave || this.ruleSave === attempt)) {
+						this.ruleEditor?.setInheritedSaveState(attempt.status);
+					}
+				}
 				pathRulesSection.setSummary(
 					getPathRulesSummary(
 						state.includeRules,
@@ -298,6 +320,7 @@ export class ForceReadModeSettingTab extends PluginSettingTab {
 			},
 		});
 		this.ruleEditor = controller;
+		if (this.ruleSave) controller.setInheritedSaveState(this.ruleSave.status);
 		return controller;
 	}
 

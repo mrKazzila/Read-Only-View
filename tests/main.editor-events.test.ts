@@ -38,6 +38,7 @@ function createEditorEventPlugin() {
 		debug: false,
 		debugVerbosePaths: false,
 	};
+	plugin.settingsChanged();
 	plugin.loadSettings = async () => false;
 	plugin.registerEvent = () => undefined;
 	plugin.addCommand = ((command: unknown) => command) as PatchablePlugin['addCommand'];

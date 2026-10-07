@@ -73,24 +73,24 @@ test('folder menu skips root and reflects enabled rules and mode changes', () =>
 	assert.deepEqual(titles, ['Explain read-only status', 'Lock → Reading', 'Explain read-only status', 'Unlock', 'Explain read-only status', 'Lock → Reading']);
 });
 
-test('actions persist, refresh, and reapply in order; repeated actions are safe', async () => {
+test('actions apply optimistically and persist; repeated actions are safe', async () => {
 	const { plugin, calls, notify } = fixture();
 	await applyPathRuleAction(plugin, vault, folder(), true, notify);
-	assert.deepEqual(calls, ['save', 'refresh', 'apply']);
+	assert.deepEqual(calls, ['refresh', 'apply', 'save']);
 	await applyPathRuleAction(plugin, vault, folder(), true, notify);
 	assert.equal(calls.length, 3);
 	await applyPathRuleAction(plugin, vault, folder(), false, notify);
-	assert.deepEqual(calls, ['save', 'refresh', 'apply', 'save', 'refresh', 'apply']);
+	assert.deepEqual(calls, ['refresh', 'apply', 'save', 'refresh', 'apply', 'save']);
 	assert.deepEqual(plugin.settings.includeRuleEnabled, [false]);
 });
 
-test('failed save restores previous rules and does not claim success or apply protection', async () => {
+test('failed save restores previous rules and republishes protection without claiming success', async () => {
 	const { plugin, calls, notices, notify } = fixture();
 	const before = structuredClone(plugin.settings);
 	plugin.saveSettings = () => Promise.reject(new Error('disk full'));
 	await applyPathRuleAction(plugin, vault, folder(), true, notify);
 	assert.deepEqual(plugin.settings, before);
-	assert.deepEqual(calls, ['refresh']);
+	assert.deepEqual(calls, ['refresh', 'apply', 'refresh', 'apply']);
 	assert.match(notices[0] ?? '', /Could not save/);
 });
 
@@ -143,3 +143,25 @@ test(`real plugin saves and enforces an open leaf for ${target.path}`, async () 
 });
 
 }
+
+
+test('failed real save restores matcher and settings, and a retry succeeds', async () => {
+	const harness = createMainTestHarness();
+	const plugin = new ReadOnlyViewPlugin(harness.app as unknown as App, {
+		id: 'read-only-view', name: 'Read Only View', version: '1.1.3', minAppVersion: '1.10.3', author: 'test', description: 'test',
+	});
+	plugin.loadData = async () => ({ forceAllMarkdownReadOnly: false });
+	await plugin.loadSettings();
+	plugin.saveData = async () => { throw new Error('disk full'); };
+	try {
+		const action = applyPathRuleAction(plugin, vault, folder(), true, () => undefined);
+		assert.equal(plugin.shouldForceReadOnlyPath('notes/example.md'), true);
+		assert.equal(harness.workspace.updateOptionsCalls, 1);
+		await action;
+		assert.equal(plugin.shouldForceReadOnlyPath('notes/example.md'), false);
+		assert.deepEqual(plugin.settings.includeRuleEntries, []);
+		plugin.saveData = async () => undefined;
+		await applyPathRuleAction(plugin, vault, folder(), true, () => undefined);
+		assert.equal(plugin.shouldForceReadOnlyPath('notes/example.md'), true);
+	} finally { plugin.onunload(); harness.restore(); }
+});

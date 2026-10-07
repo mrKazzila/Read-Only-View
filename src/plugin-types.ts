@@ -37,7 +37,8 @@ export type IncludeRuleUpdate = (settings: ForceReadModeSettings) => {
 export interface SettingsTabPlugin {
 	updateOpenRuleEditor?: (update: IncludeRuleUpdate) => Promise<{ changed: boolean; error?: string }> | undefined;
 	settings: ForceReadModeSettings;
-	saveSettings: () => Promise<void>;
+	saveSettings: (snapshot?: ForceReadModeSettings) => Promise<void>;
+	settingsChanged?: () => void;
 	applyAllOpenMarkdownLeaves: (reason: string) => Promise<void>;
 	refreshEditorOptions: () => void;
 	getCompiledRuleMatcher?: () => CompiledRuleMatcher;

@@ -37,6 +37,7 @@ function createObserverPlugin() {
 		excludeRules: [],
 		debug: false,
 	};
+	plugin.settingsChanged();
 
 	return {
 		leaf,
@@ -121,6 +122,7 @@ test('observer enforces preview when matching popover/editor node is added', asy
 test('observer callback does not enforce when plugin is disabled', async () => {
 	const { leaf, harness, plugin } = createObserverPlugin();
 	plugin.settings.enabled = false;
+	plugin.settingsChanged();
 
 	try {
 		(plugin as unknown as { installMutationObserver: () => void }).installMutationObserver();
