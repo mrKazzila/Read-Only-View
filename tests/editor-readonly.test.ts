@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { EditorState } from '@codemirror/state';
+import { EditorState, StateEffect, Transaction } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import {
 	blockReadOnlyEnter,
@@ -18,6 +18,7 @@ type ObsidianRuntime = {
 async function createStateForInfo(
 	info: unknown,
 	settingsOverrides: Partial<ForceReadModeSettings> = {},
+	doc = '',
 ): Promise<EditorState> {
 	const runtime = await import('obsidian') as unknown as ObsidianRuntime;
 	const settings: ForceReadModeSettings = {
@@ -34,6 +35,7 @@ async function createStateForInfo(
 	runtime.__setEditorInfo(info);
 	const matcher = createCompiledRuleMatcher(settings);
 	return EditorState.create({
+		doc,
 		extensions: [
 			runtime.editorInfoField as never,
 			createEditorReadOnlyExtension({
@@ -50,6 +52,74 @@ test('editor read-only extension marks matching path as read-only and non-editab
 
 	assert.equal(state.readOnly, true);
 	assert.equal(state.facet(EditorView.editable), false);
+});
+
+test('protected hover editor rejects direct menu insertions, replacements, and deletions', async () => {
+	const original = '```ts\nconst value = 1;\n```';
+	const state = await createStateForInfo({ file: { path: 'docs/snippets.md' } }, {}, original);
+	for (const changes of [
+		{ from: 6, insert: '\n| A | B |\n| --- | --- |\n|   |   |\n' },
+		{ from: 6, insert: '[[Note]]' },
+		{ from: 6, insert: '\n1. Item\n' },
+		{ from: 6, to: 11, insert: '**replacement**' },
+		{ from: 0, to: original.length },
+	]) {
+		// Menu commands need not supply a userEvent annotation or a workspace leaf.
+		const transaction = state.update({ changes });
+		assert.equal(transaction.docChanged, false);
+		assert.equal(transaction.state.doc.toString(), original);
+	}
+	for (const userEvent of ['input', 'input.paste', 'delete', 'undo', 'redo']) {
+		assert.equal(state.update({ changes: { from: 0, insert: 'x' }, userEvent }).docChanged, false);
+	}
+});
+
+test('protected editor still accepts selection, effects, and explicitly remote updates', async () => {
+	const state = await createStateForInfo({ file: { path: 'docs/snippets.md' } }, {}, 'original');
+	const effect = StateEffect.define<boolean>().of(true);
+	const selection = state.update({ selection: { anchor: 1, head: 4 }, effects: effect });
+	assert.equal(selection.state.selection.main.from, 1);
+	assert.equal(selection.state.selection.main.to, 4);
+	assert.deepEqual(selection.effects, [effect]);
+	assert.equal(selection.state.doc.toString(), 'original');
+	const remote = state.update({
+		changes: { from: 0, to: state.doc.length, insert: 'updated externally' },
+		annotations: Transaction.remote.of(true),
+	});
+	assert.equal(remote.state.doc.toString(), 'updated externally');
+});
+
+test('document change guard preserves edits for excluded, disabled, and unidentified contexts', async () => {
+	for (const [info, settings] of [
+		[{ file: { path: 'docs/private/note.md' } }, { excludeRules: ['docs/private/**'] }],
+		[{ file: { path: 'docs/note.md' } }, { enabled: false }],
+		[{ file: { path: 'notes/note.md' } }, {}],
+		[{ file: { path: 'docs/note.txt' } }, {}],
+		[{ file: null }, {}],
+		[null, {}],
+	] satisfies [unknown, Partial<ForceReadModeSettings>][]) {
+		const state = await createStateForInfo(info, { ...settings }, 'original');
+		assert.equal(state.update({ changes: { from: 0, insert: 'new ' } }).state.doc.toString(), 'new original');
+	}
+});
+
+test('document change guard rechecks rules for an already open editor', async () => {
+	const runtime = await import('obsidian') as unknown as ObsidianRuntime;
+	runtime.__setEditorInfo({ file: { path: 'docs/snippets.md' } });
+	let protectedPath = false;
+	let state = EditorState.create({
+		doc: 'original',
+		extensions: [runtime.editorInfoField as never, createEditorReadOnlyExtension({
+			shouldForceReadOnlyPath: () => protectedPath,
+		})],
+	});
+	state = state.update({ changes: { from: 0, insert: 'a' } }).state;
+	protectedPath = true;
+	state = state.update({ changes: { from: 0, insert: 'blocked' } }).state;
+	assert.equal(state.doc.toString(), 'aoriginal');
+	protectedPath = false;
+	state = state.update({ changes: { from: 0, insert: 'b' } }).state;
+	assert.equal(state.doc.toString(), 'baoriginal');
 });
 
 test('Enter is consumed in a protected hover editor without a workspace leaf', async () => {

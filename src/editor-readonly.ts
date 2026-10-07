@@ -1,4 +1,4 @@
-import { EditorState, Prec, type Extension } from '@codemirror/state';
+import { EditorState, Prec, Transaction, type Extension } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { editorInfoField, type MarkdownFileInfo } from 'obsidian';
 
@@ -58,6 +58,13 @@ export function createEditorReadOnlyExtension(
 	};
 
 	return [
+		EditorState.changeFilter.of((transaction) => {
+			// Menu commands can dispatch unannotated edits despite the readOnly facet.
+			// Use current rules; existing editors can outlive a settings change.
+			return !transaction.docChanged
+				|| transaction.annotation(Transaction.remote) === true
+				|| !computeReadOnly(transaction.startState);
+		}),
 		Prec.highest(EditorState.readOnly.compute([editorInfoField], computeReadOnly)),
 		Prec.highest(EditorView.editable.compute([editorInfoField], (state) => !computeReadOnly(state))),
 		Prec.highest(EditorView.domEventHandlers({
