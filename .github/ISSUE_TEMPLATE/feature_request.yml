@@ -1,0 +1,74 @@
+name: Feature request
+description: Suggest an idea or improvement for Read Only View
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Read Only View.
+
+        Before submitting, please check existing issues to see if the feature has already been requested.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: |
+        Describe the problem, limitation, or workflow that prompted this request.
+        Focus on the use case rather than the implementation.
+      placeholder: |
+        I frequently need to make an entire folder read-only.
+        Currently I have to open Settings and manually create an include rule.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe how you would like Read Only View to behave.
+      placeholder: |
+        Add a "Lock in Reading view" action to the folder context menu
+        that automatically creates the appropriate include rule.
+    validations:
+      required: true
+
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Example workflow
+      description: |
+        Show how you imagine using the feature step by step.
+        This helps clarify the expected behavior.
+      placeholder: |
+        1. Right-click a folder
+        2. Select "Lock in Reading view"
+        3. The folder becomes protected
+        4. The generated rule appears under Path rules
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: |
+        Are there existing Read Only View features or workarounds you currently use?
+      placeholder: |
+        I currently add the path manually using an Include rule.
+
+  - type: textarea
+    id: additional_context
+    attributes:
+      label: Additional context
+      description: |
+        Add screenshots, mockups, examples, links, or any other context that may help.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate.
+          required: true
+        - label: This request is related to Read Only View's functionality or workflow.
+          required: true
