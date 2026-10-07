@@ -16,6 +16,8 @@ Privacy: No network requests; all rule matching stays local. Imported system pat
 
 Keep reference notes, documentation, dashboards, and archives in Reading view without accidentally opening the editor.
 
+Pending Reading view switches are canceled if you navigate to another note, disable protection, exclude the note, close its view, or unload the plugin before the switch is applied.
+
 - Keep a knowledge base ready for reading.
 - Protect archived project notes while keeping drafts editable.
 - Protect individual Markdown notes.

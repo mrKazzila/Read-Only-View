@@ -80,7 +80,9 @@ High-level modules:
   - Typed enforcement service (`createEnforcementService`)
   - Enforcement loop, lock/pending queue, and per-leaf preview throttle
   - Leaf-level preview forcing with fallback logging
-  - Explicit `stop()` cleanup for deferred layout-change retry timers
+  - Immediately before the frame-deferred write and any fallback, revalidates the original view/path, current enabled/rule decision, Markdown state, and workspace membership; stale work is discarded
+  - Builds each transition from current view state to preserve current note metadata; attachment validation adds one Markdown-leaf lookup per write attempt
+  - Explicit `stop()` cleanup for deferred layout-change retry timers and pending animation frames
 - `src/editor-readonly.ts`
   - CodeMirror 6 read-only extension for markdown editors
   - Path-aware `EditorState.readOnly` and `EditorView.editable` gating via `editorInfoField`
