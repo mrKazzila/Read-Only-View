@@ -27,6 +27,40 @@ This document is a living system map for the `read-only-view` Obsidian plugin.
 - The E2E workflow defaults to macOS binary path `/Applications/Obsidian.app/Contents/MacOS/Obsidian` and accepts `OBSIDIAN_PATH` for override.
 - E2E Chromedriver selection defaults to the Obsidian Electron baseline `32.2.5`; `OBSIDIAN_ELECTRON_VERSION` overrides it when testing a different Obsidian runtime.
 
+## Host integration verification (ticket 007)
+
+- Explorer save/enable/disable and save-failure rollback tests construct the plugin,
+  load persisted fixtures through `onload()`, and use production `changeSettings` /
+  canonical rule entries. They no longer inject the private Explorer controller.
+  The deterministic adapter supports multiple listeners and filters leaves by type.
+- Existing matcher, targeted invalidation, operation-count and multi-document unit
+  tests remain. Mock DOM scenarios establish algorithmic behavior, not host markup
+  compatibility.
+- Desktop smoke now observes native Explorer rows for included/excluded paths,
+  rename across an exclusion, host pane recreation, feature disable and plugin
+  unload cleanup. The dedicated E2E profile and exact vault-path guard limit fixture
+  operations to the generated repo-local demo vault.
+- Optional Settings screenshot matrix and baseline/current instructions are in
+  [E2E testing](E2E_TESTING.md#reproducible-settings-comparison). It records the
+  native Settings branch, viewport and scale; narrow desktop is not mobile.
+- Validation (2026-10-08): `just lint`, `just test` (346 tests), and `just build`
+  passed. Desktop smoke passed all 11 checks on macOS, Obsidian 1.14.4 / Electron
+  32.2.5 under Node 22. The optional visual capture passed separately for baseline
+  `734f3b8` and current builds: 42 PNG pairs across eight declarative Settings
+  states (1400/600 requested width, light/dark, collapsed/expanded). All eight JSON
+  metadata records match; 40 PNGs are byte-identical and the other two differ only
+  in the native search caret's 2×30 pixel region. Plugin content/layout is unchanged.
+  Actual captured viewport was 1400×796 or 600×796 at scale 2 (screen-constrained
+  height). Artifacts: `.tmp/wdio-artifacts/{before,after}/`.
+- The Node 26 runner failed before session creation (`UND_ERR_INVALID_ARG`);
+  use Node 22. Helpers select the native separate Settings window on newer hosts
+  and return to the synthetic vault for file operations. Rename coverage uses
+  `Vault.rename`; automatic link rewriting is outside this smoke's scope.
+- Real Explorer popouts, mobile, legacy Settings, and manual keyboard/focus
+  traversal were not tested. Narrow desktop captures do not establish mobile
+  compatibility. Baseline/current bundle, styles and manifest are byte-identical;
+  production source, command IDs and Include/Exclude behavior are unchanged.
+
 ## 1) Architecture
 
 - `src/explorer-indicators.ts`
