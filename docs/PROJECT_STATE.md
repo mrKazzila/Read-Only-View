@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Last updated: 2026-10-07
+Last updated: 2026-10-08
 
 This document is a living system map for the `read-only-view` Obsidian plugin.
 
@@ -47,7 +47,7 @@ High-level modules:
   - Shared existing `file-menu` handler serves diagnostics for Markdown notes and folders (including root); Lock/Unlock semantics and root restriction remain unchanged
 - `src/path-context-menu.ts` (1.1.3)
   - Public `file-menu` integration, registered through the plugin lifecycle; native flat `Lock → Reading` / `Unlock` items for non-root `TFolder` and Markdown `TFile`
-  - When Settings is closed, persists through `saveSettings`, refreshes editor options, and immediately reapplies enforcement; failed saves restore the previous Include state
+  - When Settings is closed, submits through `changeSettings`, refreshes editor options, and immediately reapplies enforcement; failed saves restore the previous Include state
   - When Settings is open (legacy or declarative), applies the change to the active rule editor draft, refreshes only the rows while preserving row identities/focus, and uses its serialized save/reapply flow
   - Pending edits and external changes share one save queue; failures remain visible for retry and hidden/disposed editors are not updated
   - Notices explain disabled/global mode, rule caps, Exclude matches, and remaining protection for existing Markdown descendants
@@ -504,3 +504,12 @@ Pipeline: GitHub aggregate API → `scripts/update_star_history.py` → `docs-si
 The updater runs at 03:17 UTC daily or manually on master, scoped to the upstream repository, with contents:write only for its update job. It commits only changed history with the existing conventional-commit style. A successful updater triggers Pages through workflow_run; Pages checks upstream repository, branch and successful completion and checks out current master. Builds remain offline, including PRs. Website builds/dev now require Python; no runtime matching or plugin dependencies changed.
 
 Validation: pytest mock tests in `tests/star_history/`, Ruff with scoped configuration in `pyproject.toml`, locked development tools in `uv.lock`, an independent CI job, and existing plugin/site checks. API failures never overwrite the saved history. Weekly pagination must finish within 100 pages; missing/overlapping weeks, conflicting duplicate counts, malformed documents and invalid values are rejected. Boundaries from GitHub may differ from UTC and reconstructed history may be revised; the dashboard explains both limitations.
+
+## Settings change lifecycle (ticket 004)
+
+- `src/settings-lifecycle.ts` owns optimistic publication, isolated persistence snapshots, serialization, and rollback for Settings, context-menu actions, enable/disable commands, and welcome dismissal. Callers submit replayable draft mutations through `changeSettings`; `saveSettings(snapshot)` is the storage boundary only.
+- Each host retains its last committed snapshot and ordered pending mutations. On a failed write, the failed mutation is removed and later mutations are replayed against committed state. Settings keep their object identity, and matcher/Explorer/editor consumers receive the restored state before the failed request settles. An already-open Reading view is not switched back to editing automatically.
+- `settingsChanged` advances an explicit rules revision only when matching inputs change. Matcher reads compare numeric revisions without traversing or serializing rules. Debug and Explorer-visibility changes do not rebuild the matcher.
+- Submitted rule-editor drafts and save status survive UI refreshes during the same Settings session, including completion of older writes after a replacement editor mounts. Closing Settings ends that draft session. Retrying the same context-menu action flushes the existing draft. Debounce remains unchanged: closing/rerendering Settings cancels unsent debounce work, while in-flight saves and requested menu flushes finish after closure.
+- Regression coverage uses real plugin lifecycle, matcher, enforcement, and Explorer code with controlled storage and host boundaries. It covers overlapping Settings/menu edits in both orders, rollback, retries, and closing both supported Settings branches during saves.
+- No CSS, DOM layout, ordering, or disclosure defaults changed. Mock-host Settings tests cover both branches, focus, and disclosure state. Live visual comparison in light/dark themes at desktop/mobile widths was not performed; native Obsidian keyboard/accessibility behavior remains manual QA.

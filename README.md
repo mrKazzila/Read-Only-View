@@ -146,6 +146,7 @@ Enable appears while protection is off; Disable appears while it is on. Use **Re
 
 - **A note stays editable:** confirm the plugin and Include rule are enabled, then check for an Exclude match in **Path tester**.
 - **A note stays protected:** check whether **All Markdown files** or another Include rule still covers it. Add an Exclude when it should remain editable.
+- **Saving changes:** settings apply immediately while saves run in order. If a save fails, protection returns to the last saved state with any later edits preserved. Failed rule drafts remain in the open Settings editor for retry. Wait for **Saved.** before closing Settings; closing cancels edits still waiting for the debounce timer, but lets saves already underway finish.
 - **Changes have not taken effect:** wait for **Saved.**, run **Re-apply rules now**, and reopen the note if needed.
 - **A path does not resolve or match:** check its spelling and use the [troubleshooting guide](https://mrkazzila.github.io/Read-Only-View/docs/troubleshooting).
 
