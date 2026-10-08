@@ -136,6 +136,7 @@ host behaviors. No separate UI/lifecycle defect was found.
 High-level modules:
 
 - `src/read-only-explanation.ts` / `src/read-only-status-modal.ts` (1.1.3)
+  - Dialog title uses sentence case (`Read only view`) without suppressing the UI lint rule
   - Native **Explain read-only status** modal uses `buildPathTesterResult` with one cached matcher per context-menu operation; no settings saves or enforcement calls
   - Compact note and folder modals group static monospace Include/Exclude values under Matched rules, use small section labels, and focus Close without focusable values or redundant tooltips. Folder summaries retain aggregate status, counts, empty-folder messaging, and editable examples in the same presentation. Native Close and Escape behavior are preserved. Closing leaves DOM teardown to Obsidian; opening clears previous content. Phone dialogs use native width/safe-area padding and bottom alignment so the native height-based dismissal translation moves them offscreen; compact outer geometry applies only outside phone mode.
   - Note reason precedence: disabled → Exclude → All Markdown files → Include → no match; matched rule representations stay identical to Path tester

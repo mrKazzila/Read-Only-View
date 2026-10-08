@@ -129,7 +129,7 @@ Use **Path tester** in the plugin settings to see whether a note is protected an
 
 ![Path tester resolving an Obsidian URL and reporting Read-only](docs/images/community-images/Read-Only-View-path-tester-read-only-1200x800.png)
 
-You can also right-click a note or folder and choose **Explain read-only status**. For a folder, it summarizes protection across its Markdown notes. See the [diagnostics guide](https://mrkazzila.github.io/Read-Only-View/docs/path-tester) for details.
+You can also right-click a note or folder and choose **Explain read-only status** to open the **Read only view** dialog. For a folder, it summarizes protection across its Markdown notes. See the [diagnostics guide](https://mrkazzila.github.io/Read-Only-View/docs/path-tester) for details.
 
 ## Commands
 
