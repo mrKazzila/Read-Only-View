@@ -38,7 +38,11 @@ npm run lint
 npm run lint:obsidian
 ```
 
-`just lint-obsidian` runs a dedicated Obsidian Community Plugin preflight to catch review issues before release. It uses the existing pinned `eslint-plugin-obsidianmd` dependency and its recommended configuration, with the [official scanner exceptions](https://github.com/obsidianmd/eslint-plugin/blob/master/docs/configuration.md#community-plugin-scanner-configuration) and exclusions adapted to this repository. Generated output, the demo vault, tests (including mocks), scripts, documentation, agent tooling, and build/config files are excluded; there are currently no localization directories to exclude.
+`just lint-obsidian` runs a dedicated Obsidian Community Plugin preflight to catch review issues before release. It uses the existing pinned `eslint-plugin-obsidianmd` dependency and its recommended configuration, with the [official scanner exceptions](https://github.com/obsidianmd/eslint-plugin/blob/master/docs/configuration.md#community-plugin-scanner-configuration) and exclusions adapted to this repository. The five `no-unsafe-*` checks for assignment, argument, call, member access, and return remain errors. Generated output, the demo vault, tests (including mocks), scripts, documentation, agent tooling, and build/config files are excluded; there are currently no localization directories to exclude.
+
+The preflight first runs `npm run typecheck:runtime`: `tsconfig.runtime.json` inherits the plugin's target and libraries and sets `types: []`, preventing automatically loaded development `@types` packages from masking unsupported APIs. Explicitly imported module types remain available. Tests retain their separate Node type configuration.
+
+Inline ESLint configuration, including `eslint-disable` comments, is forbidden in the preflight scope. `noInlineConfig` makes directives ineffective and reports warnings; `--max-warnings 0` makes those warnings fail the check even when the underlying code is valid. Fix the source instead of suppressing review rules.
 
 Normal `just lint` keeps its existing rules and scope. The preflight retains recommended severities instead of the scanner's general downgrade to warnings, and fails on warnings as well as errors. It is included in `just check` and runs as a separate **Obsidian Community preflight** step in CI and before release publishing. This approximates the scanner; it does not replace manual review or guarantee acceptance.
 
