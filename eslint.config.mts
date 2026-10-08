@@ -49,6 +49,7 @@ export default tseslint.config(
 		'demo-vault',
 		'esbuild.config.mjs',
 		'eslint.config.js',
+		'eslint.obsidian.config.mjs',
 		'scripts/validate-docs-sitemap.mjs',
 		'version-bump.mjs',
 		'versions.json',

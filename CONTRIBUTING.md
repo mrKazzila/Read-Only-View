@@ -24,6 +24,7 @@ just dev
 just build
 just test
 just lint
+just lint-obsidian
 just check
 ```
 
@@ -34,7 +35,12 @@ npm run dev
 npm run build
 npm test
 npm run lint
+npm run lint:obsidian
 ```
+
+`just lint-obsidian` runs a dedicated Obsidian Community Plugin preflight to catch review issues before release. It uses the existing pinned `eslint-plugin-obsidianmd` dependency and its recommended configuration, with the [official scanner exceptions](https://github.com/obsidianmd/eslint-plugin/blob/master/docs/configuration.md#community-plugin-scanner-configuration) and exclusions adapted to this repository. Generated output, the demo vault, tests (including mocks), scripts, documentation, agent tooling, and build/config files are excluded; there are currently no localization directories to exclude.
+
+Normal `just lint` keeps its existing rules and scope. The preflight retains recommended severities instead of the scanner's general downgrade to warnings, and fails on warnings as well as errors. It is included in `just check` and runs as a separate **Obsidian Community preflight** step in CI and before release publishing. This approximates the scanner; it does not replace manual review or guarantee acceptance.
 
 ## Documentation website
 
@@ -181,6 +187,7 @@ Run at minimum:
 
 ```bash
 just lint
+just lint-obsidian
 just test
 just build
 ```
