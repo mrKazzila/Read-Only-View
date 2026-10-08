@@ -13,8 +13,7 @@ export class ReadOnlyStatusModal extends Modal {
 		contentEl.addClass('read-only-view-status-modal');
 		this.containerEl.addClass('read-only-view-status-container');
 		this.modalEl.addClass('read-only-view-status-dialog');
-		// eslint-disable-next-line obsidianmd/ui/sentence-case -- Plugin's proper name.
-		contentEl.createEl('h2', { text: 'Read Only View' });
+		contentEl.createEl('h2', { text: 'Read only view' });
 		const pathEl = contentEl.createEl('p', { cls: 'read-only-view-status-path' });
 		pathEl.createEl('code', { text: explanation.path });
 		if (explanation.kind === 'note') {

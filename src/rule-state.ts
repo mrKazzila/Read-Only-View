@@ -39,16 +39,18 @@ function parseRuleEntries(value: unknown): RuleEntry[] | null {
 /** Read old parallel arrays at their original indexes before filtering malformed values. */
 function migrateLegacyRules(rules: unknown, enabledStates: unknown, normalize = true): RuleEntry[] {
 	if (!Array.isArray(rules)) return [];
-	return rules.flatMap((rule: unknown, index) => {
-		if (typeof rule !== 'string') return [];
+	const entries: RuleEntry[] = [];
+	rules.forEach((rule: unknown, index) => {
+		if (typeof rule !== 'string') return;
 		const normalized = normalize ? normalizeVaultPath(rule) : rule;
-		return [{
-			sourceKind: 'vault-path' as const,
+		entries.push({
+			sourceKind: 'vault-path',
 			sourceValue: rule,
 			resolvedPath: normalized || null,
 			enabled: !Array.isArray(enabledStates) || enabledStates[index] !== false,
-		}];
+		});
 	});
+	return entries;
 }
 
 export function loadRuleEntries(entries: unknown, rules: unknown, enabled: unknown): RuleEntry[] {
