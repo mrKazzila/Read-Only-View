@@ -60,6 +60,8 @@ export default defineConfig([
 	]),
 	...obsidianmd.configs.recommended,
 	{
+		// Inline directives produce warnings; --max-warnings 0 rejects them.
+		linterOptions: { noInlineConfig: true },
 		languageOptions: {
 			parserOptions: {
 				projectService: {
@@ -74,15 +76,14 @@ export default defineConfig([
 	{
 		files: ['**/*.{ts,tsx,js,jsx}'],
 		rules: {
-			// Official scanner exceptions, scoped to runtime source. Normal lint
-			// still checks these rules; this is not a workaround for local findings.
-			// TypeScript covers undefined names; the scanner skips noisy type rules.
+			// Retain scanner exceptions except unsafe type operations, which this
+			// preflight checks strictly even when the scanner treats them as advisory.
 			'no-undef': 'off',
-			'@typescript-eslint/no-unsafe-member-access': 'off',
-			'@typescript-eslint/no-unsafe-assignment': 'off',
-			'@typescript-eslint/no-unsafe-argument': 'off',
-			'@typescript-eslint/no-unsafe-call': 'off',
-			'@typescript-eslint/no-unsafe-return': 'off',
+			'@typescript-eslint/no-unsafe-member-access': 'error',
+			'@typescript-eslint/no-unsafe-assignment': 'error',
+			'@typescript-eslint/no-unsafe-argument': 'error',
+			'@typescript-eslint/no-unsafe-call': 'error',
+			'@typescript-eslint/no-unsafe-return': 'error',
 			'@typescript-eslint/restrict-template-expressions': 'off',
 			'@typescript-eslint/no-base-to-string': 'off',
 			'import/no-unresolved': 'off',
