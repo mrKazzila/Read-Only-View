@@ -253,18 +253,31 @@ test('folder summaries retain the exact rule representation reported by Path tes
 });
 
 
-test('status modal keeps note and folder values static with initial focus on Close', () => {
-	const dom = installDomMocks();
-	try {
-		const settings = settingsFor();
-		const matcher = createCompiledRuleMatcher(settings);
-		const explanations: ReadOnlyExplanation[] = [
-			{ kind: 'note', path: 'folder/a.md', result: explainNote('folder/a.md', settings, matcher) },
-			{ kind: 'folder', path: 'folder/', result: explainFolder(['folder/a.md'], settings, matcher) },
-			{ kind: 'folder', path: 'other/', result: explainFolder(['other/a.md'], settings, matcher) },
-			{ kind: 'folder', path: 'empty/', result: explainFolder([], settings, matcher) },
-		];
-		for (const explanation of explanations) {
+const statusModalCases: Array<{
+	name: string;
+	explain: (settings: ReturnType<typeof settingsFor>, matcher: ReturnType<typeof createCompiledRuleMatcher>) => ReadOnlyExplanation;
+	status: string;
+	headings: string[];
+	labels: string[];
+	codeValues: string[];
+}> = [
+	{ name: 'protected note', explain: (settings, matcher) => ({ kind: 'note', path: 'folder/a.md', result: explainNote('folder/a.md', settings, matcher) }),
+		status: 'READ-ONLY ON', headings: ['Reason', 'Matched rules'], labels: ['Include', 'Exclude'], codeValues: ['folder/a.md', 'folder/'] },
+	{ name: 'protected folder', explain: (settings, matcher) => ({ kind: 'folder', path: 'folder/', result: explainFolder(['folder/a.md'], settings, matcher) }),
+		status: 'ALL PROTECTED', headings: ['Matched rules'], labels: ['Include', 'Exclude'], codeValues: ['folder/', 'folder/'] },
+	{ name: 'editable folder', explain: (settings, matcher) => ({ kind: 'folder', path: 'other/', result: explainFolder(['other/a.md'], settings, matcher) }),
+		status: 'NOT PROTECTED', headings: ['Matched rules', 'Editable examples'], labels: ['Include', 'Exclude'], codeValues: ['other/', 'other/a.md'] },
+	{ name: 'empty folder', explain: (settings, matcher) => ({ kind: 'folder', path: 'empty/', result: explainFolder([], settings, matcher) }),
+		status: 'NO MARKDOWN NOTES', headings: [], labels: [], codeValues: ['empty/'] },
+];
+
+for (const { name, explain, status, headings, labels, codeValues } of statusModalCases) {
+	test(`status modal keeps ${name} values static with initial focus on Close`, () => {
+		const dom = installDomMocks();
+		try {
+			const settings = settingsFor();
+			const matcher = createCompiledRuleMatcher(settings);
+			const explanation = explain(settings, matcher);
 			const modal = new ReadOnlyStatusModal(new App(), explanation);
 			modal.open();
 			const content = modal.contentEl as unknown as MockHTMLElement;
@@ -272,20 +285,10 @@ test('status modal keeps note and folder values static with initial focus on Clo
 			assert.ok((modal.modalEl as unknown as MockHTMLElement).matches('.read-only-view-status-dialog'));
 			assert.equal(content.querySelectorAll('[tabindex]').length, 0);
 			assert.equal(content.querySelectorAll('[aria-label]').length, 0);
-			if (explanation.kind === 'note') {
-				assert.deepEqual(content.querySelectorAll('h3').map((el) => el.textContent), ['Reason', 'Matched rules']);
-				assert.deepEqual(content.querySelectorAll('dt').map((el) => el.textContent), ['Include', 'Exclude']);
-				assert.deepEqual(content.querySelectorAll('code').map((el) => el.textContent), ['folder/a.md', 'folder/']);
-				assert.equal(content.querySelectorAll('[tabindex]').length, 0);
-				assert.equal(content.querySelectorAll('[aria-label]').length, 0);
-			}
-			if (explanation.kind === 'folder') {
-				assert.equal(content.querySelector('strong')?.textContent, explanation.result.status);
-				assert.equal(content.querySelector('code')?.textContent, explanation.path);
-				assert.deepEqual(content.querySelectorAll('dt').map((el) => el.textContent), explanation.result.total ? ['Include', 'Exclude'] : []);
-				const codeValues = content.querySelectorAll('code').map((el) => el.textContent);
-				for (const example of explanation.result.editableExamples) assert.ok(codeValues.includes(example));
-			}
+			assert.equal(content.querySelector('strong')?.textContent, status);
+			assert.deepEqual(content.querySelectorAll('h3').map((el) => el.textContent), headings);
+			assert.deepEqual(content.querySelectorAll('dt').map((el) => el.textContent), labels);
+			assert.deepEqual(content.querySelectorAll('code').map((el) => el.textContent), codeValues);
 			const close = content.querySelector('button');
 			assert.ok(close);
 			assert.equal(close.textContent, 'Close');
@@ -302,8 +305,8 @@ test('status modal keeps note and folder values static with initial focus on Clo
 			assert.equal(content.querySelectorAll('button').length, 1);
 			assert.deepEqual(content.querySelectorAll('code').map((el) => el.textContent), valuesBeforeClose);
 			modal.close();
+		} finally {
+			dom.restore();
 		}
-	} finally {
-		dom.restore();
-	}
-});
+	});
+}

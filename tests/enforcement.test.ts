@@ -604,12 +604,10 @@ test('service contract: fallback cancels when navigation occurs during the faile
 	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/A.md', mode: 'source' });
 	const { service } = createService({ leaves: [leaf] });
 	const originalSetViewState = leaf.setViewState.bind(leaf);
-	leaf.setViewState = async (state, arg) => {
-		if (typeof arg === 'object') {
-			leaf.setFilePath('docs/B.md');
-			throw new Error('replace failed');
-		}
-		await originalSetViewState(state, arg);
+	leaf.setViewState = async () => {
+		leaf.setViewState = originalSetViewState;
+		leaf.setFilePath('docs/B.md');
+		throw new Error('replace failed');
 	};
 	await withFakeAnimationFrames(async ({ flushNextFrame }) => {
 		const pending = service.ensurePreview(leaf as unknown as WorkspaceLeaf, 'fallback-navigation');
@@ -626,18 +624,23 @@ test('service contract: each write preserves the latest state of the protected n
 	let scroll = 1;
 	leaf.getViewState = () => ({ type: 'markdown', state: { mode: 'source', file: 'docs/A.md', scroll } });
 	const attemptedStates: unknown[] = [];
+	const attemptedArgs: unknown[] = [];
 	leaf.setViewState = async (state, arg) => {
 		attemptedStates.push(state);
-		if (typeof arg === 'object') {
-			scroll = 3;
-			throw new Error('replace failed');
-		}
+		attemptedArgs.push(arg);
+		leaf.setViewState = async (fallbackState, fallbackArg) => {
+			attemptedStates.push(fallbackState);
+			attemptedArgs.push(fallbackArg);
+		};
+		scroll = 3;
+		throw new Error('replace failed');
 	};
 	await withFakeAnimationFrames(async ({ flushNextFrame }) => {
 		const pending = service.ensurePreview(leaf as unknown as WorkspaceLeaf, 'fresh-state');
 		scroll = 2;
 		await flushNextFrame();
 		await pending;
+		assert.deepEqual(attemptedArgs, [{ replace: true }, false]);
 		assert.deepEqual(attemptedStates, [
 			{ type: 'markdown', state: { mode: 'preview', file: 'docs/A.md', scroll: 2 } },
 			{ type: 'markdown', state: { mode: 'preview', file: 'docs/A.md', scroll: 3 } },
@@ -645,23 +648,26 @@ test('service contract: each write preserves the latest state of the protected n
 	});
 });
 
-for (const change of ['disable', 'stop', 'close', 'replace-view', 'preview'] as const) {
-	test(`service contract: fallback cancels after ${change} during a failed write`, async () => {
+const failedWriteChanges: Array<{ name: string; change: (setup: ReturnType<typeof createService>) => void }> = [
+	{ name: 'disable', change: ({ settings }) => { settings.enabled = false; } },
+	{ name: 'stop', change: ({ service }) => service.stop() },
+	{ name: 'close', change: ({ leaves }) => { leaves.splice(0); } },
+	{ name: 'replace-view', change: ({ leaves }) => {
+		leaves[0]!.view = createMockWorkspaceLeaf({ filePath: 'docs/A.md' }).view;
+	} },
+	{ name: 'preview', change: ({ leaves }) => leaves[0]!.setMode('preview') },
+];
+
+for (const { name, change } of failedWriteChanges) {
+	test(`service contract: fallback cancels after ${name} during a failed write`, async () => {
 		const leaf = createMockWorkspaceLeaf({ filePath: 'docs/A.md', mode: 'source' });
-		const { service, settings, leaves } = createService({ leaves: [leaf] });
+		const setup = createService({ leaves: [leaf] });
+		const { service } = setup;
 		const originalSetViewState = leaf.setViewState.bind(leaf);
-		leaf.setViewState = async (state, arg) => {
-			if (typeof arg === 'object') {
-				switch (change) {
-					case 'disable': settings.enabled = false; break;
-					case 'stop': service.stop(); break;
-					case 'close': leaves.splice(0); break;
-					case 'replace-view': leaf.view = createMockWorkspaceLeaf({ filePath: 'docs/A.md' }).view; break;
-					case 'preview': leaf.setMode('preview'); break;
-				}
-				throw new Error('replace failed');
-			}
-			await originalSetViewState(state, arg);
+		leaf.setViewState = async () => {
+			leaf.setViewState = originalSetViewState;
+			change(setup);
+			throw new Error('replace failed');
 		};
 		await withFakeAnimationFrames(async ({ flushNextFrame }) => {
 			const pending = service.ensurePreview(leaf as unknown as WorkspaceLeaf, 'fallback-current-state');

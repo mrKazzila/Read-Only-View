@@ -51,9 +51,10 @@ test('failed menu save rolls back Explorer and editor protection while a later S
 	const f = await fixture();
 	const first = gate();
 	const writes: ForceReadModeSettings[] = [];
+	const saveGates = [first.promise];
 	f.plugin.saveData = async (data: unknown) => {
 		writes.push(mergeLoadedSettings(data));
-		if (writes.length === 1) await first.promise;
+		await saveGates.shift();
 	};
 	try {
 		const menu = applyPathRuleAction(f.plugin, f.vault, f.folder, true, () => undefined);
@@ -77,9 +78,10 @@ test('queued menu edit survives a failed Settings change without persisting the 
 	const f = await fixture();
 	const first = gate();
 	const writes: ForceReadModeSettings[] = [];
+	const saveGates = [first.promise];
 	f.plugin.saveData = async (data: unknown) => {
 		writes.push(mergeLoadedSettings(data));
-		if (writes.length === 1) await first.promise;
+		await saveGates.shift();
 	};
 	try {
 		const settings = updateBooleanSetting(f.plugin, 'caseSensitive', false, () => undefined, 'settings-case-sensitive');
@@ -132,24 +134,31 @@ test('open Settings retains a failed menu draft and the same action retries it',
 });
 
 
-for (const declarative of [false, true]) {
-	test(`closing Settings lets in-flight menu saves finish, declarative=${declarative}`, async () => {
+const settingsRenderers = [
+	{ name: 'legacy', render: (tab: ForceReadModeSettingTab) => tab.display() },
+	{ name: 'declarative', render: (tab: ForceReadModeSettingTab) => {
+		const group = tab.getSettingDefinitions()[0] as SettingDefinitionGroup;
+		const definition = group.items?.[0] as SettingDefinition;
+		assert.ok(definition.render);
+		definition.render(new Setting(tab.containerEl), {} as never);
+	} },
+];
+
+for (const { name, render } of settingsRenderers) {
+	test(`closing Settings lets in-flight menu saves finish, renderer=${name}`, async () => {
 		const f = await fixture();
 		const first = gate();
 		const writes: ForceReadModeSettings[] = [];
+		const saveGates = [first.promise];
 		f.plugin.saveData = async (data: unknown) => {
 			writes.push(mergeLoadedSettings(data));
-			if (writes.length === 1) await first.promise;
+			await saveGates.shift();
 		};
 		const tab = new ForceReadModeSettingTab(f.app, f.plugin);
 		const container = new MockHTMLElement();
 		container.ownerDocument = f.harness.dom.document;
 		tab.containerEl = container as unknown as HTMLElement;
-		if (declarative) {
-			const group = tab.getSettingDefinitions()[0] as SettingDefinitionGroup;
-			const definition = group.items?.[0] as SettingDefinition;
-			definition.render?.(new Setting(tab.containerEl), {} as never);
-		} else tab.display();
+		render(tab);
 		try {
 			const menu = applyPathRuleAction(f.plugin, f.vault, f.folder, true, () => undefined);
 			const later = applyPathRuleAction(f.plugin, f.vault, Object.assign(new TFolder(), { path: 'Archive', children: [] }), true, () => undefined);
@@ -167,8 +176,8 @@ test('a Settings refresh during a later failed menu save preserves its draft and
 	const f = await fixture();
 	const first = gate();
 	const second = gate();
-	let writes = 0;
-	f.plugin.saveData = async () => { await (++writes === 1 ? first.promise : second.promise); };
+	const saveGates = [first.promise, second.promise];
+	f.plugin.saveData = async () => { await saveGates.shift(); };
 	const tab = new ForceReadModeSettingTab(f.app, f.plugin);
 	const container = new MockHTMLElement();
 	container.ownerDocument = f.harness.dom.document;

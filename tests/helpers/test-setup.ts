@@ -84,9 +84,11 @@ export function withFakeAnimationFrames(
 	});
 }
 
+export type PluginHost = ReturnType<typeof createPluginHost>;
+
 /** Host boundaries only: persistence, commands, event disposal, and time. */
 export async function withPluginHost(
-	callback: (host: ReturnType<typeof createPluginHost>) => Promise<void>,
+	callback: (host: PluginHost) => Promise<void>,
 	persisted: Partial<ForceReadModeSettings> = {},
 ): Promise<void> {
 	const host = createPluginHost(persisted);

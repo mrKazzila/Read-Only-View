@@ -4,7 +4,7 @@ import test from 'node:test';
 import { changeSettings } from '../src/settings-lifecycle.js';
 import { setRuleEntries } from '../src/rule-state.js';
 import { createMockWorkspaceLeaf } from './helpers/obsidian-mocks.js';
-import { withPluginHost, withFakeAnimationFrames } from './helpers/test-setup.js';
+import { withPluginHost, withFakeAnimationFrames, type PluginHost } from './helpers/test-setup.js';
 
 test('persisted disabled protection leaves notes editable on load and workspace events', async () => {
 	await withPluginHost(async ({ plugin, leaf, workspace, advance }) => {
@@ -67,9 +67,28 @@ test('workspace enforcement writes preview when its deferred frame remains curre
 	});
 });
 
-for (const change of ['navigation', 'disable', 'exclude', 'unload', 'close'] as const) {
-	test(`host enforcement cancels a pending transition after ${change}`, async () => {
-		await withPluginHost(async ({ plugin, leaf, leaves, workspace, advance, settle, unload }) => {
+const pendingTransitionChanges: Array<{ name: string; change: (host: PluginHost) => void | Promise<void> }> = [
+	{ name: 'navigation', change: ({ leaf, workspace }) => {
+		leaf.setFilePath('docs/B.md');
+		workspace.trigger('file-open');
+	} },
+	{ name: 'disable', change: ({ plugin }) => changeSettings(plugin, (draft) => {
+		draft.enabled = false;
+	}, 'settings-enabled') },
+	{ name: 'exclude', change: ({ plugin }) => changeSettings(plugin, (draft) => {
+		setRuleEntries(draft, 'exclude', [{ sourceKind: 'vault-path', sourceValue: 'docs/**', resolvedPath: 'docs/**', enabled: true }]);
+	}, 'settings-rules') },
+	{ name: 'unload', change: ({ unload }) => unload() },
+	{ name: 'close', change: ({ leaves, workspace }) => {
+		leaves.splice(0);
+		workspace.trigger('layout-change');
+	} },
+];
+
+for (const { name, change } of pendingTransitionChanges) {
+	test(`host enforcement cancels a pending transition after ${name}`, async () => {
+		await withPluginHost(async (host) => {
+			const { plugin, leaf, workspace, advance, settle, unload } = host;
 			leaf.setFilePath('docs/A.md');
 			await plugin.onload();
 			await withFakeAnimationFrames(async ({ flushNextFrame, pendingFrameCount }) => {
@@ -78,25 +97,7 @@ for (const change of ['navigation', 'disable', 'exclude', 'unload', 'close'] as 
 					workspace.trigger('file-open');
 					await advance(150);
 					assert.equal(pendingFrameCount(), 1);
-					switch (change) {
-						case 'navigation':
-							leaf.setFilePath('docs/B.md');
-							workspace.trigger('file-open');
-							break;
-						case 'disable':
-							await changeSettings(plugin, (draft) => { draft.enabled = false; }, 'settings-enabled');
-							break;
-						case 'exclude':
-							await changeSettings(plugin, (draft) => {
-								setRuleEntries(draft, 'exclude', [{ sourceKind: 'vault-path', sourceValue: 'docs/**', resolvedPath: 'docs/**', enabled: true }]);
-							}, 'settings-rules');
-							break;
-						case 'unload': unload(); break;
-						case 'close':
-							leaves.splice(0);
-							workspace.trigger('layout-change');
-							break;
-					}
+					await change(host);
 					await flushNextFrame();
 					await settle();
 					assert.equal(leaf.view.getMode(), 'source');

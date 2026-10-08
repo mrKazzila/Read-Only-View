@@ -14,8 +14,22 @@ import { installDomMocks, MockHTMLElement } from './helpers/dom-mocks.js';
 import type { SettingsTabPlugin } from '../src/plugin-types.js';
 import { changeFolderRule } from '../src/folder-rules.js';
 
-for (const declarative of [false, true]) {
-	test(`external rule updates preserve drafts and focus, declarative=${declarative}`, async () => {
+const settingsRenderers = [
+	{ name: 'legacy', render: (tab: ForceReadModeSettingTab) => {
+		tab.display();
+		return () => tab.hide();
+	} },
+	{ name: 'declarative', render: (tab: ForceReadModeSettingTab) => {
+		const definition = collectSettingDefinitions(tab.getSettingDefinitions()).find((item) => item.name === 'Read-only behavior');
+		assert.ok(definition?.render);
+		const cleanup = definition.render(new Setting(tab.containerEl), {} as never);
+		assert.ok(typeof cleanup === 'function');
+		return cleanup;
+	} },
+];
+
+for (const { name, render } of settingsRenderers) {
+	test(`external rule updates preserve drafts and focus, renderer=${name}`, async () => {
 		const dom = installDomMocks();
 		const container = new MockHTMLElement();
 		container.ownerDocument = dom.document;
@@ -23,13 +37,9 @@ for (const declarative of [false, true]) {
 		const bridge: SettingsTabPlugin = plugin;
 		const tab = new ForceReadModeSettingTab({} as never, plugin as never);
 		tab.containerEl = container as unknown as HTMLElement;
-		let cleanup: (() => void) | void;
 		try {
 			await withFakeTimeouts(async ({ flushAll }) => {
-				if (declarative) {
-					const definition = collectSettingDefinitions(tab.getSettingDefinitions()).find((item) => item.name === 'Read-only behavior');
-					cleanup = definition?.render?.(new Setting(container as unknown as HTMLElement), {} as never);
-				} else tab.display();
+				const cleanup = render(tab);
 				const texts = (element: MockHTMLElement): string[] => [element.textContent, ...element.getChildren().flatMap(texts)];
 				const labels = texts(container);
 				assert.ok(labels.indexOf('Show protection indicators') > labels.indexOf('Advanced'));
@@ -53,8 +63,7 @@ for (const declarative of [false, true]) {
 				assert.deepEqual(plugin.settings.includeRuleEnabled, [true, false]);
 				inputs = container.querySelectorAll('.read-only-view-rule-input');
 				assert.equal(inputs.length, 2);
-				if (typeof cleanup === 'function') cleanup();
-				else tab.hide();
+				cleanup();
 				assert.equal(update(true), undefined);
 			});
 		} finally { tab.hide(); dom.restore(); }
@@ -233,9 +242,8 @@ test('declarative workflow sections render one card with one internal title', ()
 		for (const sectionName of ['Path rules', 'Path tester']) {
 			assert.equal(collectTexts(container).filter((text) => text === sectionName).length, 1);
 		}
-		if (typeof cleanup === 'function') {
-			cleanup();
-		}
+		assert.ok(typeof cleanup === 'function');
+		cleanup();
 	} finally {
 		dom.restore();
 	}
@@ -271,9 +279,8 @@ test('declarative advanced settings render inline collapsible sections', () => {
 		assert.ok(disclosures[0]!.matches('.is-open'));
 		assert.ok(collectTexts(container).includes('Use glob patterns'));
 		assert.ok(collectTexts(container).includes('Case sensitive'));
-		if (typeof cleanup === 'function') {
-			cleanup();
-		}
+		assert.ok(typeof cleanup === 'function');
+		cleanup();
 	} finally {
 		dom.restore();
 	}
@@ -325,15 +332,13 @@ test('declarative rule editor cleanup cancels pending saves', async () => {
 			assert.ok(definition?.render);
 			const setting = new Setting(container as unknown as HTMLElement);
 			const cleanup = definition.render(setting, {} as never);
-			assert.equal(typeof cleanup, 'function');
 
 			const input = container.querySelector('.read-only-view-rule-input');
 			assert.ok(input);
 			input.value = 'docs/pending-declarative.md';
 			input.trigger('input');
-			if (typeof cleanup === 'function') {
-				cleanup();
-			}
+			assert.ok(typeof cleanup === 'function');
+			cleanup();
 			await flushAll();
 
 			assert.deepEqual(saveCalls, []);
@@ -358,15 +363,13 @@ test('declarative path tester cleanup cancels pending render work', async () => 
 			assert.ok(definition?.render);
 			const setting = new Setting(container as unknown as HTMLElement);
 			const cleanup = definition.render(setting, {} as never);
-			assert.equal(typeof cleanup, 'function');
 
 			const input = container.querySelector('.read-only-view-path-tester input, input');
 			assert.ok(input);
 			input.value = 'docs/a.md';
 			input.trigger('input');
-			if (typeof cleanup === 'function') {
-				cleanup();
-			}
+			assert.ok(typeof cleanup === 'function');
+			cleanup();
 			await flushAll();
 
 			const texts = collectTexts(container);

@@ -5,7 +5,8 @@ import { changeSettings } from '../src/settings-lifecycle.js';
 import { setRuleEntries } from '../src/rule-state.js';
 import { MockHTMLElement, MockMutationObserver } from './helpers/dom-mocks.js';
 import { createMockWorkspaceLeaf, type MockWorkspaceLeaf } from './helpers/obsidian-mocks.js';
-import { withPluginHost } from './helpers/test-setup.js';
+import type { ForceReadModeSettings } from '../src/plugin-types.js';
+import { withPluginHost, type PluginHost } from './helpers/test-setup.js';
 
 function addPopover(leaf: MockWorkspaceLeaf): MockHTMLElement {
 	const popover = new MockHTMLElement(['.hover-popover']);
@@ -26,14 +27,18 @@ test('loaded observer forces a matching popover into preview', async () => {
 	});
 });
 
-for (const change of ['disable', 'exclude'] as const) {
-	test(`loaded observer honors accepted ${change} settings`, async () => {
+const settingsChanges: Array<{ name: string; mutate: (draft: ForceReadModeSettings) => void }> = [
+	{ name: 'disable', mutate: (draft) => { draft.enabled = false; } },
+	{ name: 'exclude', mutate: (draft) => {
+		setRuleEntries(draft, 'exclude', [{ sourceKind: 'vault-path', sourceValue: 'docs/**', resolvedPath: 'docs/**', enabled: true }]);
+	} },
+];
+
+for (const { name, mutate } of settingsChanges) {
+	test(`loaded observer honors accepted ${name} settings`, async () => {
 		await withPluginHost(async ({ plugin, leaf, settle }) => {
 			await plugin.onload();
-			await changeSettings(plugin, (draft) => {
-				if (change === 'disable') draft.enabled = false;
-				else setRuleEntries(draft, 'exclude', [{ sourceKind: 'vault-path', sourceValue: 'docs/**', resolvedPath: 'docs/**', enabled: true }]);
-			}, 'settings-rules');
+			await changeSettings(plugin, mutate, 'settings-rules');
 			leaf.setMode('source');
 			MockMutationObserver.instances[0]!.trigger([{ addedNodes: [addPopover(leaf)] }]);
 			await settle();
@@ -43,20 +48,33 @@ for (const change of ['disable', 'exclude'] as const) {
 	});
 }
 
-for (const invalidate of ['layout-change', 'unload/reload'] as const) {
-	test(`${invalidate} discards a cached leaf when its container is reused`, async () => {
-		await withPluginHost(async ({ plugin, leaf, leaves, workspace, unload, settle }) => {
+const containerReplacements: Array<{
+	name: string;
+	replace: (host: PluginHost, replacement: MockWorkspaceLeaf) => void | Promise<void>;
+}> = [
+	{ name: 'layout-change', replace: ({ leaves, workspace }, replacement) => {
+		leaves.splice(0, 1, replacement);
+		workspace.trigger('layout-change');
+	} },
+	{ name: 'unload/reload', replace: async ({ leaves, plugin, unload }, replacement) => {
+		unload();
+		leaves.splice(0, 1, replacement);
+		await plugin.onload();
+	} },
+];
+
+for (const { name, replace } of containerReplacements) {
+	test(`${name} discards a cached leaf when its container is reused`, async () => {
+		await withPluginHost(async (host) => {
+			const { plugin, leaf, settle } = host;
 			await plugin.onload();
 			const popover = addPopover(leaf);
 			MockMutationObserver.instances[0]!.trigger([{ addedNodes: [popover] }]);
 			await settle(); // Populate the cache while the original leaf is already in preview.
-			if (invalidate === 'unload/reload') unload();
 			const replacement = createMockWorkspaceLeaf({
 				filePath: 'docs/replacement.md', mode: 'preview', containerEl: leaf.view.containerEl,
 			});
-			leaves.splice(0, 1, replacement);
-			if (invalidate === 'unload/reload') await plugin.onload();
-			else workspace.trigger('layout-change');
+			await replace(host, replacement);
 			replacement.setMode('source');
 			const observer = MockMutationObserver.instances.at(-1)!;
 			observer.trigger([{ addedNodes: [popover] }]);
@@ -97,23 +115,41 @@ test('workspace reconciliation observes a new popout document and unload disconn
 	});
 });
 
-for (const events of [
-	['active-leaf-change'],
-	['active-leaf-change', 'file-open'],
-	['active-leaf-change', 'file-open', 'layout-change'],
-	['file-open', 'active-leaf-change-without-leaf', 'layout-change'],
-]) {
-	test(`host burst ${events.join(' + ')} enforces the expected leaves after coalescing`, async () => {
-		await withPluginHost(async ({ plugin, leaf, leaves, workspace, advance, pendingTimers }) => {
+const workspaceBursts: Array<{
+	name: string;
+	emit: (host: PluginHost) => void;
+	otherMode: 'source' | 'preview';
+	otherWrites: number;
+}> = [
+	{ name: 'active-leaf-change', emit: ({ workspace, leaf }) => {
+		workspace.trigger('active-leaf-change', leaf);
+	}, otherMode: 'source', otherWrites: 0 },
+	{ name: 'active-leaf-change + file-open', emit: ({ workspace, leaf }) => {
+		workspace.trigger('active-leaf-change', leaf);
+		workspace.trigger('file-open');
+	}, otherMode: 'source', otherWrites: 0 },
+	{ name: 'active-leaf-change + file-open + layout-change', emit: ({ workspace, leaf }) => {
+		workspace.trigger('active-leaf-change', leaf);
+		workspace.trigger('file-open');
+		workspace.trigger('layout-change');
+	}, otherMode: 'preview', otherWrites: 1 },
+	{ name: 'file-open + active-leaf-change without leaf + layout-change', emit: ({ workspace }) => {
+		workspace.trigger('file-open');
+		workspace.trigger('active-leaf-change');
+		workspace.trigger('layout-change');
+	}, otherMode: 'preview', otherWrites: 1 },
+];
+
+for (const { name, emit, otherMode, otherWrites } of workspaceBursts) {
+	test(`host burst ${name} enforces the expected leaves after coalescing`, async () => {
+		await withPluginHost(async (host) => {
+			const { plugin, leaf, leaves, advance, pendingTimers } = host;
 			const other = createMockWorkspaceLeaf({ filePath: 'docs/other.md', mode: 'preview' });
 			leaves.push(other);
 			await plugin.onload();
 			leaf.setMode('source');
 			other.setMode('source');
-			for (const event of events) {
-				if (event === 'active-leaf-change-without-leaf') workspace.trigger('active-leaf-change');
-				else workspace.trigger(event, event === 'active-leaf-change' ? leaf : undefined);
-			}
+			emit(host);
 			assert.equal(pendingTimers(), 1);
 			assert.equal(leaf.setViewStateCalls.length, 0);
 			assert.equal(other.setViewStateCalls.length, 0);
@@ -122,8 +158,8 @@ for (const events of [
 			await advance(1);
 			assert.equal(leaf.view.getMode(), 'preview');
 			assert.equal(leaf.setViewStateCalls.length, 1);
-			assert.equal(other.view.getMode(), events.includes('layout-change') ? 'preview' : 'source');
-			assert.equal(other.setViewStateCalls.length, events.includes('layout-change') ? 1 : 0);
+			assert.equal(other.view.getMode(), otherMode);
+			assert.equal(other.setViewStateCalls.length, otherWrites);
 			assert.equal(pendingTimers(), 0);
 		});
 	});

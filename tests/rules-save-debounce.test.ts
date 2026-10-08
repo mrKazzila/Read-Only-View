@@ -7,9 +7,10 @@ test('external flush waits for the running save and then persists the latest com
 	let release: (() => void) | undefined;
 	const gate = new Promise<void>((resolve) => { release = resolve; });
 	const values: string[] = [];
+	const saveGates = [gate];
 	const saver = new DebouncedRuleChangeSaver(100, makeState('a.md'), async (value) => {
 		values.push(value.includeText);
-		if (values.length === 1) await gate;
+		await saveGates.shift();
 	}, () => undefined);
 	const first = saver.flush(makeState('draft.md'));
 	let completed = false;
@@ -27,12 +28,10 @@ test('external flush waits for the running save and then persists the latest com
 });
 
 test('external flush reports save failure and supports retry', async () => {
-	let fail = true;
-	const saver = new DebouncedRuleChangeSaver(100, makeState(''), async () => {
-		if (fail) throw new Error('disk full');
-	}, () => undefined);
+	let save: () => Promise<void> = async () => { throw new Error('disk full'); };
+	const saver = new DebouncedRuleChangeSaver(100, makeState(''), () => save(), () => undefined);
 	await assert.rejects(saver.flushExternal(makeState('Archive/**')), /Could not save/);
-	fail = false;
+	save = async () => undefined;
 	await saver.flushExternal(makeState('Archive/**'));
 	saver.dispose();
 });

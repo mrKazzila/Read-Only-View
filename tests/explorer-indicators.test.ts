@@ -309,12 +309,15 @@ test('folder rename invalidates descendants in every pane before and after DOM p
 		f.openPane(popup);
 		assert.ok(duplicate.querySelector(iconSelector));
 		const folderFile = f.files.get('Notes')!;
-		for (const [path, file] of [...f.files]) {
-			if (path === 'Notes' || path.startsWith('Notes/')) {
-				f.files.delete(path);
-				file.path = path.replace('Notes', 'Elsewhere');
-				f.files.set(file.path, file);
-			}
+		for (const [from, to] of [
+			['Notes', 'Elsewhere'],
+			['Notes/Test.md', 'Elsewhere/Test.md'],
+			['Notes/Drafts/Test.md', 'Elsewhere/Drafts/Test.md'],
+		] as const) {
+			const file = f.files.get(from)!;
+			f.files.delete(from);
+			file.path = to;
+			f.files.set(to, file);
 		}
 		Object.assign(f.counts, { rowVisits: 0, matcherCalls: 0, lookups: 0 });
 		f.listeners.get('rename')?.(folderFile, 'Notes');
