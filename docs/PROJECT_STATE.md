@@ -85,6 +85,7 @@ High-level modules:
   - When Settings is open (legacy or declarative), applies the change to the active rule editor draft, refreshes only the rows while preserving row identities/focus, and uses its serialized save/reapply flow
   - Pending edits and external changes share one save queue; failures remain visible for retry and hidden/disposed editors are not updated
   - Notices explain disabled/global mode, rule caps, Exclude matches, and remaining protection for existing Markdown descendants
+  - After a successful Lock/Unlock save, notices reuse the current compiled matcher (with a fallback for hosts without the cache accessor) and the same lazy `TFolder.children` traversal as Explain; only the selected subtree is inspected, attachments are skipped, and the notice scan stops at the first relevant Markdown match
 - `src/note-rules.ts` (1.1.3)
   - Creates exact Obsidian URL Include entries through the existing resolver, independent of prefix/glob mode
   - Reuses manual note paths and advanced exact entries; Unlock disables all equivalents, preserving parent and Exclude rules
