@@ -6,10 +6,15 @@ import ReadOnlyViewPlugin from '../src/main.js';
 import { mergeLoadedSettings } from '../src/plugin-settings.js';
 import type { SettingsTabPlugin } from '../src/plugin-types.js';
 import { createMainTestHarness } from './helpers/test-setup.js';
+import { createCompiledRuleMatcher } from '../src/matcher.js';
 import { RULE_LIMIT_INCLUDE_MAX } from '../src/constants.js';
 
-function folder(path = 'notes'): TFolder {
-	return Object.assign(new TFolder(), { path });
+function note(path = 'notes/example.md', extension = 'md'): TFile {
+	return Object.assign(new TFile(), { path, extension });
+}
+
+function folder(path = 'notes', children: (TFile | TFolder)[] = [note()]): TFolder {
+	return Object.assign(new TFolder(), { path, children });
 }
 const vault = {
 	getName: () => 'test',
@@ -82,6 +87,83 @@ test('actions apply optimistically and persist; repeated actions are safe', asyn
 	await applyPathRuleAction(plugin, vault, folder(), false, notify);
 	assert.deepEqual(calls, ['refresh', 'apply', 'save', 'refresh', 'apply', 'save']);
 	assert.deepEqual(plugin.settings.includeRuleEnabled, [false]);
+});
+
+test('folder notices inspect nested Markdown descendants without enumerating the vault', async () => {
+	const { plugin, notices, notify } = fixture();
+	const subtreeVault = {
+		...vault,
+		getMarkdownFiles: () => { throw new Error('Must not enumerate unrelated folders'); },
+	} as unknown as Vault;
+	const target = folder('notes', [
+		note('notes/image.png', 'png'),
+		folder('notes/nested', [note('notes/nested/example.MD', 'MD')]),
+	]);
+	plugin.settings = mergeLoadedSettings({ forceAllMarkdownReadOnly: false, excludeRules: ['notes/nested/'] });
+	await applyPathRuleAction(plugin, subtreeVault, target, true, notify);
+	assert.deepEqual(notices, ['An Exclude rule takes priority for some existing notes in this folder.']);
+	assert.deepEqual(plugin.settings.includeRuleEnabled, [true]);
+});
+
+test('folder unlock notices retain nested protection and global-mode precedence', async () => {
+	for (const globalMode of [false, true]) {
+		const { plugin, notices, notify } = fixture();
+		plugin.settings = mergeLoadedSettings({
+			forceAllMarkdownReadOnly: globalMode,
+			includeRules: ['notes/', 'notes/nested/'],
+		});
+		const subtreeVault = {
+			...vault,
+			getMarkdownFiles: () => { throw new Error('Must not enumerate unrelated folders'); },
+		} as unknown as Vault;
+		await applyPathRuleAction(plugin, subtreeVault, folder('notes', [
+			folder('notes/nested', [note('notes/nested/a.md'), note('notes/nested/b.md')]),
+		]), false, notify);
+		assert.deepEqual(notices, [globalMode
+			? 'Path rule saved. All Markdown files mode remains active; Exclude rules still take priority.'
+			: 'Some existing notes in this folder remain protected by another rule.']);
+		assert.deepEqual(plugin.settings.includeRuleEnabled, [false, true]);
+	}
+});
+
+for (const children of [[], [note('notes/image.png', 'png')]]) {
+	test(`folder notices ignore ${children.length ? 'attachments' : 'empty folders'} for lock and unlock`, async () => {
+		for (const lock of [true, false]) {
+			const { plugin, notices, notify } = fixture();
+			plugin.settings = mergeLoadedSettings({
+				forceAllMarkdownReadOnly: false, useGlobPatterns: true,
+				includeRules: lock ? ['**'] : ['notes/**', '**'],
+				excludeRules: lock ? ['notes/**'] : [],
+			});
+			await applyPathRuleAction(plugin, vault, folder('notes', children), lock, notify);
+			assert.deepEqual(notices, []);
+		}
+	});
+}
+
+test('path notices reuse the current matcher after saving both lock and unlock changes', async () => {
+	for (const target of [folder(), note()]) {
+		const { plugin, calls, notices, notify } = fixture();
+		plugin.settings = mergeLoadedSettings({ forceAllMarkdownReadOnly: false, excludeRules: ['notes/'] });
+		let matcher = createCompiledRuleMatcher(plugin.settings);
+		let acquisitions = 0;
+		plugin.saveSettings = async () => {
+			calls.push('save');
+			matcher = createCompiledRuleMatcher(plugin.settings);
+		};
+		plugin.getCompiledRuleMatcher = () => {
+			assert.equal(calls[calls.length - 1], 'save');
+			acquisitions++;
+			return matcher;
+		};
+		await applyPathRuleAction(plugin, vault, target, true, notify);
+		assert.equal(acquisitions, 1);
+		assert.match(notices.pop() ?? '', /Exclude rule/);
+		await applyPathRuleAction(plugin, vault, target, false, notify);
+		assert.equal(acquisitions, 2);
+		assert.deepEqual(notices, []);
+		assert.equal(matcher.shouldForceReadOnly('notes/example.md'), false);
+	}
 });
 
 test('failed save restores previous rules and republishes protection without claiming success', async () => {

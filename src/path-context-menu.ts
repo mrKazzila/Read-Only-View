@@ -50,15 +50,16 @@ export async function applyPathRuleAction(
 	if (plugin.settings.forceAllMarkdownReadOnly) {
 		notify('Path rule saved. All Markdown files mode remains active; Exclude rules still take priority.');
 	}
-	const matcher = createCompiledRuleMatcher(plugin.settings);
-	const prefix = `${folderRulePath(target.path)}/`;
-	const descendants = isFolder
-		? vault.getMarkdownFiles().filter((file) => file.path.startsWith(prefix))
-		: [target];
-	if (lock && descendants.some((file) => matcher.matchExcludeRules(file.path).length > 0)) {
-		notify(isFolder ? 'An Exclude rule takes priority for some existing notes in this folder.' : 'An Exclude rule takes priority for this note.');
-	} else if (!lock && !plugin.settings.forceAllMarkdownReadOnly && descendants.some((file) => matcher.shouldForceReadOnly(file.path))) {
-		notify(isFolder ? 'Some existing notes in this folder remain protected by another rule.' : 'This note remains protected by another rule.');
+	const matcher = plugin.getCompiledRuleMatcher?.() ?? createCompiledRuleMatcher(plugin.settings);
+	const descendants = isFolder ? markdownDescendantPaths(target) : [target.path];
+	for (const path of descendants) {
+		if (lock && matcher.matchExcludeRules(path).length > 0) {
+			notify(isFolder ? 'An Exclude rule takes priority for some existing notes in this folder.' : 'An Exclude rule takes priority for this note.');
+			break;
+		} else if (!lock && !plugin.settings.forceAllMarkdownReadOnly && matcher.shouldForceReadOnly(path)) {
+			notify(isFolder ? 'Some existing notes in this folder remain protected by another rule.' : 'This note remains protected by another rule.');
+			break;
+		}
 	}
 	const { limits } = buildRuleState(plugin.settings);
 	if (limits.hardCapExceeded) notify('Path rule saved. Some rules are ignored because the rule limit is exceeded.');

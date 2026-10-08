@@ -19,7 +19,7 @@ async function fixture() {
 	const row = container.createDiv({ cls: 'nav-file-title' });
 	row.setAttr('data-path', 'notes/example.md');
 	const file = Object.assign(new TFile(), { path: 'notes/example.md', extension: 'md' });
-	const folder = Object.assign(new TFolder(), { path: 'notes' });
+	const folder = Object.assign(new TFolder(), { path: 'notes', children: [file] });
 	const vault = {
 		on: () => ({}), offref: () => undefined, getName: () => 'test',
 		getAbstractFileByPath: (path: string) => path === file.path ? file : folder,
@@ -152,7 +152,7 @@ for (const declarative of [false, true]) {
 		} else tab.display();
 		try {
 			const menu = applyPathRuleAction(f.plugin, f.vault, f.folder, true, () => undefined);
-			const later = applyPathRuleAction(f.plugin, f.vault, Object.assign(new TFolder(), { path: 'Archive' }), true, () => undefined);
+			const later = applyPathRuleAction(f.plugin, f.vault, Object.assign(new TFolder(), { path: 'Archive', children: [] }), true, () => undefined);
 			tab.hide();
 			first.resolve();
 			await Promise.all([menu, later]);
@@ -206,7 +206,7 @@ test('closing Settings discards a failed draft before subsequent closed-menu edi
 		await applyPathRuleAction(f.plugin, f.vault, f.folder, true, () => undefined);
 		tab.hide();
 		f.plugin.saveData = async () => undefined;
-		await applyPathRuleAction(f.plugin, f.vault, Object.assign(new TFolder(), { path: 'Archive' }), true, () => undefined);
+		await applyPathRuleAction(f.plugin, f.vault, Object.assign(new TFolder(), { path: 'Archive', children: [] }), true, () => undefined);
 		tab.display();
 		assert.deepEqual(container.querySelectorAll('.read-only-view-rule-input').map((input) => input.value), ['Archive/']);
 		await applyPathRuleAction(f.plugin, f.vault, f.folder, true, () => undefined);
