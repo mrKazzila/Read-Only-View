@@ -27,6 +27,68 @@ This document is a living system map for the `read-only-view` Obsidian plugin.
 - The E2E workflow defaults to macOS binary path `/Applications/Obsidian.app/Contents/MacOS/Obsidian` and accepts `OBSIDIAN_PATH` for override.
 - E2E Chromedriver selection defaults to the Obsidian Electron baseline `32.2.5`; `OBSIDIAN_ELECTRON_VERSION` overrides it when testing a different Obsidian runtime.
 
+## Observer/enforcement test migration (ticket 009)
+
+The agreed test boundaries are plugin construction, persisted `loadData` fixtures,
+`onload`, host events/commands, `changeSettings`, and unload for integration;
+`PopoverObserverService`, `EnforcementService`, and `WorkspaceEventController`
+for algorithms. No private plugin state or internal methods are test seams.
+
+Scenario ownership map (old names refer to the pre-migration main test suites):
+
+| Previous scenario | Retained coverage / migration |
+| --- | --- |
+| Observer ignores plain nodes; prefilter avoids leaf scans | Existing observer service start/stop + prefilter test covers both; remove duplicate main checks. |
+| Matching popover forces preview; disabled observer does nothing | Lifecycle integration in `main.observer.test.ts`, observing actual view mode/writes after mutation delivery and accepted settings changes. |
+| Leaf lookup cache hit/miss/invalidation | Existing service cache test; strengthen exact leaf identity and unrelated-node miss. Remove duplicate main cache test. |
+| Unrelated node has no false-positive leaf | Same service cache test with a real unrelated node and existing leaf. |
+| Layout event invalidates cache | Host integration reuses a container for a replacement leaf; mutation must resolve the new leaf. |
+| New popout document after load | Host layout event attaches an observer; mutation in that document forces preview. |
+| Unload invalidates cache | Host unload/reload with a replacement leaf proves no stale association survives; no lookup through a stopped plugin. |
+| Unload disconnects observer | Host unload disconnects every document observer and cancels scheduled workspace work. |
+| Workspace burst coalescing | Existing controller burst tests own scheduling algorithms; host integration checks deferred real preview transitions. |
+| Active leaf alone / with file-open uses targeted reapply | Host event tests keep a second protected leaf in source mode, proving only the target transitions. |
+| Layout in burst uses full reapply | Host event test proves both protected leaves transition. |
+| Re-apply command bypasses scheduler | Registered host command forces preview before the queued workspace timer fires. |
+| Disabled enforcement exits early | Persisted disabled fixture through onload and workspace event; service test retains no-scan contract. |
+| Non-Markdown / fileless leaves ignored | Lifecycle integration and host file-open event retain observable no-write checks. |
+| Pending reapply queue; 120ms throttle | Existing enforcement service contract tests are exact duplicates of the old main algorithm checks; retain those and remove main duplicates. |
+| Matching Markdown paths only | Lifecycle integration with matching, nonmatching and non-Markdown-extension leaves. |
+| Replace-write fallback uses false | Enforcement service fallback test asserts the successful write argument; main duplicate removed. |
+| Stale frame: navigation / disable / Exclude / unload / closed leaf | Lifecycle + host event integration retains all five cases with controlled frames and normal settings changes. Existing service stale-write tests remain. |
+
+The shared `withPluginHost` adapter in `tests/helpers/test-setup.ts` supplies only
+host boundaries: persisted settings, command registration, event-ref disposal,
+controlled timers/clock, and the existing DOM/workspace mocks. Production
+observer, enforcement, scheduling and settings services run unchanged. Its
+`finally` cleanup unloads before restoring mocks, including assertion failures;
+`main-test-harness.test.ts` explicitly verifies that failure path.
+
+Caller audit removed only `main.findLeafByNode`, which had no runtime callers.
+The remaining wrappers have live composition responsibilities:
+`installMutationObserver` is called by `onload`, `reconcileMutationObservers` by
+file-open/active-leaf/layout events, and `invalidateLeafContainerCache` by
+layout-change and unload. Their existing initialization/lifecycle order remains
+unchanged; no new production interface was introduced.
+
+Validation (2026-10-08): `just lint`, `just test` (347 passed, 0 failed), and
+`just build` passed. The migrated host scenarios passed before and after the
+four-line production deletion. A temporary mutation removing the layout-event
+cache invalidation made the replacement-leaf test fail (`source` instead of
+`preview`); restoring the wiring restored the passing result.
+
+The existing desktop smoke suite passed all 11 checks both before and after the
+deletion, using Node 22.23.3, the isolated profile, and only synthetic `demo-vault`.
+Logs are local artifacts `.tmp/009-before-smoke.log` and `.tmp/009-after-smoke.log`.
+The initial sandbox attempt could not bind the automation port; both successful
+runs used approved execution outside the sandbox. Diff inspection confirms no
+DOM, CSS, UI text/handlers, command IDs, Include/Exclude semantics, dependencies,
+or timing-policy changes. The installed desktop host's Settings smoke passed;
+legacy/declarative Settings were not independently exercised, visual screenshot
+baselines were not regenerated, and real popout, mobile, keyboard/focus and
+welcome-modal checks were not run. Multi-document mocks do not establish those
+host behaviors. No separate UI/lifecycle defect was found.
+
 ## Host integration verification (ticket 007)
 
 - Explorer save/enable/disable and save-failure rollback tests construct the plugin,
