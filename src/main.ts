@@ -251,10 +251,6 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		this.getPopoverObserverService().reconcileDocuments();
 	}
 
-	private findLeafByNode(node: HTMLElement): WorkspaceLeaf | null {
-		return this.getPopoverObserverService().findLeafByNode(node);
-	}
-
 	private async handleProtectedEditorInput(
 		info: MarkdownView | MarkdownFileInfo,
 		reason: string,

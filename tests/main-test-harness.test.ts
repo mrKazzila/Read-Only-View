@@ -3,7 +3,27 @@ import test from 'node:test';
 
 import { MockMutationObserver } from './helpers/dom-mocks.js';
 import { createMockWorkspaceLeaf } from './helpers/obsidian-mocks.js';
-import { createMainTestHarness } from './helpers/test-setup.js';
+import { createMainTestHarness, withPluginHost } from './helpers/test-setup.js';
+
+test('plugin host unloads and restores mocks even when an assertion fails', async () => {
+	const original = { now: Date.now, setTimeout, clearTimeout, document: globalThis.document };
+	let observer: MockMutationObserver | undefined;
+	let pendingTimers = () => -1;
+	await assert.rejects(withPluginHost(async (host) => {
+		await host.plugin.onload();
+		observer = MockMutationObserver.instances[0];
+		host.workspace.trigger('file-open');
+		pendingTimers = host.pendingTimers;
+		assert.equal(pendingTimers(), 1);
+		assert.fail('intentional assertion failure');
+	}), /intentional assertion failure/);
+	assert.equal(observer?.disconnected, true);
+	assert.equal(pendingTimers(), 0);
+	assert.equal(Date.now, original.now);
+	assert.equal(globalThis.setTimeout, original.setTimeout);
+	assert.equal(globalThis.clearTimeout, original.clearTimeout);
+	assert.equal(globalThis.document, original.document);
+});
 
 test('main test harness: workspace and leaf mocks expose view state controls', async () => {
 	const leaf = createMockWorkspaceLeaf({ filePath: 'folder/note.md', mode: 'source' });

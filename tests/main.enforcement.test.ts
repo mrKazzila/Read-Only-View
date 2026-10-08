@@ -1,210 +1,109 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import ReadOnlyViewPlugin from '../src/main.js';
-import { DEFAULT_SETTINGS } from '../src/matcher.js';
-import { createMockWorkspaceLeaf, type MockWorkspaceLeaf } from './helpers/obsidian-mocks.js';
-import { createMainTestHarness, withFakeAnimationFrames } from './helpers/test-setup.js';
+import { changeSettings } from '../src/settings-lifecycle.js';
+import { setRuleEntries } from '../src/rule-state.js';
+import { createMockWorkspaceLeaf } from './helpers/obsidian-mocks.js';
+import { withPluginHost, withFakeAnimationFrames } from './helpers/test-setup.js';
 
-type TestPluginState = {
-	enforcing: boolean;
-	pendingReapply: string | null;
-	lastForcedAt: WeakMap<object, number>;
-	mutationObserver: MutationObserver | null;
-};
-
-function createPluginForEnforcement(leaves: MockWorkspaceLeaf[]) {
-	const harness = createMainTestHarness({ leaves });
-	const plugin = new ReadOnlyViewPlugin(harness.app as never, {} as never);
-	const state = plugin as unknown as TestPluginState & {
-		app: unknown;
-		settings: typeof DEFAULT_SETTINGS;
-	};
-
-	state.app = harness.app;
-	state.settings = {
-		...DEFAULT_SETTINGS,
-		enabled: true,
-		forceAllMarkdownReadOnly: false,
-		useGlobPatterns: true,
-		caseSensitive: true,
-		includeRules: ['**/*.md'],
-		excludeRules: [],
-		debug: false,
-	};
-	plugin.settingsChanged();
-	state.enforcing = false;
-	state.pendingReapply = null;
-	state.lastForcedAt = new WeakMap<object, number>();
-	state.mutationObserver = null;
-
-	return {
-		harness,
-		plugin,
-		state,
-	};
-}
-
-function withMockedNow(values: number[], callback: () => Promise<void>): Promise<void> {
-	const originalNow = Date.now;
-	let index = 0;
-	Date.now = () => values[Math.min(index++, values.length - 1)] ?? values[values.length - 1] ?? 0;
-	return callback().finally(() => {
-		Date.now = originalNow;
-	});
-}
-
-test('enforcement exits early when plugin is disabled', async () => {
-	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
-	const { harness, plugin, state } = createPluginForEnforcement([leaf]);
-
-	try {
-		state.settings.enabled = false; plugin.settingsChanged();
-		await plugin.applyAllOpenMarkdownLeaves('disabled-test');
-
-		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 0);
+test('persisted disabled protection leaves notes editable on load and workspace events', async () => {
+	await withPluginHost(async ({ plugin, leaf, workspace, advance }) => {
+		leaf.setMode('source');
+		await plugin.onload();
+		workspace.trigger('file-open');
+		await advance(150);
+		assert.equal(leaf.view.getMode(), 'source');
 		assert.equal(leaf.setViewStateCalls.length, 0);
-	} finally {
-		harness.restore();
-	}
+	}, { enabled: false });
 });
 
-test('enforcement ignores non-markdown leaves and markdown leaves without file', async () => {
-	const nonMarkdownLeaf = createMockWorkspaceLeaf({
-		filePath: 'docs/file.md',
-		mode: 'source',
-		isMarkdownView: false,
+test('loaded enforcement ignores non-Markdown and fileless leaves', async () => {
+	await withPluginHost(async ({ plugin, leaves, workspace, advance }) => {
+		const nonMarkdown = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source', isMarkdownView: false });
+		const fileless = createMockWorkspaceLeaf({ mode: 'source' });
+		leaves.splice(0, leaves.length, nonMarkdown, fileless);
+		await plugin.onload();
+		workspace.trigger('file-open');
+		await advance(150);
+		assert.equal(nonMarkdown.setViewStateCalls.length, 0);
+		assert.equal(fileless.setViewStateCalls.length, 0);
 	});
-	const markdownLeafWithoutFile = createMockWorkspaceLeaf({
-		filePath: undefined,
-		mode: 'source',
-	});
-
-	const { harness, plugin } = createPluginForEnforcement([nonMarkdownLeaf, markdownLeafWithoutFile]);
-
-	try {
-		await plugin.applyAllOpenMarkdownLeaves('ignore-test');
-
-		assert.equal(nonMarkdownLeaf.setViewStateCalls.length, 0);
-		assert.equal(markdownLeafWithoutFile.setViewStateCalls.length, 0);
-	} finally {
-		harness.restore();
-	}
 });
 
-test('enforcement queues pending reapply when called during an active run', async () => {
-	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
-	const { harness, plugin } = createPluginForEnforcement([leaf]);
-	const originalSetViewState = leaf.setViewState.bind(leaf);
-
-	let releaseFirstCall!: () => void;
-	const firstCallGate = new Promise<void>((resolve) => {
-		releaseFirstCall = resolve;
-	});
-
-	leaf.setViewState = async (state, arg) => {
-		await firstCallGate;
-		return originalSetViewState(state, arg);
-	};
-
-	try {
-		const activeRun = plugin.applyAllOpenMarkdownLeaves('first-run');
-		await Promise.resolve();
-
-		await plugin.applyAllOpenMarkdownLeaves('second-run');
-		releaseFirstCall();
-		await activeRun;
-
-		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 3);
-	} finally {
-		harness.restore();
-	}
-});
-
-test('enforcement applies per-leaf throttle within 120ms window', async () => {
-	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
-	const { harness, plugin } = createPluginForEnforcement([leaf]);
-
-	try {
-		await withMockedNow([1000, 1100, 1121], async () => {
-			await plugin.applyAllOpenMarkdownLeaves('first');
-			leaf.setMode('source');
-			await plugin.applyAllOpenMarkdownLeaves('second-throttled');
-			leaf.setMode('source');
-			await plugin.applyAllOpenMarkdownLeaves('third-allowed');
-		});
-
+test('persisted rules enforce only matching Markdown paths on load and file-open', async () => {
+	await withPluginHost(async ({ plugin, leaf, leaves, workspace, advance }) => {
+		leaf.setMode('source');
+		const nonMatching = createMockWorkspaceLeaf({ filePath: 'notes/no-match.md', mode: 'source' });
+		const attachment = createMockWorkspaceLeaf({ filePath: 'docs/not-markdown.txt', mode: 'source' });
+		leaves.push(nonMatching, attachment);
+		await plugin.onload();
+		assert.equal(leaf.view.getMode(), 'preview');
+		leaf.setMode('source');
+		workspace.trigger('file-open');
+		await advance(150);
+		assert.equal(leaf.view.getMode(), 'preview');
 		assert.equal(leaf.setViewStateCalls.length, 2);
-	} finally {
-		harness.restore();
-	}
-});
-
-test('enforcement applies only to matching markdown files', async () => {
-	const matchingMarkdownLeaf = createMockWorkspaceLeaf({ filePath: 'docs/match.md', mode: 'source' });
-	const nonMatchingMarkdownLeaf = createMockWorkspaceLeaf({ filePath: 'notes/no-match.md', mode: 'source' });
-	const nonMarkdownExtensionLeaf = createMockWorkspaceLeaf({ filePath: 'docs/not-markdown.txt', mode: 'source' });
-
-	const { harness, plugin, state } = createPluginForEnforcement([
-		matchingMarkdownLeaf,
-		nonMatchingMarkdownLeaf,
-		nonMarkdownExtensionLeaf,
-	]);
-	state.settings.includeRules = ['docs/**'];
-	state.settings.excludeRules = [];
-	plugin.settingsChanged();
-
-	try {
-		await plugin.applyAllOpenMarkdownLeaves('md-filter-test');
-
-		assert.equal(matchingMarkdownLeaf.setViewStateCalls.length, 1);
-		assert.equal(nonMatchingMarkdownLeaf.setViewStateCalls.length, 0);
-		assert.equal(nonMarkdownExtensionLeaf.setViewStateCalls.length, 0);
-	} finally {
-		harness.restore();
-	}
-});
-
-test('enforcement uses setViewState(nextState, false) fallback when replace call throws', async () => {
-	const leaf = createMockWorkspaceLeaf({
-		filePath: 'docs/file.md',
-		mode: 'source',
-		throwOnReplaceCall: true,
+		assert.equal(nonMatching.setViewStateCalls.length, 0);
+		assert.equal(attachment.setViewStateCalls.length, 0);
 	});
-	const { harness, plugin } = createPluginForEnforcement([leaf]);
-
-	try {
-		await plugin.applyAllOpenMarkdownLeaves('fallback-test');
-
-		assert.equal(leaf.setViewStateCalls.length, 1);
-		assert.equal(leaf.setViewStateCalls[0]?.arg, false);
-	} finally {
-		harness.restore();
-	}
 });
 
+test('workspace enforcement writes preview when its deferred frame remains current', async () => {
+	await withPluginHost(async ({ plugin, leaf, workspace, advance, settle, unload }) => {
+		await plugin.onload();
+		await withFakeAnimationFrames(async ({ flushNextFrame, pendingFrameCount }) => {
+			try {
+				leaf.setMode('source');
+				workspace.trigger('active-leaf-change', leaf);
+				await advance(150);
+				assert.equal(pendingFrameCount(), 1);
+				assert.equal(leaf.setViewStateCalls.length, 0);
+				await flushNextFrame();
+				await settle();
+				assert.equal(leaf.view.getMode(), 'preview');
+				assert.equal(leaf.setViewStateCalls.length, 1);
+			} finally { unload(); }
+		});
+	});
+});
 
 for (const change of ['navigation', 'disable', 'exclude', 'unload', 'close'] as const) {
-	test(`enforcement cancels a pending transition after ${change}`, async () => {
-		const leaf = createMockWorkspaceLeaf({ filePath: 'docs/A.md', mode: 'source' });
-		const { harness, plugin, state } = createPluginForEnforcement([leaf]);
-		try {
+	test(`host enforcement cancels a pending transition after ${change}`, async () => {
+		await withPluginHost(async ({ plugin, leaf, leaves, workspace, advance, settle, unload }) => {
+			leaf.setFilePath('docs/A.md');
+			await plugin.onload();
 			await withFakeAnimationFrames(async ({ flushNextFrame, pendingFrameCount }) => {
-				const pending = plugin.applyAllOpenMarkdownLeaves('current-state');
-				assert.equal(pendingFrameCount(), 1);
-				switch (change) {
-					case 'navigation': leaf.setFilePath('docs/B.md'); break;
-					case 'disable': state.settings.enabled = false; plugin.settingsChanged(); break;
-					case 'exclude': state.settings.excludeRules = ['docs/**']; plugin.settingsChanged(); break;
-					case 'unload': plugin.onunload(); break;
-					case 'close': harness.leaves.splice(0); break;
-				}
-				await flushNextFrame();
-				await pending;
-				assert.equal(leaf.setViewStateCalls.length, 0);
+				try {
+					leaf.setMode('source');
+					workspace.trigger('file-open');
+					await advance(150);
+					assert.equal(pendingFrameCount(), 1);
+					switch (change) {
+						case 'navigation':
+							leaf.setFilePath('docs/B.md');
+							workspace.trigger('file-open');
+							break;
+						case 'disable':
+							await changeSettings(plugin, (draft) => { draft.enabled = false; }, 'settings-enabled');
+							break;
+						case 'exclude':
+							await changeSettings(plugin, (draft) => {
+								setRuleEntries(draft, 'exclude', [{ sourceKind: 'vault-path', sourceValue: 'docs/**', resolvedPath: 'docs/**', enabled: true }]);
+							}, 'settings-rules');
+							break;
+						case 'unload': unload(); break;
+						case 'close':
+							leaves.splice(0);
+							workspace.trigger('layout-change');
+							break;
+					}
+					await flushNextFrame();
+					await settle();
+					assert.equal(leaf.view.getMode(), 'source');
+					assert.equal(leaf.setViewStateCalls.length, 0);
+					assert.equal(pendingFrameCount(), 0);
+				} finally { unload(); }
 			});
-		} finally {
-			harness.restore();
-		}
+		});
 	});
 }

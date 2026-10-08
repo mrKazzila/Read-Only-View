@@ -1,468 +1,149 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import ReadOnlyViewPlugin from '../src/main.js';
-import { DEFAULT_SETTINGS } from '../src/matcher.js';
+import { changeSettings } from '../src/settings-lifecycle.js';
+import { setRuleEntries } from '../src/rule-state.js';
 import { MockHTMLElement, MockMutationObserver } from './helpers/dom-mocks.js';
-import { createMockWorkspaceLeaf } from './helpers/obsidian-mocks.js';
-import { createMainTestHarness } from './helpers/test-setup.js';
+import { createMockWorkspaceLeaf, type MockWorkspaceLeaf } from './helpers/obsidian-mocks.js';
+import { withPluginHost } from './helpers/test-setup.js';
 
-type PatchablePlugin = ReadOnlyViewPlugin & {
-	loadSettings: () => Promise<boolean>;
-	applyAllOpenMarkdownLeaves: (reason: string) => Promise<void>;
-	registerEvent: (unsubscribe: () => void) => void;
-};
-
-type ObserverInternals = {
-	installMutationObserver: () => void;
-	findLeafByNode: (node: HTMLElement) => unknown;
-	invalidateLeafContainerCache: () => void;
-};
-
-function createObserverPlugin() {
-	const harness = createMainTestHarness();
-	const leaf = harness.leaves[0];
-	assert.ok(leaf);
-	leaf.setFilePath('docs/file.md');
-	leaf.setMode('source');
-	const plugin = new ReadOnlyViewPlugin(harness.app as never, {} as never) as PatchablePlugin;
-
-	plugin.settings = {
-		...DEFAULT_SETTINGS,
-		enabled: true,
-		forceAllMarkdownReadOnly: false,
-		useGlobPatterns: true,
-		caseSensitive: true,
-		includeRules: ['docs/**'],
-		excludeRules: [],
-		debug: false,
-	};
-	plugin.settingsChanged();
-
-	return {
-		leaf,
-		harness,
-		plugin,
-	};
+function addPopover(leaf: MockWorkspaceLeaf): MockHTMLElement {
+	const popover = new MockHTMLElement(['.hover-popover']);
+	popover.appendChild(new MockHTMLElement(['.cm-editor']));
+	(leaf.view.containerEl as unknown as MockHTMLElement).appendChild(popover);
+	return popover;
 }
 
-function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) => Promise<void>): Promise<void> {
-	const originalSetTimeout = globalThis.setTimeout;
-	const originalClearTimeout = globalThis.clearTimeout;
+test('loaded observer forces a matching popover into preview', async () => {
+	await withPluginHost(async ({ plugin, leaf, settle }) => {
+		await plugin.onload();
+		const observer = MockMutationObserver.instances[0]!;
+		leaf.setMode('source');
+		observer.trigger([{ addedNodes: [addPopover(leaf)] }]);
+		await settle();
+		assert.equal(leaf.view.getMode(), 'preview');
+		assert.deepEqual(leaf.setViewStateCalls.map((call) => call.arg), [{ replace: true }]);
+	});
+});
 
-	let nextId = 1;
-	const queue = new Map<number, () => void>();
-
-	globalThis.setTimeout = ((handler: TimerHandler) => {
-		const callbackHandler = typeof handler === 'function' ? handler : () => undefined;
-		const id = nextId++;
-		queue.set(id, callbackHandler as () => void);
-		return id as unknown as ReturnType<typeof setTimeout>;
-	}) as typeof setTimeout;
-
-	globalThis.clearTimeout = ((timeoutId: ReturnType<typeof setTimeout>) => {
-		queue.delete(Number(timeoutId));
-	}) as typeof clearTimeout;
-
-	const flushAll = async () => {
-		for (const [id, callbackHandler] of Array.from(queue.entries())) {
-			queue.delete(id);
-			callbackHandler();
-			await Promise.resolve();
-		}
-	};
-
-	return callback({ flushAll }).finally(() => {
-		globalThis.setTimeout = originalSetTimeout;
-		globalThis.clearTimeout = originalClearTimeout;
+for (const change of ['disable', 'exclude'] as const) {
+	test(`loaded observer honors accepted ${change} settings`, async () => {
+		await withPluginHost(async ({ plugin, leaf, settle }) => {
+			await plugin.onload();
+			await changeSettings(plugin, (draft) => {
+				if (change === 'disable') draft.enabled = false;
+				else setRuleEntries(draft, 'exclude', [{ sourceKind: 'vault-path', sourceValue: 'docs/**', resolvedPath: 'docs/**', enabled: true }]);
+			}, 'settings-rules');
+			leaf.setMode('source');
+			MockMutationObserver.instances[0]!.trigger([{ addedNodes: [addPopover(leaf)] }]);
+			await settle();
+			assert.equal(leaf.view.getMode(), 'source');
+			assert.equal(leaf.setViewStateCalls.length, 0);
+		});
 	});
 }
 
-test('observer ignores added nodes without relevant classes', async () => {
-	const { leaf, harness, plugin } = createObserverPlugin();
-
-	try {
-		(plugin as unknown as { installMutationObserver: () => void }).installMutationObserver();
-		const observer = MockMutationObserver.instances[0];
-		assert.ok(observer);
-
-		const plainNode = new MockHTMLElement();
-		observer.trigger([{ addedNodes: [plainNode] }]);
-		await Promise.resolve();
-
-		assert.equal(leaf.setViewStateCalls.length, 0);
-	} finally {
-		harness.restore();
-	}
-});
-
-test('observer enforces preview when matching popover/editor node is added', async () => {
-	const { leaf, harness, plugin } = createObserverPlugin();
-
-	try {
-		(plugin as unknown as { installMutationObserver: () => void }).installMutationObserver();
-		const observer = MockMutationObserver.instances[0];
-		assert.ok(observer);
-
-		const container = leaf.view.containerEl as unknown as MockHTMLElement;
-		const popoverNode = new MockHTMLElement(['.popover']);
-		popoverNode.appendChild(new MockHTMLElement(['.cm-editor']));
-		container.appendChild(popoverNode);
-
-		observer.trigger([{ addedNodes: [popoverNode] }]);
-		await Promise.resolve();
-
-		assert.equal(leaf.setViewStateCalls.length, 1);
-		assert.deepEqual(leaf.setViewStateCalls[0]?.arg, { replace: true });
-	} finally {
-		harness.restore();
-	}
-});
-
-test('observer callback does not enforce when plugin is disabled', async () => {
-	const { leaf, harness, plugin } = createObserverPlugin();
-	plugin.settings.enabled = false;
-	plugin.settingsChanged();
-
-	try {
-		(plugin as unknown as { installMutationObserver: () => void }).installMutationObserver();
-		const observer = MockMutationObserver.instances[0];
-		assert.ok(observer);
-
-		const container = leaf.view.containerEl as unknown as MockHTMLElement;
-		const popoverNode = new MockHTMLElement(['.hover-popover']);
-		popoverNode.appendChild(new MockHTMLElement(['.markdown-source-view']));
-		container.appendChild(popoverNode);
-
-		observer.trigger([{ addedNodes: [popoverNode] }]);
-		await Promise.resolve();
-
-		assert.equal(leaf.setViewStateCalls.length, 0);
-	} finally {
-		harness.restore();
-	}
-});
-
-test('observer prefilter skips batches with no relevant candidate nodes', async () => {
-	const { harness, plugin } = createObserverPlugin();
-
-	try {
-		(plugin as unknown as ObserverInternals).installMutationObserver();
-		const initialLeafScans = harness.workspace.getLeavesOfTypeCalls.length;
-		const observer = MockMutationObserver.instances[0];
-		assert.ok(observer);
-
-		observer.trigger([{ addedNodes: [new MockHTMLElement(), { foo: 'bar' }] }]);
-		await Promise.resolve();
-
-		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, initialLeafScans);
-	} finally {
-		harness.restore();
-	}
-});
-
-test('findLeafByNode uses cache hit and falls back to scan on cache miss', () => {
-	const { harness, leaf, plugin } = createObserverPlugin();
-	const internals = plugin as unknown as ObserverInternals;
-	const nestedNode = new MockHTMLElement(['.cm-editor']);
-	const container = leaf.view.containerEl as unknown as MockHTMLElement;
-	container.appendChild(nestedNode);
-
-	try {
-		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 0);
-		const first = internals.findLeafByNode(nestedNode as unknown as HTMLElement);
-		assert.ok(first);
-		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 1);
-
-		const second = internals.findLeafByNode(nestedNode as unknown as HTMLElement);
-		assert.ok(second);
-		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 1);
-
-		internals.invalidateLeafContainerCache();
-		const third = internals.findLeafByNode(nestedNode as unknown as HTMLElement);
-		assert.ok(third);
-		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 2);
-	} finally {
-		harness.restore();
-	}
-});
-
-test('findLeafByNode does not produce false-positive match for unrelated nodes', () => {
-	const { harness, plugin } = createObserverPlugin();
-	const internals = plugin as unknown as ObserverInternals;
-	const unrelatedNode = new MockHTMLElement(['.cm-editor']);
-
-	try {
-		const found = internals.findLeafByNode(unrelatedNode as unknown as HTMLElement);
-		assert.equal(found, null);
-		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 1);
-	} finally {
-		harness.restore();
-	}
-});
-
-test('layout-change invalidates leaf container cache', async () => {
-	const { harness, leaf, plugin } = createObserverPlugin();
-	const internals = plugin as unknown as ObserverInternals;
-	const nestedNode = new MockHTMLElement(['.cm-editor']);
-	const container = leaf.view.containerEl as unknown as MockHTMLElement;
-	container.appendChild(nestedNode);
-
-	plugin.loadSettings = async () => false;
-	plugin.applyAllOpenMarkdownLeaves = async () => undefined;
-	plugin.registerEvent = () => undefined;
-	(plugin as unknown as { addCommand: (command: unknown) => unknown }).addCommand = () => ({});
-
-	try {
-		await withFakeTimeouts(async () => {
+for (const invalidate of ['layout-change', 'unload/reload'] as const) {
+	test(`${invalidate} discards a cached leaf when its container is reused`, async () => {
+		await withPluginHost(async ({ plugin, leaf, leaves, workspace, unload, settle }) => {
 			await plugin.onload();
-			const initialLeafScans = harness.workspace.getLeavesOfTypeCalls.length;
-			internals.findLeafByNode(nestedNode as unknown as HTMLElement);
-			internals.findLeafByNode(nestedNode as unknown as HTMLElement);
-			assert.equal(harness.workspace.getLeavesOfTypeCalls.length, initialLeafScans + 1);
-
-			harness.workspace.trigger('layout-change');
-			await Promise.resolve();
-
-			internals.findLeafByNode(nestedNode as unknown as HTMLElement);
-			assert.equal(harness.workspace.getLeavesOfTypeCalls.length, initialLeafScans + 3);
-		});
-	} finally {
-		harness.restore();
-	}
-});
-
-test('workspace reconciliation attaches observer for popout document added after load', async () => {
-	const { harness, plugin } = createObserverPlugin();
-
-	plugin.loadSettings = async () => false;
-	plugin.applyAllOpenMarkdownLeaves = async () => undefined;
-	plugin.registerEvent = () => undefined;
-	(plugin as unknown as { addCommand: (command: unknown) => unknown }).addCommand = () => ({});
-
-	try {
-		await withFakeTimeouts(async () => {
-			await plugin.onload();
-			assert.equal(MockMutationObserver.instances.length, 1);
-
-			const popoutDocument = harness.dom.createDocument();
-			const popoutLeaf = createMockWorkspaceLeaf({
-				filePath: 'docs/popout.md',
-				mode: 'source',
-				containerEl: popoutDocument.body.createDiv({ cls: 'workspace-leaf' }) as unknown as HTMLElement,
+			const popover = addPopover(leaf);
+			MockMutationObserver.instances[0]!.trigger([{ addedNodes: [popover] }]);
+			await settle(); // Populate the cache while the original leaf is already in preview.
+			if (invalidate === 'unload/reload') unload();
+			const replacement = createMockWorkspaceLeaf({
+				filePath: 'docs/replacement.md', mode: 'preview', containerEl: leaf.view.containerEl,
 			});
-			harness.leaves.push(popoutLeaf);
-
-			harness.workspace.trigger('layout-change');
-			await Promise.resolve();
-
-			assert.equal(MockMutationObserver.instances.length, 2);
-			assert.equal(
-				MockMutationObserver.instances[1]?.observeCalls[0]?.target,
-				popoutDocument.body,
-			);
+			leaves.splice(0, 1, replacement);
+			if (invalidate === 'unload/reload') await plugin.onload();
+			else workspace.trigger('layout-change');
+			replacement.setMode('source');
+			const observer = MockMutationObserver.instances.at(-1)!;
+			observer.trigger([{ addedNodes: [popover] }]);
+			await settle(); // Do not flush the scheduled full reapply: the mutation must do the work.
+			assert.equal(replacement.view.getMode(), 'preview');
+			assert.equal(replacement.setViewStateCalls.length, 1);
+			assert.equal(leaf.setViewStateCalls.length, 0);
 		});
-	} finally {
-		harness.restore();
-	}
+	});
+}
+
+test('workspace reconciliation observes a new popout document and unload disconnects all observers', async () => {
+	await withPluginHost(async ({ plugin, dom, leaves, workspace, unload, settle, advance, pendingTimers }) => {
+		await plugin.onload();
+		assert.equal(MockMutationObserver.instances.length, 1);
+		const popoutDocument = dom.createDocument();
+		const popoutLeaf = createMockWorkspaceLeaf({
+			filePath: 'docs/popout.md', mode: 'source',
+			containerEl: popoutDocument.body.createDiv({ cls: 'workspace-leaf' }) as unknown as HTMLElement,
+		});
+		leaves.push(popoutLeaf);
+		workspace.trigger('layout-change');
+		assert.equal(MockMutationObserver.instances.length, 2);
+		const observer = MockMutationObserver.instances[1]!;
+		assert.equal(observer.observeCalls[0]?.target, popoutDocument.body);
+		observer.trigger([{ addedNodes: [addPopover(popoutLeaf)] }]);
+		await settle();
+		assert.equal(popoutLeaf.view.getMode(), 'preview');
+		assert.equal(pendingTimers(), 1);
+		unload();
+		assert.ok(MockMutationObserver.instances.every((entry) => entry.disconnected));
+		assert.equal(pendingTimers(), 0);
+		popoutLeaf.setMode('source');
+		workspace.trigger('file-open');
+		await advance(1_000);
+		assert.equal(popoutLeaf.view.getMode(), 'source');
+		assert.equal(popoutLeaf.setViewStateCalls.length, 1);
+	});
 });
 
-test('onunload invalidates leaf container cache', () => {
-	const { harness, leaf, plugin } = createObserverPlugin();
-	const internals = plugin as unknown as ObserverInternals;
-	const nestedNode = new MockHTMLElement(['.cm-editor']);
-	const container = leaf.view.containerEl as unknown as MockHTMLElement;
-	container.appendChild(nestedNode);
-
-	try {
-		internals.findLeafByNode(nestedNode as unknown as HTMLElement);
-		internals.findLeafByNode(nestedNode as unknown as HTMLElement);
-		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 1);
-
-		plugin.onunload();
-		internals.findLeafByNode(nestedNode as unknown as HTMLElement);
-		assert.equal(harness.workspace.getLeavesOfTypeCalls.length, 2);
-	} finally {
-		harness.restore();
-	}
-});
-
-test('onunload disconnects active mutation observer', () => {
-	const { harness, plugin } = createObserverPlugin();
-
-	try {
-		(plugin as unknown as { installMutationObserver: () => void }).installMutationObserver();
-		const observer = MockMutationObserver.instances[0];
-		assert.ok(observer);
-		assert.equal(observer.disconnected, false);
-
-		plugin.onunload();
-
-		assert.equal(observer.disconnected, true);
-	} finally {
-		harness.restore();
-	}
-});
-
-test('workspace event burst is coalesced into one reapply pass', async () => {
-	const { harness, plugin } = createObserverPlugin();
-	const reapplyReasons: string[] = [];
-
-	plugin.loadSettings = async () => false;
-	plugin.applyAllOpenMarkdownLeaves = async (reason: string) => {
-		reapplyReasons.push(reason);
-	};
-	plugin.registerEvent = () => undefined;
-	(plugin as unknown as { addCommand: (command: unknown) => unknown }).addCommand = () => ({});
-
-	try {
-		await withFakeTimeouts(async ({ flushAll }) => {
+for (const events of [
+	['active-leaf-change'],
+	['active-leaf-change', 'file-open'],
+	['active-leaf-change', 'file-open', 'layout-change'],
+	['file-open', 'active-leaf-change-without-leaf', 'layout-change'],
+]) {
+	test(`host burst ${events.join(' + ')} enforces the expected leaves after coalescing`, async () => {
+		await withPluginHost(async ({ plugin, leaf, leaves, workspace, advance, pendingTimers }) => {
+			const other = createMockWorkspaceLeaf({ filePath: 'docs/other.md', mode: 'preview' });
+			leaves.push(other);
 			await plugin.onload();
-			assert.deepEqual(reapplyReasons, ['onload']);
-
-			harness.workspace.trigger('file-open');
-			harness.workspace.trigger('active-leaf-change');
-			harness.workspace.trigger('layout-change');
-			await Promise.resolve();
-
-			assert.deepEqual(reapplyReasons, ['onload']);
-
-			await flushAll();
-			assert.equal(reapplyReasons.length, 2);
-			assert.ok(reapplyReasons[1]?.startsWith('workspace-events:'));
-			assert.ok(reapplyReasons[1]?.includes('file-open'));
-			assert.ok(reapplyReasons[1]?.includes('active-leaf-change'));
-			assert.ok(reapplyReasons[1]?.includes('layout-change'));
+			leaf.setMode('source');
+			other.setMode('source');
+			for (const event of events) {
+				if (event === 'active-leaf-change-without-leaf') workspace.trigger('active-leaf-change');
+				else workspace.trigger(event, event === 'active-leaf-change' ? leaf : undefined);
+			}
+			assert.equal(pendingTimers(), 1);
+			assert.equal(leaf.setViewStateCalls.length, 0);
+			assert.equal(other.setViewStateCalls.length, 0);
+			await advance(149);
+			assert.equal(leaf.view.getMode(), 'source');
+			await advance(1);
+			assert.equal(leaf.view.getMode(), 'preview');
+			assert.equal(leaf.setViewStateCalls.length, 1);
+			assert.equal(other.view.getMode(), events.includes('layout-change') ? 'preview' : 'source');
+			assert.equal(other.setViewStateCalls.length, events.includes('layout-change') ? 1 : 0);
+			assert.equal(pendingTimers(), 0);
 		});
-	} finally {
-		harness.restore();
-	}
-});
+	});
+}
 
-test('active-leaf-change uses targeted leaf reapply and skips full-scan reapply', async () => {
-	const { harness, leaf, plugin } = createObserverPlugin();
-	const reapplyReasons: string[] = [];
-
-	plugin.loadSettings = async () => false;
-	plugin.applyAllOpenMarkdownLeaves = async (reason: string) => {
-		reapplyReasons.push(reason);
-	};
-	plugin.registerEvent = () => undefined;
-	(plugin as unknown as { addCommand: (command: unknown) => unknown }).addCommand = () => ({});
-
-	try {
-		await withFakeTimeouts(async ({ flushAll }) => {
-			await plugin.onload();
-			assert.deepEqual(reapplyReasons, ['onload']);
-
-			harness.workspace.trigger('active-leaf-change', leaf);
-			await Promise.resolve();
-			await flushAll();
-
-			assert.deepEqual(reapplyReasons, ['onload']);
-		});
-	} finally {
-		harness.restore();
-	}
-});
-
-test('active-leaf-change + file-open uses targeted leaf reapply and skips full-scan reapply', async () => {
-	const { harness, leaf, plugin } = createObserverPlugin();
-	const reapplyReasons: string[] = [];
-
-	plugin.loadSettings = async () => false;
-	plugin.applyAllOpenMarkdownLeaves = async (reason: string) => {
-		reapplyReasons.push(reason);
-	};
-	plugin.registerEvent = () => undefined;
-	(plugin as unknown as { addCommand: (command: unknown) => unknown }).addCommand = () => ({});
-
-	try {
-		await withFakeTimeouts(async ({ flushAll }) => {
-			await plugin.onload();
-			assert.deepEqual(reapplyReasons, ['onload']);
-
-			harness.workspace.trigger('active-leaf-change', leaf);
-			harness.workspace.trigger('file-open');
-			await Promise.resolve();
-			await flushAll();
-
-			assert.deepEqual(reapplyReasons, ['onload']);
-		});
-	} finally {
-		harness.restore();
-	}
-});
-
-test('layout-change in burst keeps full-scan reapply', async () => {
-	const { harness, leaf, plugin } = createObserverPlugin();
-	const reapplyReasons: string[] = [];
-
-	plugin.loadSettings = async () => false;
-	plugin.applyAllOpenMarkdownLeaves = async (reason: string) => {
-		reapplyReasons.push(reason);
-	};
-	plugin.registerEvent = () => undefined;
-	(plugin as unknown as { addCommand: (command: unknown) => unknown }).addCommand = () => ({});
-
-	try {
-		await withFakeTimeouts(async ({ flushAll }) => {
-			await plugin.onload();
-			assert.deepEqual(reapplyReasons, ['onload']);
-
-			harness.workspace.trigger('active-leaf-change', leaf);
-			harness.workspace.trigger('file-open');
-			harness.workspace.trigger('layout-change');
-			await Promise.resolve();
-			await flushAll();
-
-			assert.equal(reapplyReasons.length, 2);
-			assert.ok(reapplyReasons[1]?.startsWith('workspace-events:'));
-			assert.ok(reapplyReasons[1]?.includes('layout-change'));
-		});
-	} finally {
-		harness.restore();
-	}
-});
-
-test('re-apply command remains immediate and bypasses workspace event scheduler', async () => {
-	const { harness, plugin } = createObserverPlugin();
-	const reapplyReasons: string[] = [];
-	const commands = new Map<string, () => Promise<void>>();
-
-	plugin.loadSettings = async () => false;
-	plugin.applyAllOpenMarkdownLeaves = async (reason: string) => {
-		reapplyReasons.push(reason);
-	};
-	plugin.registerEvent = () => undefined;
-	(plugin as unknown as {
-		addCommand: (command: { id: string; callback?: () => Promise<void> }) => unknown;
-	}).addCommand = (command) => {
-		if (command.callback) {
-			commands.set(command.id, command.callback);
-		}
-		return {};
-	};
-
-	try {
-		await withFakeTimeouts(async ({ flushAll }) => {
-			await plugin.onload();
-			assert.ok(commands.has('re-apply-rules-now'));
-
-			harness.workspace.trigger('file-open');
-			await Promise.resolve();
-			assert.deepEqual(reapplyReasons, ['onload']);
-
-			const reapplyCommand = commands.get('re-apply-rules-now');
-			assert.ok(reapplyCommand);
-			await reapplyCommand();
-			assert.deepEqual(reapplyReasons, ['onload', 'command-reapply']);
-
-			await flushAll();
-			assert.equal(reapplyReasons.length, 3);
-			assert.ok(reapplyReasons[2]?.startsWith('workspace-events:'));
-		});
-	} finally {
-		harness.restore();
-	}
+test('registered re-apply command forces preview before the workspace timer fires', async () => {
+	await withPluginHost(async ({ plugin, leaf, workspace, commands, advance, pendingTimers }) => {
+		await plugin.onload();
+		leaf.setMode('source');
+		workspace.trigger('file-open');
+		assert.equal(leaf.setViewStateCalls.length, 0);
+		const command = commands.get('re-apply-rules-now');
+		assert.ok(command?.callback);
+		await command.callback();
+		assert.equal(leaf.view.getMode(), 'preview');
+		assert.equal(leaf.setViewStateCalls.length, 1);
+		assert.equal(pendingTimers(), 1);
+		leaf.setMode('source');
+		await advance(150);
+		assert.equal(leaf.view.getMode(), 'preview');
+		assert.equal(leaf.setViewStateCalls.length, 2);
+	});
 });

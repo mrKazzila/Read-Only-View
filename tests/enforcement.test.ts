@@ -189,6 +189,13 @@ function withOwnedFakeAnimationFrameWindows(
 	});
 }
 
+test('service contract: disabled enforcement does not scan leaves', async () => {
+	const setup = createService({ settings: { enabled: false } });
+	await setup.service.applyAllOpenMarkdownLeaves('disabled');
+	assert.equal(setup.getMarkdownLeavesCalls(), 0);
+	assert.equal(setup.leaves[0]?.setViewStateCalls.length, 0);
+});
+
 test('service contract: queues pending reapply while enforcement is running', async () => {
 	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
 	const setup = createService({ leaves: [leaf] });
@@ -247,6 +254,8 @@ test('service contract: fallback logging keeps redacted path format', async () =
 	});
 
 	await setup.service.applyAllOpenMarkdownLeaves('fallback-test');
+	assert.deepEqual(leaf.setViewStateCalls.map((call) => call.arg), [false]);
+	assert.equal(leaf.view.getMode(), 'preview');
 
 	const fallbackLog = setup.debugCalls.find((entry) => entry.message === 'ensure-preview-fallback');
 	assert.ok(fallbackLog);

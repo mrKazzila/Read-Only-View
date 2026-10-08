@@ -1,3 +1,9 @@
+import assert from 'node:assert/strict';
+import { setImmediate } from 'node:timers/promises';
+import type { Command } from 'obsidian';
+import ReadOnlyViewPlugin from '../../src/main.js';
+import type { ForceReadModeSettings } from '../../src/plugin-types.js';
+
 import { createMockApp, createMockWorkspace, createMockWorkspaceLeaf, type MockWorkspaceLeaf } from './obsidian-mocks.js';
 import { installDomMocks, type InstalledDomMocks } from './dom-mocks.js';
 
@@ -76,4 +82,84 @@ export function withFakeAnimationFrames(
 		globalThis.requestAnimationFrame = originalRequestAnimationFrame;
 		globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
 	});
+}
+
+/** Host boundaries only: persistence, commands, event disposal, and time. */
+export async function withPluginHost(
+	callback: (host: ReturnType<typeof createPluginHost>) => Promise<void>,
+	persisted: Partial<ForceReadModeSettings> = {},
+): Promise<void> {
+	const host = createPluginHost(persisted);
+	try {
+		await callback(host);
+	} finally {
+		try { host.unload(); }
+		finally { host.restore(); }
+	}
+}
+
+function createPluginHost(persisted: Partial<ForceReadModeSettings>) {
+	const harness = createMainTestHarness();
+	const leaf = harness.leaves[0]!;
+	leaf.setFilePath('docs/file.md');
+	leaf.setMode('preview');
+	const plugin = new ReadOnlyViewPlugin(harness.app as never, {} as never);
+	plugin.loadData = async () => ({
+		forceAllMarkdownReadOnly: false,
+		useGlobPatterns: true,
+		includeRules: ['docs/**'],
+		...persisted,
+	});
+	plugin.saveData = async () => undefined;
+	const commands = new Map<string, Command>();
+	plugin.addCommand = (command) => { commands.set(command.id, command); return command; };
+	const eventDisposers: Array<() => void> = [];
+	plugin.registerEvent = (ref) => {
+		// This workspace adapter represents Obsidian EventRefs as unsubscribe functions.
+		assert.equal(typeof ref, 'function');
+		eventDisposers.push(ref as unknown as () => void);
+	};
+	const originalNow = Date.now;
+	const originalSetTimeout = globalThis.setTimeout;
+	const originalClearTimeout = globalThis.clearTimeout;
+	let now = 1_000;
+	let nextId = 1;
+	const timers = new Map<number, { due: number; run: () => void }>();
+	Date.now = () => now;
+	globalThis.setTimeout = ((handler: TimerHandler, delay = 0) => {
+		assert.equal(typeof handler, 'function');
+		const id = nextId++;
+		timers.set(id, { due: now + delay, run: handler as () => void });
+		return id as unknown as ReturnType<typeof setTimeout>;
+	}) as typeof setTimeout;
+	globalThis.clearTimeout = ((id: ReturnType<typeof setTimeout>) => {
+		timers.delete(Number(id));
+	}) as typeof clearTimeout;
+
+	return {
+		...harness,
+		plugin,
+		leaf,
+		commands,
+		settle: () => setImmediate(),
+		pendingTimers: () => timers.size,
+		advance: async (milliseconds: number) => {
+			now += milliseconds;
+			for (const [id, timer] of [...timers]) {
+				if (timer.due > now || !timers.delete(id)) continue;
+				timer.run();
+				await setImmediate();
+			}
+		},
+		unload: () => {
+			try { plugin.onunload(); }
+			finally { for (const dispose of eventDisposers.splice(0)) dispose(); }
+		},
+		restore: () => {
+			Date.now = originalNow;
+			globalThis.setTimeout = originalSetTimeout;
+			globalThis.clearTimeout = originalClearTimeout;
+			harness.restore();
+		},
+	};
 }
