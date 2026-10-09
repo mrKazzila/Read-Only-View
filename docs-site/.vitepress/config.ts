@@ -5,9 +5,12 @@ const browserTargets = ['es2020', 'chrome87', 'edge88', 'firefox78', 'safari14.1
 const siteUrl = 'https://mrkazzila.github.io/Read-Only-View/';
 const description = 'Keep selected Obsidian notes in Reading view and prevent accidental edits with local include and exclude path rules.';
 const guides = [
+	{ text: 'Lock and Unlock from File Explorer', link: '/guides/lock-notes-and-folders' },
 	{ text: 'Keep all notes in Reading view', link: '/guides/make-all-notes-read-only' },
 	{ text: 'Make a note read-only', link: '/guides/make-note-read-only' },
 	{ text: 'Make a folder read-only', link: '/guides/make-folder-read-only' },
+	{ text: 'Explain read-only status', link: '/guides/why-is-my-note-read-only' },
+	{ text: 'Show protection indicators', link: '/guides/show-locked-notes-in-file-explorer' },
 	{ text: 'Prevent accidental editing', link: '/guides/prevent-accidental-editing' },
 	{ text: 'Reading view on mobile', link: '/guides/mobile-reading-view' },
 ];
@@ -28,7 +31,7 @@ export default defineConfig({
 	sitemap: { hostname: siteUrl },
 	themeConfig: {
 		nav: [
-			{ text: 'Guides', link: '/guides/make-note-read-only' },
+			{ text: 'Guides', link: '/guides/lock-notes-and-folders' },
 			{ text: 'Path rules', link: '/docs/path-rules' },
 			{ text: 'FAQ', link: '/faq' },
 			{ text: 'Star history', link: '/star-history' },

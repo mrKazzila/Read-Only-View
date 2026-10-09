@@ -4,7 +4,7 @@ description: Learn how Include and Exclude rules, folder prefixes, exact importe
 ---
 
 <script setup>
-import settingsScreenshot from "../../docs/images/community-images/Read-Only-View-path-rules-1200x800.png";
+import settingsScreenshot from "../../docs/images/documentation/Read-Only-View-path-rules-1200x800.png";
 </script>
 # Path rules
 
@@ -112,6 +112,8 @@ Obsidian URLs may omit `.md`. Heading and block locators do not change which not
 If a source cannot be resolved, its value remains visible with an explanation, but it does not match anything. Imported sources require existing targets and do not automatically follow later renames.
 
 ## Lock and Unlock
+
+Follow the [File Explorer Lock and Unlock guide](../guides/lock-notes-and-folders.md) for steps and an editable-drafts example. The details below explain how the shortcut represents paths.
 
 Right-click a Markdown note or folder in the file explorer and choose **Lock → Reading** to create or enable an Include rule. The rule appears under **Path rules** and applies immediately to open notes. Existing rules for the same target are reused.
 

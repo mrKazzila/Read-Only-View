@@ -6,6 +6,8 @@ description: Troubleshoot Read Only View rules when a note stays editable, remai
 
 Start with **Path tester** in **Settings → Read Only View**. Enter the specific Markdown note path and check its resolved path, matching rules, and final **Read-only** or **Editable** status. This separates a rule-configuration problem from a view that has not reflected the configuration yet.
 
+For a quick check directly in File Explorer, start with [Explain read-only status](../guides/why-is-my-note-read-only.md). That guide covers note and folder results; use the checks below to resolve configuration and view problems.
+
 ## Why is my note still editable after I added an Include? {#still-editable}
 
 An include protects a Markdown note only while the plugin is enabled and no enabled exclude matches. Check these points in order:

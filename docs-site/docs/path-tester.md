@@ -4,7 +4,7 @@ description: Diagnose whether an Obsidian note is Read-only or Editable using so
 ---
 
 <script setup>
-import settingsScreenshot from "../../docs/images/community-images/Read-Only-View-path-tester-read-only-1200x800.png";
+import settingsScreenshot from "../../docs/images/documentation/Read-Only-View-path-tester-read-only-1200x800.png";
 </script>
 # How to Check Whether an Obsidian Note Will Be Read-Only
 
@@ -40,7 +40,7 @@ Right-click a Markdown note and choose **Explain read-only status** to see its f
 
 For a folder, the same action includes nested Markdown notes and reports **ALL PROTECTED**, **MIXED**, **NOT PROTECTED**, or **NO MARKDOWN NOTES**. It shows counts and up to five editable examples to help locate exceptions.
 
-This action only reports the current configuration. It does not change rules, settings, files, or editor state.
+This action only reports the current configuration. It does not change rules, settings, files, or editor state. See [Explain read-only status for notes and folders](../guides/why-is-my-note-read-only.md) for the dialog labels, examples, and an explanation of protection after Unlock.
 
 ## Resolve input problems
 

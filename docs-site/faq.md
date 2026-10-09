@@ -90,4 +90,4 @@ Yes. Select **Only matched paths**, enable **Use glob patterns**, and include `R
 
 ## How do I troubleshoot a note that is protected or editable unexpectedly?
 
-Start with **Path tester**, then check the global Enabled toggle, selected mode, matching excludes, and enabled includes. Follow [Troubleshooting](./docs/troubleshooting.md) for each result, including what to do when disabling an include does not remove protection.
+Right-click the note or folder and choose [Explain read-only status](./guides/why-is-my-note-read-only.md) to inspect protection and exceptions. Use **Path tester** to check a supplied path, then review the global Enabled toggle, selected mode, matching excludes, and enabled includes. Follow [Troubleshooting](./docs/troubleshooting.md) for each result, including what to do when disabling an include does not remove protection.

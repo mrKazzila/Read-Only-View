@@ -579,7 +579,7 @@ When plugin behavior changes (matching logic, enforcement behavior, commands, se
 
 - `docs-site/` contains the VitePress homepage, five workflow guides, Path rules, Path tester, and FAQ. It documents the checked-in behavior rather than claiming a latest release version.
 - `docs-site/.vitepress/config.ts` owns navigation, the `/Read-Only-View/` base, sitemap, canonical URLs, Open Graph metadata, and homepage SoftwareApplication JSON-LD.
-- Screenshots are imported from `docs/images/community-images/`; there are no duplicated source assets.
+- Screenshots are imported from `docs/images/documentation/`, shared with the repository README. `docs/images/community-images/` is exclusively for the Obsidian Community plugin page; originals live under `docs/images/sources/` (see `docs/images/README.md`). Publication copies for documentation and Community are independent; the docs site and repository README share the documentation copies.
 - Root npm scripts: `docs:dev`, `docs:build`, `docs:preview`. Website dependencies are development-only and locked in `package-lock.json`.
 - `.github/workflows/pages.yml` builds PRs against `master` and deploys `master` to GitHub Pages. Plugin CI, releases, and runtime behavior are unchanged.
 - Setup, validation, and the project-site robots.txt limitation are documented in `CONTRIBUTING.md`.

@@ -2,6 +2,8 @@
 
 Keep your Markdown notes in Obsidian Reading view and prevent accidental edits, across your whole vault or only where you choose.
 
+**Right click → Lock → Reading** — lock a Markdown note or folder from Obsidian’s File Explorer. [Get started](#quick-start).
+
 [![Obsidian Downloads](https://img.shields.io/badge/dynamic/json?label=downloads&query=%24%5B%22read-only-view%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&color=8c79de&logo=obsidian&logoColor=8c79de)](https://community.obsidian.md/plugins/read-only-view)
 
 **Desktop and mobile · Obsidian 1.10.3+ · 0BSD license**
@@ -10,7 +12,7 @@ Privacy: No network requests; all rule matching stays local. Imported system pat
 
 **[Full documentation](https://mrkazzila.github.io/Read-Only-View/)** · [Report an issue](https://github.com/mrKazzila/Read-Only-View/issues)
 
-![Read Only View settings with All Markdown files mode enabled](docs/images/community-images/Read-Only-View-all-markdown-mode-1200x800.png)
+![File Explorer context menu with Lock → Reading selected](docs/images/documentation/Read-Only-View-Context-menu.png)
 
 ## Why Read Only View?
 
@@ -54,9 +56,21 @@ Restart Obsidian or reload plugins, then enable **Read Only View**.
 
 ## Quick start
 
+### Lock a note or folder from File Explorer
+
+1. [Install and enable Read Only View](#installation).
+2. Open **Settings → Read Only View**, keep **Enabled** on, and select **Only matched paths** to protect selected notes and folders.
+3. In **File Explorer**, use **Right click → Lock → Reading** on a Markdown note or folder. **Lock → Reading** is one menu item.
+
+The shortcut creates or enables an Include rule. Folder locks cover Markdown notes in subfolders too; enabled Excludes still win. Choose **Unlock** to disable the target’s Include rules. Another rule or **All Markdown files** may keep it protected.
+
+See [Lock and Unlock notes and folders](https://mrkazzila.github.io/Read-Only-View/guides/lock-notes-and-folders) for steps and editable exceptions.
+
 ### Protect all Markdown notes
 
 Open **Settings → Read Only View**, keep **Enabled** on, and select **All Markdown files**. This is the default on a new installation. Add an **Exclude** rule for any note or folder that should remain editable.
+
+![Read Only View settings with All Markdown files mode enabled](docs/images/documentation/Read-Only-View-all-markdown-mode-1200x800.png)
 
 ### Protect one folder
 
@@ -127,7 +141,7 @@ For glob patterns, case sensitivity, imported paths, and edge cases, see [Path r
 
 Use **Path tester** in the plugin settings to see whether a note is protected and which rule caused the result. Paste a note path such as `Notes/Summaries/Meeting.md`; it shows the resolved path, matching rules, and final **Read-only** or **Editable** status.
 
-![Path tester resolving an Obsidian URL and reporting Read-only](docs/images/community-images/Read-Only-View-path-tester-read-only-1200x800.png)
+![Path tester resolving an Obsidian URL and reporting Read-only](docs/images/documentation/Read-Only-View-path-tester-read-only-1200x800.png)
 
 You can also right-click a note or folder and choose **Explain read-only status** to open the **Read only view** dialog. For a folder, it summarizes protection across its Markdown notes. See the [diagnostics guide](https://mrkazzila.github.io/Read-Only-View/docs/path-tester) for details.
 

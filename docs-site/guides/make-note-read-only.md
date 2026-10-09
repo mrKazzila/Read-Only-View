@@ -6,6 +6,8 @@ description: Configure Read Only View to keep one Obsidian Markdown note in Read
 
 Use Read Only View with an **Include** rule for the note's vault path. The plugin keeps matching Markdown notes in Reading view to help prevent accidental edits.
 
+For a shortcut without entering a path, [lock the note from File Explorer](./lock-notes-and-folders.md). You can also [show optional protection indicators](./show-locked-notes-in-file-explorer.md) to recognize protected notes while browsing.
+
 ## Reading view and protection
 
 Obsidian already provides Reading view and lets you switch between reading and editing. Live Preview is still an editing mode. See [Obsidian's guide to views and editing modes](https://obsidian.md/help/edit-and-read).
