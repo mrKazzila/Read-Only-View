@@ -59,6 +59,8 @@ npm run docs:build
 npm run docs:preview
 ```
 
+With `just`, run `just docs-dev` from the repository root to start the local site (equivalent to `npm run docs:dev`). It generates offline analytics before starting VitePress. Stop the server with `Ctrl+C`.
+
 The root `package.json` overrides VitePress's Vite dependency to `^6.4.3`: VitePress 1.6.4 otherwise requires the vulnerable Vite 5 line and its older esbuild. The nested Vite override also uses `$esbuild` to reuse the root esbuild pin (currently 0.28.1), meeting the minimum fixed version reported by Dependabot. These overrides cross the declared Vite and esbuild version ranges, so validate `docs:dev`, `docs:build`, and `docs:preview` when updating these dependencies. The website explicitly targets Safari 14.1+ (instead of Vite 6's Safari 14 default) because esbuild 0.28 cannot lower destructuring for that older target; the other Vite 6 browser targets are retained. This affects the website only, not the Obsidian plugin runtime. Remove the overrides when a stable VitePress release natively uses a patched Vite version.
 
 Open the URL printed by VitePress, including `/Read-Only-View/`. The build checks Markdown links and writes `docs-site/.vitepress/dist/`. Preview that production build to check images and navigation under the repository base path. VitePress configuration and theme files are separate from the Obsidian runtime lint configuration; validate them with the site build.

@@ -4,6 +4,11 @@ dev:
 	@npm run dev
 
 [group('Development')]
+[doc('Run the local VitePress documentation site')]
+docs-dev:
+	@npm run docs:dev
+
+[group('Development')]
 [doc('Install a local dev build into an Obsidian test vault')]
 link-plugin:
 	@REPO="$(pwd)"; \
