@@ -8,6 +8,8 @@ Read Only View supports Obsidian on phones and tablets as well as desktop. Use i
 
 An accidental switch into editing can open the keyboard and interrupt reading. The plugin returns matching Markdown notes to Reading view and blocks editor input in supported editors. It does not promise to suppress every keyboard appearance or control every plugin-provided view.
 
+If you only need new tabs to start in Reading view, compare [Obsidian’s default view setting with enforced protection](./prevent-accidental-editing.md#reading-view-vs-read-only).
+
 ## Set up a reading folder
 
 1. In Obsidian, open **Settings → Community plugins → Browse**. Search for **Read Only View**, then **Install** and **Enable** it.

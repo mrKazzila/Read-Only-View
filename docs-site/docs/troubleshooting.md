@@ -1,12 +1,12 @@
 ---
-title: Why Is My Obsidian Note Read-Only or Still Editable?
+title: Fix Read Only View Rules That Are Not Working
 description: Troubleshoot Read Only View rules when a note stays editable, remains read-only after disabling an Include, or does not reflect saved settings.
 ---
-# Why Is My Obsidian Note Read-Only or Still Editable?
+# Fix Read Only View Rules That Are Not Working {#why-is-my-obsidian-note-read-only-or-still-editable}
 
 Start with **Path tester** in **Settings → Read Only View**. Enter the specific Markdown note path and check its resolved path, matching rules, and final **Read-only** or **Editable** status. This separates a rule-configuration problem from a view that has not reflected the configuration yet.
 
-For a quick check directly in File Explorer, start with [Explain read-only status](../guides/why-is-my-note-read-only.md). That guide covers note and folder results; use the checks below to resolve configuration and view problems.
+For a quick check directly in File Explorer, use [Explain read-only status](../guides/why-is-my-note-read-only.md). The guide covers note and folder results; use the checks below to resolve configuration and view problems.
 
 ## Why is my note still editable after I added an Include? {#still-editable}
 
@@ -44,5 +44,7 @@ Confirm you tested the actual note path and waited for **Saved.** after editing 
 Run **Re-apply rules now** from the Command Palette, then reopen the note if necessary. An **Editable** result means Read Only View is not enforcing protection; you may still need to switch the note from Reading view to editing yourself.
 
 If Path tester reports **Read-only** but editing remains possible in a hover, embedded, or nonstandard view, that context may depend on Obsidian internals. Protection is not guaranteed in every such view, and it does not prevent another plugin or application from modifying files.
+
+If Read Only View reports **Editable** and you still cannot edit after switching views, check other plugins and any file-permission or sync errors reported by Obsidian. Path tester does not diagnose filesystem permissions.
 
 If the problem continues, [report an issue](https://github.com/mrKazzila/Read-Only-View/issues) with your Obsidian and plugin versions, platform, mode, matching settings, and a minimal rule example. Use anonymized paths and describe whether it occurs in a normal note tab or a preview. See [Path tester](./path-tester.md) for the available diagnostics.

@@ -1,12 +1,12 @@
 ---
-title: How to Check Whether an Obsidian Note Will Be Read-Only
-description: Diagnose whether an Obsidian note is Read-only or Editable using source resolution, matching Include and Exclude rules, and the all-Markdown preset.
+title: Test Obsidian Read-Only Rules with Path Tester
+description: Test a vault path, Obsidian URL, or desktop system path in Read Only View. Check source resolution, matching rules, and the resulting protection status.
 ---
 
 <script setup>
 import settingsScreenshot from "../../docs/images/documentation/Read-Only-View-path-tester-read-only-1200x800.png";
 </script>
-# How to Check Whether an Obsidian Note Will Be Read-Only
+# Test Obsidian Read-Only Rules with Path Tester {#how-to-check-whether-an-obsidian-note-will-be-read-only}
 
 **Path tester** is built into **Settings → Read Only View**. Use it to understand why a specific note is protected or remains editable; this website does not run the tester or access your vault.
 
@@ -20,7 +20,7 @@ Yes. **Path tester** evaluates the current configuration for the supplied path w
 4. Review the detected source type and resolved vault path.
 5. Check the matching include and exclude rules, the all-Markdown preset explanation, and the final **Read-only** or **Editable** status.
 
-<img :src="settingsScreenshot" alt="Path tester resolving an Obsidian URL and reporting Read-only" />
+<img :src="settingsScreenshot" alt="Path tester resolving an Obsidian URL and reporting Read-only" width="1200" height="800" loading="lazy" decoding="async" />
 
 ## Interpret a result
 

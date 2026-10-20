@@ -12,7 +12,7 @@ For a shortcut without entering a path, [lock the note from File Explorer](./loc
 
 Obsidian already provides Reading view and lets you switch between reading and editing. Live Preview is still an editing mode. See [Obsidian's guide to views and editing modes](https://obsidian.md/help/edit-and-read).
 
-Read Only View adds automatic enforcement for selected paths: it returns matching notes to Reading view and blocks editor input in supported Markdown editors. The underlying file does not become read-only at the operating-system level.
+Read Only View adds automatic enforcement for selected paths: it returns matching notes to Reading view and blocks editor input in supported Markdown editors. The underlying file does not become read-only at the operating-system level. Compare [Reading view with enforced read-only behavior](./prevent-accidental-editing.md#reading-view-vs-read-only) before choosing your setup.
 
 ## Protect a reference note
 

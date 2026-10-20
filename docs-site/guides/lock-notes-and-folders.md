@@ -1,6 +1,6 @@
 ---
 title: How to Lock Notes and Folders in Obsidian
-description: Lock Obsidian notes and folders from the File Explorer context menu. Learn how Unlock, Include rules, and editable exceptions prevent accidental edits.
+description: Use Lock and Unlock in Read Only View to protect Obsidian notes and folders. Learn how File Explorer actions interact with Include rules, Excludes, and folder protection.
 ---
 
 <script setup>
@@ -13,7 +13,7 @@ In Obsidian's File Explorer, use **Right click → Lock → Reading** on a Markd
 
 ## Lock a note or folder from File Explorer
 
-If needed, [install and enable Read Only View](./make-note-read-only.md#protect-a-reference-note) first.
+If needed, [install and enable Read Only View](../index.md#installation) first.
 
 1. Open **Settings → Read Only View** and keep **Enabled** on.
 2. Select **Only matched paths** to protect selected notes and folders. New installations use **All Markdown files**, which already protects all Markdown notes unless excluded.
@@ -21,7 +21,7 @@ If needed, [install and enable Read Only View](./make-note-read-only.md#protect-
 4. Choose **Lock → Reading**. This is one menu item, not a submenu.
 5. Open a note in that location. To check the result, right-click it and choose **Explain read-only status**.
 
-<img :src="contextMenuScreenshot" alt="Obsidian File Explorer context menu with Lock → Reading selected for a Markdown note" />
+<img :src="contextMenuScreenshot" alt="Obsidian File Explorer context menu with Lock → Reading selected for a Markdown note" width="2680" height="1570" loading="lazy" decoding="async" />
 
 A note lock targets that note. A folder lock covers Markdown notes inside the folder and its subfolders. PDFs, images, and other attachments are unaffected.
 

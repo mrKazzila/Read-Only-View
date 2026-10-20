@@ -1,6 +1,6 @@
 ---
 title: How to Show Locked Notes in Obsidian File Explorer
-description: Enable optional lock indicators in Obsidian File Explorer. Learn what note and folder icons mean, how exclusions affect them, and when indicators update.
+description: Show optional lock indicators in Obsidian File Explorer with Read Only View. Understand folder icons, exclusions, and missing indicators.
 ---
 
 <script setup>
@@ -13,14 +13,14 @@ Turn on **Settings → Read Only View → Advanced → Show protection indicator
 
 ## Enable protection indicators
 
-If needed, [install and enable Read Only View](./make-note-read-only.md#protect-a-reference-note) first.
+If needed, [install and enable Read Only View](../index.md#installation) first.
 
 1. Open **Settings → Read Only View** and keep the global **Enabled** toggle on.
 2. Scroll to **Advanced**.
 3. Turn on **Show protection indicators**, above the **Matching** section.
 4. Return to **File Explorer** and expand a folder to see its note indicators.
 
-<img :src="indicatorsScreenshot" alt="Show protection indicators enabled under Advanced, with locks beside protected notes and folders in File Explorer" />
+<img :src="indicatorsScreenshot" alt="Show protection indicators enabled under Advanced, with locks beside protected notes and folders in File Explorer" width="2680" height="1570" loading="lazy" decoding="async" />
 
 This setting displays the result of your current protection rules. It does not add rules or lock previously editable notes. Use [Lock → Reading](./lock-notes-and-folders.md) or [configure path rules](../docs/path-rules.md) to choose what is protected.
 

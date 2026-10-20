@@ -1,6 +1,6 @@
 ---
 title: Why Is My Obsidian Note Read-Only?
-description: Use Explain read-only status in Obsidian to see matching rules, understand folder exceptions, and find why a note stays protected after you choose Unlock.
+description: Find why an Obsidian note is read-only. Check the global mode, Include and Exclude rules, Path tester, and Explain read-only status.
 ---
 
 <script setup>
@@ -15,7 +15,7 @@ This diagnoses **Read Only View protection**. Obsidian or other plugins may have
 
 ## Check a note without opening settings
 
-With [Read Only View installed and enabled](./make-note-read-only.md#protect-a-reference-note):
+With [Read Only View installed and enabled](../index.md#installation):
 
 1. Find the Markdown note in **File Explorer**.
 2. Right-click it and select **Explain read-only status**.
@@ -50,7 +50,7 @@ Right-click a folder and choose **Explain read-only status**. The dialog checks 
 
 For folders containing Markdown notes, **Matched rules** lists the Includes and Excludes matching those notes, without repeating the same rule. **Editable examples** lists up to five note paths when exceptions exist. This is a summary of existing notes, not a prediction for every future file.
 
-<img :src="folderStatusScreenshot" alt="Explain read-only status for Archive showing ALL PROTECTED, five protected Markdown notes, and no Exclude matches" />
+<img :src="folderStatusScreenshot" alt="Explain read-only status for Archive showing ALL PROTECTED, five protected Markdown notes, and no Exclude matches" width="2670" height="1572" loading="lazy" decoding="async" />
 
 ## Example: summaries are protected, drafts are editable
 

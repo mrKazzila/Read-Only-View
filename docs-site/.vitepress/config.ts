@@ -31,7 +31,7 @@ export default defineConfig({
 	sitemap: { hostname: siteUrl },
 	themeConfig: {
 		nav: [
-			{ text: 'Guides', link: '/guides/lock-notes-and-folders' },
+			{ text: 'Guides', link: '/guides/make-note-read-only' },
 			{ text: 'Path rules', link: '/docs/path-rules' },
 			{ text: 'FAQ', link: '/faq' },
 			{ text: 'Star history', link: '/star-history' },
@@ -48,10 +48,14 @@ export default defineConfig({
 		socialLinks: [{ icon: 'github', link: 'https://github.com/mrKazzila/Read-Only-View' }],
 		footer: { message: 'Released under the 0BSD license.' },
 	},
-	transformHead({ pageData }) {
+	transformHead({ pageData, assets }) {
 		if (pageData.relativePath === '404.md') return [['meta', { name: 'robots', content: 'noindex' }]];
 		const path = pageData.relativePath.replace(/index\.md$/, '').replace(/\.md$/, '');
 		const url = new URL(path, siteUrl).href;
+		// Reuse the built documentation screenshot instead of shipping a second copy.
+		const previewAsset = assets.find((asset) => /(?:^|\/)Read-Only-View-path-rules-1200x800[.-].*\.png$/.test(asset));
+		if (!previewAsset) throw new Error('Social preview screenshot is missing from the documentation build');
+		const previewUrl = new URL(previewAsset, siteUrl).href;
 		return [
 			['link', { rel: 'canonical', href: url }],
 			['meta', { property: 'og:type', content: 'website' }],
@@ -59,6 +63,15 @@ export default defineConfig({
 			['meta', { property: 'og:title', content: pageData.title }],
 			['meta', { property: 'og:description', content: pageData.description || description }],
 			['meta', { property: 'og:url', content: url }],
+			['meta', { property: 'og:image', content: previewUrl }],
+			['meta', { property: 'og:image:width', content: '1200' }],
+			['meta', { property: 'og:image:height', content: '800' }],
+			['meta', { property: 'og:image:alt', content: 'Read Only View settings with Include and Exclude path rules in Obsidian' }],
+			['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+			['meta', { name: 'twitter:title', content: pageData.title }],
+			['meta', { name: 'twitter:description', content: pageData.description || description }],
+			['meta', { name: 'twitter:image', content: previewUrl }],
+			['meta', { name: 'twitter:image:alt', content: 'Read Only View settings with Include and Exclude path rules in Obsidian' }],
 			...(pageData.relativePath === 'index.md' ? [[
 				'script', { type: 'application/ld+json' }, JSON.stringify({
 					'@context': 'https://schema.org',

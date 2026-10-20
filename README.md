@@ -2,7 +2,9 @@
 
 Keep your Markdown notes in Obsidian Reading view and prevent accidental edits, across your whole vault or only where you choose.
 
-**Right click → Lock → Reading** — lock a Markdown note or folder from Obsidian’s File Explorer. [Get started](#quick-start).
+**Get started:** configure Include and Exclude rules in settings to keep selected notes in Reading view. [Install](#installation), then [protect a folder](#protect-one-folder).
+
+**Read Only View 1.1.3+** includes Lock/Unlock, Explain read-only status, and optional File Explorer protection indicators.
 
 [![Obsidian Downloads](https://img.shields.io/badge/dynamic/json?label=downloads&query=%24%5B%22read-only-view%22%5D.downloads&url=https%3A%2F%2Fraw.githubusercontent.com%2Fobsidianmd%2Fobsidian-releases%2Fmaster%2Fcommunity-plugin-stats.json&color=8c79de&logo=obsidian&logoColor=8c79de)](https://community.obsidian.md/plugins/read-only-view)
 
@@ -10,7 +12,7 @@ Keep your Markdown notes in Obsidian Reading view and prevent accidental edits, 
 
 Privacy: No network requests; all rule matching stays local. Imported system paths are stored as portable vault-relative paths, without the original absolute path.
 
-**[Full documentation](https://mrkazzila.github.io/Read-Only-View/)** · [Report an issue](https://github.com/mrKazzila/Read-Only-View/issues)
+**[Full documentation](https://mrkazzila.github.io/Read-Only-View/)** · [Reading view vs read-only protection](https://mrkazzila.github.io/Read-Only-View/guides/prevent-accidental-editing#reading-view-vs-read-only) · [Report an issue](https://github.com/mrKazzila/Read-Only-View/issues)
 
 ![File Explorer context menu with Lock → Reading selected](docs/images/documentation/Read-Only-View-Context-menu.png)
 

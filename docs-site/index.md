@@ -1,25 +1,26 @@
 ---
 layout: home
-title: Read Only View for Obsidian
+title: Obsidian Read-Only Mode — Read Only View
+titleTemplate: false
 description: Keep selected notes and folders in Obsidian Reading view. Prevent accidental edits on desktop, phone, and tablet with local path rules.
 hero:
   name: Read Only View
-  text: Right click → Lock → Reading
-  tagline: Lock a Markdown note or folder from File Explorer to prevent accidental edits. Keep reference notes in Reading view on desktop, phone, and tablet.
+  text: Read-only notes in Obsidian
+  tagline: Keep Markdown notes and folders in Reading view to help prevent accidental edits. Choose protected reference notes and editable drafts on desktop, phone, and tablet.
   actions:
     - theme: brand
       text: Install from Community Plugins
       link: https://community.obsidian.md/plugins/read-only-view
     - theme: alt
-      text: Lock notes and folders
-      link: /guides/lock-notes-and-folders
+      text: Make a note read-only
+      link: /guides/make-note-read-only
     - theme: alt
       text: GitHub
       link: https://github.com/mrKazzila/Read-Only-View
 features:
-  - title: Lock from File Explorer
-    details: Lock notes or folders from File Explorer. Include paths to protect them and exclude drafts to keep them editable.
-    link: /guides/lock-notes-and-folders
+  - title: Protect notes and folders
+    details: Include reference notes or whole folders and exclude drafts to keep them editable. Configure rules in the plugin settings.
+    link: /guides/make-folder-read-only
   - title: Check a rule before relying on it
     details: The built-in Path tester shows the resolved path, matching rules, and whether a note is Read-only or Editable.
     link: /docs/path-tester
@@ -32,17 +33,23 @@ features:
 import contextMenuScreenshot from "../docs/images/documentation/Read-Only-View-Context-menu.png";
 </script>
 
-## Get started
+## Get started {#get-started}
+
+<span id="installation"></span>
 
 In Obsidian, open **Settings → Community plugins → Browse**, search for **Read Only View**, then select **Install** and **Enable**. Requires Obsidian **1.10.3 or newer**; supports desktop and mobile.
 
 1. Open **Settings → Read Only View**, keep **Enabled** on, and select **Only matched paths** to protect selected notes and folders.
-2. In **File Explorer**, use **Right click → Lock → Reading** on a Markdown note or folder. **Lock → Reading** is one menu item.
-3. Open the note to read it. Folder locks also cover Markdown notes in subfolders.
+2. Keep **Advanced → Matching → Use glob patterns** off. Under **Path rules**, add an enabled **Include** for a note such as `Reference/Handbook.md` or a folder such as `Reference/`.
+3. Wait for **Saved.**, then check a note with [Path tester](./docs/path-tester.md). An enabled Exclude takes priority. Folder rules also cover Markdown notes in subfolders.
 
-<img :src="contextMenuScreenshot" alt="File Explorer context menu with Lock → Reading selected for a Markdown note" />
+## Feature availability {#feature-availability}
 
-The shortcut creates or enables an Include rule; enabled Excludes still win. Choose **Unlock** to disable the target’s Include rules. See [Lock and Unlock notes and folders](./guides/lock-notes-and-folders.md) for exceptions and notes that remain protected.
+**Lock → Reading / Unlock**, **Explain read-only status**, and **Show protection indicators** are available in **Read Only View 1.1.3 and newer**. Update the plugin if these options are missing. Protection indicators are optional and off by default.
+
+To protect notes without typing their paths, follow the [Lock and Unlock guide](./guides/lock-notes-and-folders.md). The screenshot below shows the File Explorer shortcut.
+
+<img :src="contextMenuScreenshot" alt="File Explorer context menu with Lock → Reading selected for a Markdown note" width="2680" height="1570" loading="lazy" decoding="async" />
 
 ::: tip Protect the whole vault
 New installations use **All Markdown files** mode. Keep that mode if you want every Markdown note protected, and add Excludes for editable exceptions. [Keep all notes in Reading view](./guides/make-all-notes-read-only.md).
@@ -58,6 +65,8 @@ New installations use **All Markdown files** mode. Keep that mode if you want ev
 - [Show protected notes in File Explorer](./guides/show-locked-notes-in-file-explorer.md): enable optional lock indicators.
 - [Prevent accidental editing](./guides/prevent-accidental-editing.md): separate reading from deliberate editing.
 - [Use Reading view on mobile](./guides/mobile-reading-view.md): browse notes on a phone or tablet.
+
+For the difference between normal Reading view and enforced protection, see [prevent accidental editing](./guides/prevent-accidental-editing.md#reading-view-vs-read-only).
 
 See [Path rules](./docs/path-rules.md) for matching syntax and [Path tester](./docs/path-tester.md) for diagnostics.
 
