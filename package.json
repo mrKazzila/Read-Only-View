@@ -48,9 +48,10 @@
 		"@codemirror/view": "^6.38.6"
 	},
 	"overrides": {
+		"moment": "^2.31.0",
 		"vitepress": {
 			"vite": {
-				".": "^6.4.3",
+				".": "^6.4.5",
 				"esbuild": "$esbuild"
 			}
 		}
