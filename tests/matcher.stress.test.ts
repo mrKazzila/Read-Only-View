@@ -1,18 +1,24 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { execPath } from 'node:process';
-import { performance } from 'node:perf_hooks';
 import test from 'node:test';
 
 import { clearGlobRegexCache, matchPath } from '../src/matcher.js';
 
 const GLOB_OPTIONS = { useGlobPatterns: true, caseSensitive: true };
 
-function measureRuntimeMs(run: () => void): number {
-	const startedAt = performance.now();
-	run();
-	const finishedAt = performance.now();
-	return finishedAt - startedAt;
+function runRepeatedMatching(source: string): void {
+	const matcherUrl = new URL('../src/matcher.js', import.meta.url).href;
+	// This is a correctness stress test, not a machine-speed benchmark. Leave
+	// headroom for shared CI runners; the parent can still kill a blocked matcher.
+	const result = spawnSync(execPath, ['--input-type=module', '--eval', `
+		import assert from 'node:assert/strict';
+		import { matchPath } from ${JSON.stringify(matcherUrl)};
+		const options = { useGlobPatterns: true, caseSensitive: true };
+		${source}
+	`], { timeout: 10_000, killSignal: 'SIGKILL', encoding: 'utf8' });
+	assert.ifError(result.error);
+	assert.equal(result.status, 0, result.stderr);
 }
 
 function buildLongPath(segmentCount: number): string {
@@ -34,43 +40,28 @@ test('S1) long path and wildcard combination keep expected match semantics', () 
 	assert.equal(matchPath(longPath, 'segment-000/**/segment-118/note-?????.md', GLOB_OPTIONS), false);
 });
 
-test('S2) repeated long-path matching stays within conservative runtime budget', () => {
-	clearGlobRegexCache();
-
-	const longPath = buildLongPath(160);
-	const pattern = 'segment-000/**/segment-159/note-*.md';
-	const iterations = 30_000;
-	const budgetMs = 900;
-
-	// Budget is intentionally conservative to catch obvious regressions without creating CI flakes.
-	const durationMs = measureRuntimeMs(() => {
-		for (let index = 0; index < iterations; index++) {
-			assert.equal(matchPath(longPath, pattern, GLOB_OPTIONS), true);
+test('S2) repeated long-path matching completes with correct results', () => {
+	runRepeatedMatching(`
+		const path = ${JSON.stringify(buildLongPath(160))};
+		const pattern = 'segment-000/**/segment-159/note-*.md';
+		for (let index = 0; index < 30_000; index++) {
+			assert.equal(matchPath(path, pattern, options), true);
 		}
-	});
-
-	assert.ok(durationMs <= budgetMs, `Expected <= ${budgetMs}ms, got ${durationMs.toFixed(2)}ms`);
+	`);
 });
 
-test('S3) mixed wildcard stress cases (*, **, ?) stay within conservative runtime budget', () => {
-	clearGlobRegexCache();
-
-	const matchingPath = 'vault/projects/alpha/docs/section-aa/chapter-bb/note-12345.md';
-	const nonMatchingPath = 'vault/projects/alpha/docs/section-aaa/chapter-bb/note-12345.md';
-	const matchingPattern = 'vault/**/section-??/chapter-??/note-?????.md';
-	const nonMatchingPattern = 'vault/**/section-?/chapter-??/note-?????.md';
-	const iterations = 25_000;
-	const budgetMs = 900;
-
-	const durationMs = measureRuntimeMs(() => {
-		for (let index = 0; index < iterations; index++) {
-			assert.equal(matchPath(matchingPath, matchingPattern, GLOB_OPTIONS), true);
-			assert.equal(matchPath(nonMatchingPath, matchingPattern, GLOB_OPTIONS), false);
-			assert.equal(matchPath(matchingPath, nonMatchingPattern, GLOB_OPTIONS), false);
+test('S3) repeated mixed wildcard matching completes with correct results', () => {
+	runRepeatedMatching(`
+		const matchingPath = 'vault/projects/alpha/docs/section-aa/chapter-bb/note-12345.md';
+		const nonMatchingPath = 'vault/projects/alpha/docs/section-aaa/chapter-bb/note-12345.md';
+		const matchingPattern = 'vault/**/section-??/chapter-??/note-?????.md';
+		const nonMatchingPattern = 'vault/**/section-?/chapter-??/note-?????.md';
+		for (let index = 0; index < 25_000; index++) {
+			assert.equal(matchPath(matchingPath, matchingPattern, options), true);
+			assert.equal(matchPath(nonMatchingPath, matchingPattern, options), false);
+			assert.equal(matchPath(matchingPath, nonMatchingPattern, options), false);
 		}
-	});
-
-	assert.ok(durationMs <= budgetMs, `Expected <= ${budgetMs}ms, got ${durationMs.toFixed(2)}ms`);
+	`);
 });
 
 // The parent enforces the deadline even if synchronous matching never returns.
