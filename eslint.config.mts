@@ -16,7 +16,7 @@ export default tseslint.config(
 			},
 			parserOptions: {
 				projectService: {
-					maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 32,
+					maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 34,
 					allowDefaultProject: [
 						'eslint.config.mts',
 						'manifest.json',
@@ -49,6 +49,7 @@ export default tseslint.config(
 		'demo-vault',
 		'esbuild.config.mjs',
 		'eslint.config.js',
+		'eslint.obsidian.config.mjs',
 		'scripts/validate-docs-sitemap.mjs',
 		'version-bump.mjs',
 		'versions.json',

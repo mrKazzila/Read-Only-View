@@ -6,9 +6,11 @@ description: Keep Markdown notes in a reference or archive folder in Reading vie
 
 Add a folder path such as `Reference/` as an **Include** rule in Read Only View. With ordinary path matching, Markdown notes inside that folder and its subfolders stay in Reading view.
 
+To create the folder Include without typing its path, use [Lock → Reading in File Explorer](./lock-notes-and-folders.md). You can also [inspect protected and editable notes inside it](./why-is-my-note-read-only.md#check-a-folder-and-find-editable-exceptions).
+
 ## Protect a reference or archive folder
 
-1. [Install and enable Read Only View](./make-note-read-only.md#protect-a-reference-note).
+1. [Install and enable Read Only View](../index.md#installation).
 2. Open **Settings → Read Only View**. Keep **Enabled** on and select **Only matched paths**.
 3. Under **Advanced → Matching**, keep **Use glob patterns** off.
 4. Under **Path rules**, add an enabled **Include** row with **Value** set to `Reference/`.

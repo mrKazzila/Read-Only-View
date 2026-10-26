@@ -173,10 +173,12 @@ class DefaultEnforcementService implements EnforcementService {
 		if (!(leaf.view instanceof MarkdownView)) {
 			return;
 		}
-		const file = leaf.view.file;
+		const view = leaf.view;
+		const file = view.file;
 		if (!file) {
 			return;
 		}
+		const scheduledPath = file.path;
 		const settings = this.dependencies.getSettings();
 		const filePath = this.dependencies.formatPathForDebug(file.path, settings.debugVerbosePaths);
 
@@ -221,14 +223,6 @@ class DefaultEnforcementService implements EnforcementService {
 			return;
 		}
 
-		const nextState: ViewState = {
-			...currentState,
-			state: {
-				...currentState.state,
-				mode: 'preview',
-			},
-		};
-
 		this.lastForcedAt.set(leaf, now);
 		// Defer the actual mode write to the next frame to avoid forcing it
 		// in the middle of CodeMirror measurement/layout work.
@@ -242,21 +236,8 @@ class DefaultEnforcementService implements EnforcementService {
 			return;
 		}
 
-		const refreshedState = leaf.getViewState();
-		if (refreshedState.type !== 'markdown') {
-			this.dependencies.logDebug('ensure-preview-skip', {
-				reason,
-				filePath,
-				skipReason: 'non-markdown-state-after-frame',
-			});
-			return;
-		}
-		if ((refreshedState.state as { mode?: string } | undefined)?.mode === 'preview') {
-			this.dependencies.logDebug('ensure-preview-skip', {
-				reason,
-				filePath,
-				skipReason: 'already-preview-after-frame',
-			});
+		const nextState = this.getCurrentPreviewState(leaf, view, scheduledPath);
+		if (!nextState) {
 			return;
 		}
 
@@ -274,7 +255,11 @@ class DefaultEnforcementService implements EnforcementService {
 				errorType: errorInfo.errorType,
 				errorMessage: errorInfo.errorMessage,
 			});
-			await leaf.setViewState(nextState, false);
+			const fallbackState = this.getCurrentPreviewState(leaf, view, scheduledPath);
+			if (!fallbackState) {
+				return;
+			}
+			await leaf.setViewState(fallbackState, false);
 		}
 
 		const afterMode = (leaf.getViewState().state as { mode?: string } | undefined)?.mode ?? this.getLeafMode(leaf);
@@ -284,6 +269,23 @@ class DefaultEnforcementService implements EnforcementService {
 			beforeMode,
 			afterMode,
 		});
+	}
+
+	// Re-read both policy and view state immediately before each write, including fallback.
+	private getCurrentPreviewState(leaf: WorkspaceLeaf, view: MarkdownView, path: string): ViewState | null {
+		if (this.stopped || leaf.view !== view || view.file?.path !== path
+			|| view.file.extension !== 'md' || !this.dependencies.getSettings().enabled
+			|| !this.dependencies.shouldForceReadOnlyPath(path)
+			|| !this.dependencies.getMarkdownLeaves().includes(leaf)) {
+			return null;
+		}
+		const state = leaf.getViewState();
+		const stateFile = (state.state as { file?: string } | undefined)?.file;
+		if (state.type !== 'markdown' || (stateFile !== undefined && stateFile !== path)
+			|| this.getLeafMode(leaf) === 'preview') {
+			return null;
+		}
+		return { ...state, state: { ...state.state, mode: 'preview' } };
 	}
 
 	private scheduleLayoutRetry(leaf: WorkspaceLeaf, reason: string, delayMs: number): void {

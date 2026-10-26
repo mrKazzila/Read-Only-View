@@ -103,6 +103,7 @@ export async function getVaultName() {
 }
 
 export async function getVaultBasePath() {
+	await switchToVaultWindow();
 	return browser.execute(() => globalThis.app?.vault?.adapter?.getBasePath?.() ?? null);
 }
 
@@ -136,10 +137,8 @@ export async function waitForPluginEnabled(pluginId, timeout = 30_000) {
 }
 
 export async function testPathInPluginSettings(inputValue) {
+	await openPluginSettings();
 	await browser.execute((value) => {
-		const app = globalThis.app;
-		app?.setting?.open?.();
-		app?.setting?.openTabById?.('read-only-view');
 		const input = globalThis.document?.querySelector?.('.read-only-view-path-tester input');
 		if (!input) {
 			return;
@@ -167,10 +166,8 @@ export async function testPathInPluginSettings(inputValue) {
 }
 
 export async function testOverlimitPathInput(inputLength) {
+	await openPluginSettings();
 	return browser.execute((length) => {
-		const app = globalThis.app;
-		app?.setting?.open?.();
-		app?.setting?.openTabById?.('read-only-view');
 		const input = globalThis.document?.querySelector?.('.read-only-view-path-tester input');
 		if (!input) {
 			return null;
@@ -189,6 +186,7 @@ export async function testOverlimitPathInput(inputLength) {
 }
 
 export async function openMarkdownFile(relativePath) {
+	await switchToVaultWindow();
 	const result = await browser.execute(async (targetPath) => {
 		const app = globalThis.app;
 		const file = app?.vault?.getAbstractFileByPath?.(targetPath);
@@ -306,4 +304,71 @@ export async function closeObsidianWindowIfOpen() {
 	if (handles.length > 1) {
 		await browser.closeWindow();
 	}
+}
+
+// Check the full path, not just a vault name that a personal vault could share.
+export async function assertSyntheticVault() {
+	await switchToVaultWindow();
+	assert.equal(await getVaultBasePath(), demoVaultPath, 'Refusing to mutate a vault outside the synthetic fixture');
+}
+
+export async function setExplorerIndicators(enabled) {
+	await openPluginSettings();
+	await browser.execute((value) => {
+		const toggle = document.querySelector('[role="switch"][aria-label="Show protection indicators"]');
+		if (!toggle) throw new Error('Explorer indicator setting was not rendered');
+		if (toggle.classList.contains('is-enabled') !== value) toggle.click();
+	}, enabled);
+	await switchToVaultWindow();
+	await browser.waitUntil(() => browser.execute((value) =>
+		globalThis.app.plugins.plugins['read-only-view'].settings.showExplorerProtectionIndicators === value,
+		enabled));
+	await browser.execute(() => globalThis.app.setting.close());
+}
+
+export async function waitForExplorerIndicator(filePath, count) {
+	// Collapsed folders may not have descendant rows until the host reveals them.
+	await browser.execute(async (target) => {
+		const app = globalThis.app;
+		const file = app.vault.getAbstractFileByPath(target);
+		const explorer = app.workspace.getLeavesOfType('file-explorer')[0]?.view;
+		if (!file || !explorer?.revealInFolder) throw new Error('Explorer reveal API unavailable');
+		await explorer.revealInFolder(file);
+	}, filePath);
+	await browser.waitUntil(async () => {
+		const state = await browser.execute((target) => {
+			const rows = Array.from(document.querySelectorAll('.nav-file-title, .nav-folder-title'))
+				.filter((row) => row.getAttribute('data-path') === target);
+			return rows.map((row) => row.querySelectorAll('.read-only-view-protection-indicator').length);
+		}, filePath);
+		return state.length > 0 && state.every((actual) => actual === count);
+	}, { timeoutMsg: `Expected ${count} Explorer indicators for ${filePath}` });
+}
+
+export async function openPluginSettings() {
+	await assertSyntheticVault();
+	await browser.execute(async () => {
+		await globalThis.app.setting.open();
+		await globalThis.app.setting.openTabById('read-only-view');
+	});
+	await browser.waitUntil(async () => {
+		for (const handle of await browser.getWindowHandles()) {
+			await browser.switchToWindow(handle);
+			if (await $('.read-only-view-header-card').isExisting()) return true;
+		}
+		return false;
+	}, { timeoutMsg: 'Plugin Settings did not render in any host window' });
+}
+
+export async function switchToVaultWindow() {
+	for (const handle of await browser.getWindowHandles()) {
+		await browser.switchToWindow(handle);
+		if (await browser.execute((expected) => globalThis.app?.vault?.adapter?.getBasePath?.() === expected, demoVaultPath)) return;
+	}
+	throw new Error('Synthetic vault window is unavailable');
+}
+
+export async function closePluginSettings() {
+	await switchToVaultWindow();
+	await browser.execute(() => globalThis.app.setting.close());
 }

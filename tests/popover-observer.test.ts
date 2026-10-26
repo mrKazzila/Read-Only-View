@@ -219,13 +219,17 @@ test('observer service findLeafByNode uses cache and invalidation', () => {
 	});
 
 	try {
-		assert.ok(service.findLeafByNode(nestedNode as unknown as HTMLElement));
-		assert.ok(service.findLeafByNode(nestedNode as unknown as HTMLElement));
+		assert.equal(service.findLeafByNode(nestedNode as unknown as HTMLElement), leaf);
+		assert.equal(service.findLeafByNode(nestedNode as unknown as HTMLElement), leaf);
 		assert.equal(getLeavesCalls, 1);
 
 		service.invalidateLeafCache();
-		assert.ok(service.findLeafByNode(nestedNode as unknown as HTMLElement));
+		assert.equal(service.findLeafByNode(nestedNode as unknown as HTMLElement), leaf);
 		assert.equal(getLeavesCalls, 2);
+
+		const unrelatedNode = new MockHTMLElement(['.cm-editor']);
+		assert.equal(service.findLeafByNode(unrelatedNode as unknown as HTMLElement), null);
+		assert.equal(getLeavesCalls, 3);
 	} finally {
 		harness.restore();
 	}

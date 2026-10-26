@@ -6,7 +6,7 @@ description: Make all Markdown notes in an Obsidian vault read-only using All Ma
 
 To keep every Markdown note in your Obsidian vault in Reading view, enable Read Only View and select **All Markdown files**. You can also use an **Include** rule with `**` when glob matching is enabled.
 
-Both options help prevent accidental edits in Obsidian. They do not change filesystem permissions or protect attachments and changes made by other applications.
+Both options help [prevent accidental edits in Obsidian](./prevent-accidental-editing.md#reading-view-vs-read-only). They do not change filesystem permissions or protect attachments and changes made by other applications.
 
 ## How do I make my entire Obsidian vault read-only?
 

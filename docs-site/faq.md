@@ -8,6 +8,18 @@ description: Answers about read-only Obsidian notes and folders, temporary editi
 
 You can keep it in Reading view with Read Only View. Choose **Only matched paths** and add an enabled **Include** for the note. The plugin enforces view behavior and blocks input in supported Markdown editors; it does not make the underlying file immutable. Follow the [single-note guide](./guides/make-note-read-only.md).
 
+## Is Reading view the same as read-only protection?
+
+Reading view is a built-in Obsidian view that you can switch out of. Read Only View enforces it for matching notes and blocks input in supported editors. See [Reading view versus read-only protection](./guides/prevent-accidental-editing.md#reading-view-vs-read-only).
+
+## Can I password-protect or securely lock a note?
+
+Read Only View does not add passwords, encryption, or access control. A lock means accidental-edit protection inside supported Obsidian views. Other plugins and applications can still change the file.
+
+## Why are Lock, Explain read-only status, or indicators missing?
+
+These features require **Read Only View 1.1.3 or newer**. Update the plugin under **Settings → Community plugins**, then enable it. Right-click a Markdown note or folder in File Explorer for **Lock → Reading**, **Unlock**, and **Explain read-only status**. Indicators are off by default; turn on **Settings → Read Only View → Advanced → Show protection indicators**. See [feature availability](./index.md#feature-availability).
+
 ## Can I make an entire folder read-only?
 
 Yes, for Markdown note views. With glob matching off, include a folder such as `Reference/` to cover its notes and subfolders. Add **Exclude** rules for editable exceptions. Attachments are unaffected. See the [folder guide](./guides/make-folder-read-only.md).
@@ -90,4 +102,4 @@ Yes. Select **Only matched paths**, enable **Use glob patterns**, and include `R
 
 ## How do I troubleshoot a note that is protected or editable unexpectedly?
 
-Start with **Path tester**, then check the global Enabled toggle, selected mode, matching excludes, and enabled includes. Follow [Troubleshooting](./docs/troubleshooting.md) for each result, including what to do when disabling an include does not remove protection.
+Right-click the note or folder and choose [Explain read-only status](./guides/why-is-my-note-read-only.md) to inspect protection and exceptions. Use **Path tester** to check a supplied path, then review the global Enabled toggle, selected mode, matching excludes, and enabled includes. Follow [Troubleshooting](./docs/troubleshooting.md) for each result, including what to do when disabling an include does not remove protection.

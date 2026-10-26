@@ -1,58 +1,32 @@
 # AGENTS
 
-Repository-level working rules for contributors and coding agents.
+Working rules for the `read-only-view` Obsidian plugin.
 
-## Scope
+## Read when relevant
 
-- Project: Obsidian community plugin `read-only-view`.
-- Language/tooling: TypeScript + esbuild + npm.
-- Runtime target: Obsidian desktop + mobile (`isDesktopOnly: false`).
+- Before changing runtime behavior or module boundaries, read [PROJECT_STATE](docs/PROJECT_STATE.md).
+- For setup, documentation-site work, or Star History tooling, read [CONTRIBUTING](CONTRIBUTING.md).
+- Before live Obsidian testing, read [E2E testing](docs/E2E_TESTING.md) and [demo vault setup](docs/DEMO_VAULT.md).
+- Before changing screenshots, read [image rules](docs/images/README.md).
 
-## Source of truth commands
+## Runtime rules
 
-Prefer `just` recipes:
+- Support desktop and mobile on Obsidian 1.10.3+. Newer APIs need runtime guards or a legacy path; newer installed API types do not raise the runtime baseline.
+- Keep dependencies minimal and Node/Electron-only APIs outside plugin runtime code.
+- Preserve Markdown-only protection and Exclude precedence over global mode and Include rules.
+- Use `changeSettings` for settings mutations and `rule-state.ts` for canonical rule entries and compatibility projections. Mutations must be replayable and modify only the supplied draft.
+- Reuse the compiled matcher for enforcement, diagnostics, and Explorer decisions.
+- Keep command IDs stable unless an explicit migration plan is agreed.
+- Clean up events, observers, timers, and animation frames on disposal; preserve ownership by the originating document/window.
 
-- `just install` — install dependencies (`npm install`)
-- `just dev` — watch mode
-- `just build` — production build
-- `just test` — run unit tests
-- `just lint` — lint
-- `just check` — build + test + lint
-- `just clean` — remove generated artifacts
+## Changes and validation
 
-Equivalent npm scripts exist in `package.json` (`dev`, `build`, `test`, `lint`).
-
-## Repository structure
-
-- `src/main.ts` — plugin lifecycle, enforcement orchestration, settings tab UI.
-- `src/matcher.ts` — path normalization and matching logic.
-- `tests/matcher.test.ts` — unit tests for matcher behavior.
-- `manifest.json` / `versions.json` — plugin metadata and compatibility mapping.
-- `esbuild.config.mjs`, `tsconfig.json`, `tsconfig.test.json`, `eslint.config.mts` — build/test/lint config.
-- `main.js`, `build-tests/` — generated outputs; do not hand-edit.
-
-## Change rules
-
-- Keep dependencies minimal; do not add heavy/runtime matching libraries for this plugin.
-- Do not change plugin behavior silently.
-- When behavior changes, update both:
-  - `README.md` (user-facing behavior)
-  - `docs/PROJECT_STATE.md` (internal system map)
-- Keep command IDs stable unless there is an explicit migration plan.
-- Preserve mobile compatibility and avoid Node/Electron-only runtime APIs.
-
-## Validation before finishing
-
-Run (at minimum):
-
-1. `just lint`
-2. `just test`
-3. `just build`
-
-If something cannot be run, document exactly what was not executed and why.
-
-## Related docs
-
-- README.md — user-facing behavior
-- CONTRIBUTING.md — contribution workflow and PR expectations
-- docs/PROJECT_STATE.md — internal system map
+- Prefer recipes in `Justfile` / `just/`; npm equivalents are in `package.json`.
+- Before finishing changes, run `just check`: build, tests, lint, and Obsidian Community preflight. Report anything not run and why.
+- Fix preflight findings in source; inline ESLint suppression is rejected.
+- Test plugin integration through lifecycle, persisted settings, host events/commands, and `changeSettings`; test algorithms through service interfaces.
+- For site changes, also run `npm run docs:build`. For Python analytics changes, use the checks in CONTRIBUTING.
+- For behavior changes, update README, PROJECT_STATE, and affected public guides in `docs-site/`.
+- Edit source files; regenerate `main.js`, `build-tests/`, and VitePress output.
+- Use synthetic `demo-vault` for automated host testing. Keep personal paths in ignored `just/local.just`.
+- Commit or push only when explicitly requested.

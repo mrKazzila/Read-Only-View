@@ -11,23 +11,34 @@ export interface RuleEntry {
 
 export interface ForceReadModeSettings {
 	enabled: boolean;
+	showExplorerProtectionIndicators: boolean;
 	forceAllMarkdownReadOnly: boolean;
 	useGlobPatterns: boolean;
 	caseSensitive: boolean;
 	debug: boolean;
 	debugVerbosePaths: boolean;
 	dismissedWelcomeVersion: number;
+	/** Compatibility projections; runtime selection uses RuleEntry lists. */
 	includeRules: string[];
 	excludeRules: string[];
 	includeRuleEnabled: boolean[];
 	excludeRuleEnabled: boolean[];
+	/** Canonical rules. Optional only for legacy callers and saved settings. */
 	includeRuleEntries?: RuleEntry[];
 	excludeRuleEntries?: RuleEntry[];
 }
 
+export type IncludeRuleUpdate = (settings: ForceReadModeSettings) => {
+	entries: RuleEntry[];
+	changed: boolean;
+	error?: string;
+};
+
 export interface SettingsTabPlugin {
+	updateOpenRuleEditor?: (update: IncludeRuleUpdate) => Promise<{ changed: boolean; error?: string }> | undefined;
 	settings: ForceReadModeSettings;
-	saveSettings: () => Promise<void>;
+	saveSettings: (snapshot?: ForceReadModeSettings) => Promise<void>;
+	settingsChanged?: () => void;
 	applyAllOpenMarkdownLeaves: (reason: string) => Promise<void>;
 	refreshEditorOptions: () => void;
 	getCompiledRuleMatcher?: () => CompiledRuleMatcher;

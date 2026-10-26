@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const repoRoot = process.cwd();
+const profileDir = path.join(repoRoot, '.tmp', 'obsidian-e2e-profile');
 const screenshotsDir = path.join(repoRoot, '.tmp', 'wdio-artifacts');
 const defaultObsidianPath = process.platform === 'darwin'
 	? '/Applications/Obsidian.app/Contents/MacOS/Obsidian'
@@ -29,6 +30,10 @@ if (!fs.existsSync(obsidianPath)) {
 }
 
 fs.mkdirSync(screenshotsDir, { recursive: true });
+fs.mkdirSync(profileDir, { recursive: true });
+fs.writeFileSync(path.join(profileDir, 'obsidian.json'), JSON.stringify({
+	vaults: { e2edemovault0001: { path: path.join(repoRoot, 'demo-vault'), ts: Date.now(), open: true } },
+}));
 
 export const config = {
 	runner: 'local',
@@ -60,6 +65,7 @@ export const config = {
 			browserVersion: obsidianElectronVersion,
 			'wdio:electronServiceOptions': {
 				appBinaryPath: obsidianPath,
+				appArgs: [`--user-data-dir=${profileDir}`],
 			},
 		},
 	],

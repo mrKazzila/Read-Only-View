@@ -1,3 +1,4 @@
+import { buildRuntimeRules, isRuntimeRuleEntry, loadRuleEntries } from './rule-state';
 import { DebouncedRenderScheduler } from './debounced-render';
 import {
 	buildRuleDiagnosticsWithIgnoredLines,
@@ -10,7 +11,7 @@ import {
 	type RuleResolution,
 	type RuleResolverContext,
 } from './rule-source';
-import type { RuleEntry } from './plugin-types';
+import type { ForceReadModeSettings, IncludeRuleUpdate, RuleEntry } from './plugin-types';
 import {
 	buildSourceInputLimitMessage,
 	formatSourceValueForDisplay,
@@ -28,7 +29,7 @@ import {
 	setSettingsFocusKey,
 } from './settings-focus';
 
-type RuleSaveState = 'saving' | 'saved' | 'error';
+export type RuleSaveState = 'saving' | 'saved' | 'error';
 type RuleType = 'include' | 'exclude';
 
 const RULES_SAVE_DEBOUNCE_MS = 400;
@@ -49,11 +50,9 @@ type RuleRowState = {
 type RuleRowController = {
 	row: RuleRowState;
 	type: RuleType;
-	indexWithinType: number;
 	enabled: boolean;
 	inactiveByMode: boolean;
 	messageEl: HTMLElement;
-	resolution: RuleResolution;
 };
 
 function createRuleRow(entry: RuleEntry, type: RuleType, id: number): RuleRowState {
@@ -71,10 +70,12 @@ function createRuleRow(entry: RuleEntry, type: RuleType, id: number): RuleRowSta
 }
 
 export type RuleEditorController = {
+	setInheritedSaveState: (state: RuleSaveState) => void;
+	applyExternalUpdate: (settings: ForceReadModeSettings, update: IncludeRuleUpdate) => Promise<{ changed: boolean; error?: string }>;
 	dispose: () => void;
 };
 
-type RuleEditorUiState = {
+export type RuleEditorUiState = {
 	includeRules: string[];
 	excludeRules: string[];
 	includeRuleEnabled: boolean[];
@@ -140,36 +141,63 @@ function buildRuleCountsSummary(includeCount: number, excludeCount: number): str
 }
 
 function buildRulesPayload(
-	rows: RuleRowState[],
-	includeRulesActive = true,
-	context: RuleResolverContext = FALLBACK_RESOLVER_CONTEXT,
+	includeRuleEntries: RuleEntry[],
+	excludeRuleEntries: RuleEntry[],
+	includeRulesActive: boolean,
 ): RuleEditorUiState {
-	const buildEntries = (type: RuleType) => rows
-		.filter((row) => row.type === type && row.acceptedValue.trim().length > 0)
-		.map((row) => resolutionToRuleEntry(resolveRow(row, context), row.enabled));
-	const includeRuleEntries = buildEntries('include');
-	const excludeRuleEntries = buildEntries('exclude');
-	const resolved = (entries: RuleEntry[]) => entries
-		.filter((entry): entry is RuleEntry & { resolvedPath: string } => !!entry.resolvedPath);
-	const resolvedInclude = resolved(includeRuleEntries);
-	const resolvedExclude = resolved(excludeRuleEntries);
-	const includeRules = resolvedInclude.map((entry) => entry.resolvedPath);
-	const excludeRules = resolvedExclude.map((entry) => entry.resolvedPath);
+	const runtimeInclude = buildRuntimeRules(includeRuleEntries);
+	const runtimeExclude = buildRuntimeRules(excludeRuleEntries);
+	const includeRules = runtimeInclude.rules;
+	const excludeRules = runtimeExclude.rules;
 	const includeText = includeRules.join('\n');
 	const excludeText = excludeRules.join('\n');
 	return {
 		includeRules,
 		excludeRules,
-		includeRuleEnabled: resolvedInclude.map((entry) => entry.enabled),
-		excludeRuleEnabled: resolvedExclude.map((entry) => entry.enabled),
+		includeRuleEnabled: runtimeInclude.enabled,
+		excludeRuleEnabled: runtimeExclude.enabled,
 		includeRuleEntries,
 		excludeRuleEntries,
 		includeText,
 		excludeText,
 		activeIncludeText: includeRulesActive
-			? resolvedInclude.filter((entry) => entry.enabled).map((entry) => entry.resolvedPath).join('\n')
+			? runtimeInclude.activeRules.join('\n')
 			: '',
-		activeExcludeText: resolvedExclude.filter((entry) => entry.enabled).map((entry) => entry.resolvedPath).join('\n'),
+		activeExcludeText: runtimeExclude.activeRules.join('\n'),
+	};
+}
+
+/** Resolve once per editor revision, preserving the active runtime order for diagnostics. */
+function buildEditorSnapshot(
+	rows: RuleRowState[],
+	includeRulesActive: boolean,
+	context: RuleResolverContext,
+	useGlobPatterns: boolean,
+) {
+	const entries: Record<RuleType, RuleEntry[]> = { include: [], exclude: [] };
+	const activeIndexes = { include: 0, exclude: 0 };
+	const resolvedRows = new Map<number, { resolution: RuleResolution; indexWithinType: number }>();
+	for (const row of rows) {
+		const resolution = resolveRow(row, context);
+		const entry = resolutionToRuleEntry(resolution, row.enabled);
+		const hasValue = row.acceptedValue.trim().length > 0;
+		if (hasValue) entries[row.type].push(entry);
+		const indexWithinType = hasValue && row.enabled && isRuntimeRuleEntry(entry)
+			? activeIndexes[row.type]++
+			: -1;
+		resolvedRows.set(row.id, { resolution, indexWithinType });
+	}
+	const payload = buildRulesPayload(entries.include, entries.exclude, includeRulesActive);
+	const uiState = computeRuleLimitsUiState(payload.activeIncludeText, payload.activeExcludeText);
+	const diagnostics = (text: string, ignored: number[]) => text.length > 0
+		? buildRuleDiagnosticsWithIgnoredLines(text, useGlobPatterns, new Set(ignored))
+		: [];
+	return {
+		payload,
+		resolvedRows,
+		uiState,
+		includeEntries: diagnostics(payload.activeIncludeText, uiState.ignoredIncludeLineIndexes),
+		excludeEntries: diagnostics(payload.activeExcludeText, uiState.ignoredExcludeLineIndexes),
 	};
 }
 
@@ -215,6 +243,9 @@ export class DebouncedRuleChangeSaver {
 		activeExcludeText: '',
 	};
 	private running = false;
+	private completion: Promise<void> = Promise.resolve();
+	private saveFailed = false;
+	private externalFlushes = 0;
 	private pendingRun = false;
 	private disposed = false;
 	private lastCommittedValue: RuleEditorUiState = {
@@ -272,40 +303,52 @@ export class DebouncedRuleChangeSaver {
 			return;
 		}
 		this.disposed = true;
-		this.pendingRun = false;
+		if (this.externalFlushes === 0) this.pendingRun = false;
 		clearOwnedTimeout(this.timer);
 		this.timer = null;
 	}
 
-	private async runCommit(): Promise<void> {
-		if (this.disposed) {
-			return;
-		}
-		if (this.running) {
-			this.pendingRun = true;
-			return;
-		}
-
-		this.running = true;
+	async flushExternal(value: RuleEditorUiState): Promise<void> {
+		this.externalFlushes++;
 		try {
-			const reason = getRulesChangeReason(this.lastCommittedValue, this.lastValue);
-			await this.commit(this.lastValue, reason);
-			this.lastCommittedValue = this.lastValue;
-			if (!this.disposed) {
-				this.onStateChange('saved');
-			}
-		} catch {
-			if (!this.disposed) {
-				this.onStateChange('error');
-			}
+			await this.flush(value);
+			if (this.saveFailed) throw new Error('Could not save path rules.');
 		} finally {
-			this.running = false;
-			if (!this.disposed && this.pendingRun) {
-				this.pendingRun = false;
-				await this.runCommit();
-			}
+			this.externalFlushes--;
 		}
 	}
+
+	private runCommit(): Promise<void> {
+		if (this.disposed) return Promise.resolve();
+		if (this.running) {
+			this.pendingRun = true;
+			return this.completion;
+		}
+		this.running = true;
+		this.completion = this.drainCommits();
+		return this.completion;
+	}
+
+	private async drainCommits(): Promise<void> {
+		try {
+			do {
+				this.pendingRun = false;
+				const value = this.lastValue;
+				try {
+					await this.commit(value, getRulesChangeReason(this.lastCommittedValue, value));
+					this.lastCommittedValue = value;
+					this.saveFailed = false;
+					if (!this.disposed) this.onStateChange('saved');
+				} catch {
+					this.saveFailed = true;
+					if (!this.disposed) this.onStateChange('error');
+				}
+			} while ((!this.disposed || this.externalFlushes > 0) && this.pendingRun);
+		} finally {
+			this.running = false;
+		}
+	}
+
 }
 
 function renderHelpLink(containerEl: HTMLElement): void {
@@ -359,18 +402,8 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	const ownerWindow = containerEl.ownerDocument?.defaultView;
 	let nextRowId = 1;
 	const resolverContext = options.resolverContext ?? FALLBACK_RESOLVER_CONTEXT;
-	const initialIncludeEntries = options.includeRuleEntries && options.includeRuleEntries.length > 0
-		? options.includeRuleEntries
-		: options.includeRules.map((value, index): RuleEntry => ({
-			sourceKind: 'vault-path', sourceValue: value, resolvedPath: value,
-			enabled: options.includeRuleEnabled?.[index] !== false,
-		}));
-	const initialExcludeEntries = options.excludeRuleEntries && options.excludeRuleEntries.length > 0
-		? options.excludeRuleEntries
-		: options.excludeRules.map((value, index): RuleEntry => ({
-			sourceKind: 'vault-path', sourceValue: value, resolvedPath: value,
-			enabled: options.excludeRuleEnabled?.[index] !== false,
-		}));
+	const initialIncludeEntries = loadRuleEntries(options.includeRuleEntries, options.includeRules, options.includeRuleEnabled);
+	const initialExcludeEntries = loadRuleEntries(options.excludeRuleEntries, options.excludeRules, options.excludeRuleEnabled);
 	let rows: RuleRowState[] = [
 		...initialIncludeEntries.map((entry) => createRuleRow(entry, 'include', nextRowId++)),
 		...initialExcludeEntries.map((entry) => createRuleRow(entry, 'exclude', nextRowId++)),
@@ -432,6 +465,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	diagnosticsEl.setAttr('id', diagnosticsId);
 	diagnosticsEl.setAttr('aria-live', 'polite');
 
+	let hasLocalChanges = false;
 	const setSaveState = (state: RuleSaveState) => {
 		if (state === 'saving') {
 			saveStatusEl.setText('Saving...');
@@ -444,7 +478,10 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		saveStatusEl.setText('Saved.');
 	};
 
-	const getCurrentPayload = (): RuleEditorUiState => buildRulesPayload(rows, includeRulesActive, resolverContext);
+	let snapshot: ReturnType<typeof buildEditorSnapshot> | undefined;
+	const getSnapshot = () => snapshot ??= buildEditorSnapshot(rows, includeRulesActive, resolverContext, options.useGlobPatterns);
+	const invalidateSnapshot = () => { snapshot = undefined; };
+	const getCurrentPayload = (): RuleEditorUiState => getSnapshot().payload;
 	let rowControllers = new Map<number, RuleRowController>();
 
 	const saver = new DebouncedRuleChangeSaver(
@@ -455,9 +492,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		ownerWindow,
 	);
 
-	const renderSummaryState = () => {
-		const payload = getCurrentPayload();
-		const uiState = computeRuleLimitsUiState(payload.activeIncludeText, payload.activeExcludeText);
+	const renderSummaryState = ({ payload, uiState }: ReturnType<typeof buildEditorSnapshot>) => {
 		summaryEl.setText(uiState.summaryText);
 		warningEl.empty();
 		if (uiState.volumeWarningMessage) {
@@ -479,34 +514,18 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 			includeCount: includeRulesActive ? payload.includeRuleEnabled.filter(Boolean).length : 0,
 			excludeCount: payload.excludeRuleEnabled.filter(Boolean).length,
 		});
-
-		return uiState;
 	};
 
 	const renderDiagnostics = () => {
-		const payload = getCurrentPayload();
-		const uiState = renderSummaryState();
-		const includeEntries: RuleDiagnosticsEntry[] = includeRulesActive && payload.activeIncludeText.length > 0
-			? buildRuleDiagnosticsWithIgnoredLines(
-				payload.activeIncludeText,
-				options.useGlobPatterns,
-				new Set<number>(uiState.ignoredIncludeLineIndexes),
-			)
-			: [];
-		const excludeEntries = payload.activeExcludeText.length > 0
-			? buildRuleDiagnosticsWithIgnoredLines(
-				payload.activeExcludeText,
-				options.useGlobPatterns,
-				new Set<number>(uiState.ignoredExcludeLineIndexes),
-			)
-			: [];
+		const current = getSnapshot();
+		renderSummaryState(current);
+		const { includeEntries, excludeEntries, resolvedRows } = current;
 
 		let hasSourceError = false;
 		for (const controller of rowControllers.values()) {
-			controller.resolution = resolveRow(controller.row, resolverContext);
-			controller.indexWithinType = rows
-				.filter((row) => row.type === controller.type && row.enabled && resolveRow(row, resolverContext).resolvedPath)
-				.findIndex((row) => row.id === controller.row.id);
+			const resolved = resolvedRows.get(controller.row.id);
+			if (!resolved) continue;
+			const { resolution, indexWithinType } = resolved;
 			controller.messageEl.empty();
 			if (controller.row.inputLimitExceeded) {
 				hasSourceError = true;
@@ -526,34 +545,34 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 			if (!controller.enabled) {
 				continue;
 			}
-			if (controller.resolution.error) {
+			if (resolution.error) {
 				hasSourceError = true;
 				controller.messageEl.createDiv({
-					text: formatSourceValueForDisplay(controller.resolution.error),
+					text: formatSourceValueForDisplay(resolution.error),
 					cls: 'read-only-view-rule-inline-message is-error',
 				});
 				continue;
 			}
-			const resolvedVaultTarget = controller.resolution.sourceKind === 'vault-path'
-				&& controller.resolution.resolvedPath
-				&& controller.resolution.resolvedPath !== controller.resolution.sourceValue;
-			if ((controller.resolution.sourceKind !== 'vault-path' || resolvedVaultTarget)
-				&& controller.resolution.resolvedPath) {
-				const sourceLabel = controller.resolution.sourceKind === 'obsidian-uri'
+			const resolvedVaultTarget = resolution.sourceKind === 'vault-path'
+				&& resolution.resolvedPath
+				&& resolution.resolvedPath !== resolution.sourceValue;
+			if ((resolution.sourceKind !== 'vault-path' || resolvedVaultTarget)
+				&& resolution.resolvedPath) {
+				const sourceLabel = resolution.sourceKind === 'obsidian-uri'
 					? 'Obsidian URL'
-					: controller.resolution.sourceKind === 'absolute-path'
+					: resolution.sourceKind === 'absolute-path'
 						? 'System path'
-						: controller.resolution.resolvedPath.endsWith('/')
+						: resolution.resolvedPath.endsWith('/')
 							? 'Vault folder'
 							: 'Vault file';
 				controller.messageEl.createDiv({
-					text: `${sourceLabel} · Resolved to: ${formatSourceValueForDisplay(controller.resolution.resolvedPath)}`,
+					text: `${sourceLabel} · Resolved to: ${formatSourceValueForDisplay(resolution.resolvedPath)}`,
 					cls: 'read-only-view-rule-inline-message is-resolved',
 				});
 			}
 			const entry = controller.type === 'include'
-				? includeEntries[controller.indexWithinType]
-				: excludeEntries[controller.indexWithinType];
+				? includeEntries[indexWithinType]
+				: excludeEntries[indexWithinType];
 			for (const warning of getInlineMessages(entry)) {
 				controller.messageEl.createDiv({
 					text: formatSourceValueForDisplay(warning),
@@ -603,6 +622,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	);
 
 	const syncRows = (flush = false) => {
+		hasLocalChanges = true;
 		const payload = getCurrentPayload();
 		saver.schedule(payload);
 		if (flush) {
@@ -615,12 +635,9 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 		const focusSnapshot = captureSettingsFocus(tbodyEl);
 		tbodyEl.empty();
 		rowControllers = new Map<number, RuleRowController>();
-		let includeIndex = 0;
-		let excludeIndex = 0;
 
 		for (const row of rows) {
 			const inactiveByMode = row.type === 'include' && !includeRulesActive;
-			const resolution = resolveRow(row, resolverContext);
 			const rowEl = tbodyEl.createEl('tr', {
 				cls: `read-only-view-rule-row${row.enabled ? '' : ' is-disabled'}${inactiveByMode ? ' is-inactive-by-mode' : ''}`,
 			});
@@ -682,33 +699,25 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 			deleteButtonEl.setAttr('title', 'Delete rule');
 			setSettingsFocusKey(deleteButtonEl, `rule-${row.id}-delete`);
 
-			const indexWithinType = row.type === 'include' ? includeIndex : excludeIndex;
-			if (row.enabled && resolution.resolvedPath) {
-				if (row.type === 'include') {
-					includeIndex++;
-				} else {
-					excludeIndex++;
-				}
-			}
 			const controller: RuleRowController = {
 				row,
 				type: row.type,
-				indexWithinType,
 				enabled: row.enabled,
 				inactiveByMode,
 				messageEl,
-				resolution,
 			};
 			rowControllers.set(row.id, controller);
 
 			enabledEl.addEventListener('change', () => {
 				row.enabled = enabledEl.checked;
+				invalidateSnapshot();
 				renderRows();
 				syncRows(true);
 			});
 
 			typeSelectEl.addEventListener('change', () => {
 				row.type = typeSelectEl.value === 'exclude' ? 'exclude' : 'include';
+				invalidateSnapshot();
 				const inactiveByMode = row.type === 'include' && !includeRulesActive;
 				controller.type = row.type;
 				controller.inactiveByMode = inactiveByMode;
@@ -724,6 +733,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 			});
 
 			const readInput = (): boolean => {
+				invalidateSnapshot();
 				const limited = limitSourceInput(inputEl.value, row.inputLimitExceeded);
 				inputEl.value = limited.value;
 				row.value = limited.value;
@@ -759,6 +769,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 
 			deleteButtonEl.addEventListener('click', () => {
 				rows = rows.filter((candidate) => candidate.id !== row.id);
+				invalidateSnapshot();
 				renderRows();
 				syncRows(true);
 			});
@@ -768,6 +779,7 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	};
 
 	addRuleButton.addEventListener('click', () => {
+		invalidateSnapshot();
 		rows.push({
 			id: nextRowId++,
 			type: 'include',
@@ -784,6 +796,32 @@ export function renderRuleEditor(options: RenderRuleEditorOptions): RuleEditorCo
 	renderRows();
 
 	return {
+		setInheritedSaveState: (state) => { if (!hasLocalChanges) setSaveState(state); },
+		applyExternalUpdate: async (settings, update) => {
+			hasLocalChanges = true;
+			const payload = getCurrentPayload();
+			const previous = payload.includeRuleEntries ?? [];
+			const change = update({ ...settings, ...payload });
+			if (change.error) return change;
+			if (!change.changed) {
+				await saver.flushExternal(payload);
+				return change;
+			}
+			invalidateSnapshot();
+			let index = 0;
+			rows = rows.map((row) => {
+				if (row.type !== 'include' || !row.acceptedValue.trim()) return row;
+				const entry = change.entries[index];
+				const oldEntry = previous[index++];
+				return entry && entry !== oldEntry ? createRuleRow(entry, 'include', row.id) : row;
+			});
+			for (const entry of change.entries.slice(previous.length)) {
+				rows.push(createRuleRow(entry, 'include', nextRowId++));
+			}
+			renderRows();
+			await saver.flushExternal(getCurrentPayload());
+			return { changed: true };
+		},
 		dispose: () => {
 			diagnosticsRenderScheduler.dispose();
 			saver.dispose();

@@ -1,5 +1,5 @@
 import { normalizeVaultPath } from './path-utils';
-import { buildEffectiveRules } from './rule-limits';
+import { buildRuleState, getRuleEntries, isRuntimeRuleEntry } from './rule-state';
 import type { ForceReadModeSettings } from './plugin-types';
 
 export { DEFAULT_SETTINGS } from './plugin-settings';
@@ -11,6 +11,7 @@ export interface MatchPathOptions {
 }
 
 export interface CompiledRuleMatcher {
+	isPathProtected: (path: string, kind: 'file' | 'folder') => boolean;
 	effectiveIncludeRules: readonly string[];
 	effectiveExcludeRules: readonly string[];
 	matchIncludeRules: (filePath: string) => string[];
@@ -29,7 +30,9 @@ type RuleSpec = {
 };
 
 export const GLOB_REGEX_CACHE_CAP = 512;
-const globRegexCache = new Map<string, RegExp>();
+type CompiledGlob = { test: (path: string) => boolean };
+
+const globRegexCache = new Map<string, CompiledGlob>();
 
 export function clearGlobRegexCache(): void {
 	globRegexCache.clear();
@@ -39,7 +42,7 @@ export function getGlobRegexCacheSize(): number {
 	return globRegexCache.size;
 }
 
-function setGlobRegexCache(cacheKey: string, compiled: RegExp): void {
+function setGlobRegexCache(cacheKey: string, compiled: CompiledGlob): void {
 	if (globRegexCache.has(cacheKey)) {
 		globRegexCache.set(cacheKey, compiled);
 		return;
@@ -54,10 +57,6 @@ function setGlobRegexCache(cacheKey: string, compiled: RegExp): void {
 }
 
 export { normalizeVaultPath };
-
-function escapeRegexLiteral(value: string): string {
-	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
 
 function normalizeForCase(value: string, caseSensitive: boolean): string {
 	return caseSensitive ? value : value.toLowerCase();
@@ -75,44 +74,111 @@ function applyPrefixModeRuleNormalization(pattern: string): string {
 	return `${pattern}/`;
 }
 
-export function compileGlobToRegex(pattern: string, caseSensitive: boolean): RegExp {
+function isLineTerminator(char: string): boolean {
+	return char === '\n' || char === '\r' || char === '\u2028' || char === '\u2029';
+}
+
+function isLiteralToken(token: string): boolean {
+	return token !== '*' && token !== '**' && token !== '?' && token !== '**/';
+}
+
+function testGlob(tokens: readonly string[], path: string): boolean {
+	let first = 0;
+	let last = tokens.length;
+	let start = 0;
+	let end = path.length;
+	// Peel fixed ends before allocating rows, keeping common long-path rules cheap.
+	while (first < last && isLiteralToken(tokens[first]!)) {
+		const literal = tokens[first++]!;
+		if (!path.startsWith(literal, start) || start + literal.length > end) return false;
+		start += literal.length;
+	}
+	while (first < last && isLiteralToken(tokens[last - 1]!)) {
+		const literal = tokens[--last]!;
+		end -= literal.length;
+		if (end < start || !path.startsWith(literal, end)) return false;
+	}
+	if (first === last) return start === end;
+
+	const length = end - start;
+	let previous = new Uint8Array(length + 1);
+	let current = new Uint8Array(length + 1);
+	previous[0] = 1;
+	let minimum = 0;
+	// Each row records reachable path offsets after one token. No branch is
+	// revisited: O(pattern length * path length) time, O(path length) scratch space.
+	for (let index = first; index < last; index++) {
+		const token = tokens[index]!;
+		current.fill(0);
+		let nextMinimum = length + 1;
+		if (isLiteralToken(token)) {
+			let position = path.indexOf(token, start + minimum);
+			while (position >= 0 && position + token.length <= end) {
+				if (previous[position - start] === 1) {
+					current[position - start + token.length] = 1;
+					nextMinimum = Math.min(nextMinimum, position - start + token.length);
+				}
+				position = path.indexOf(token, position + 1);
+			}
+			minimum = nextMinimum;
+			if (minimum > length) return false;
+			[previous, current] = [current, previous];
+			continue;
+		}
+		const repeat = token === '*' || token === '**';
+		current[0] = repeat || token === '**/' ? previous[0]! : 0;
+		if (current[0] === 1) nextMinimum = 0;
+		let directoryReachable = false;
+		for (let offset = Math.max(1, minimum); offset <= length; offset++) {
+			const char = path[start + offset - 1]!;
+			if (token === '**/') {
+				// (.* /)? without the space: optional directories after a literal slash.
+				directoryReachable = (directoryReachable || previous[offset - 1] === 1)
+					&& !isLineTerminator(char);
+				current[offset] = previous[offset] === 1 || (char === '/' && directoryReachable) ? 1 : 0;
+			} else {
+				const accepts = token === '*' || token === '?' ? char !== '/'
+					: token === '**' ? !isLineTerminator(char) : token === char;
+				current[offset] = repeat
+					? (previous[offset] === 1 || (accepts && current[offset - 1] === 1) ? 1 : 0)
+					: (accepts ? previous[offset - 1]! : 0);
+			}
+			if (current[offset] === 1 && nextMinimum > offset) nextMinimum = offset;
+		}
+		minimum = nextMinimum;
+		if (minimum > length) return false;
+		[previous, current] = [current, previous];
+	}
+	return previous[length] === 1;
+}
+
+// Legacy helper/cache names are retained for callers; the compiled object only
+// exposes .test(), and never constructs a backtracking RegExp.
+export function compileGlobToRegex(pattern: string, caseSensitive: boolean): CompiledGlob {
 	const normalizedPattern = normalizeForCase(normalizeVaultPath(pattern), caseSensitive);
 	const cacheKey = `${caseSensitive ? '1' : '0'}:${normalizedPattern}`;
 	const cached = globRegexCache.get(cacheKey);
-	if (cached) {
-		return cached;
-	}
+	if (cached) return cached;
 
-	let source = '^';
+	const tokens: string[] = [];
 	for (let index = 0; index < normalizedPattern.length; index++) {
-		const char = normalizedPattern[index];
-		if (char === undefined) {
-			continue;
-		}
 		if (normalizedPattern.startsWith('/**/', index)) {
-			source += '/(?:.*/)?';
+			tokens.push('/', '**/');
 			index += 3;
-			continue;
-		}
-		if (char === '*') {
-			const next = normalizedPattern[index + 1];
-			if (next === '*') {
-				source += '.*';
-				index += 1;
+		} else if (normalizedPattern.startsWith('**', index)) {
+			tokens.push('**');
+			index += 1;
+		} else {
+			const char = normalizedPattern[index]!;
+			const previous = tokens[tokens.length - 1];
+			if (isLiteralToken(char) && previous !== undefined && isLiteralToken(previous)) {
+				tokens[tokens.length - 1] = previous + char;
 			} else {
-				source += '[^/]*';
+				tokens.push(char);
 			}
-			continue;
 		}
-		if (char === '?') {
-			source += '[^/]';
-			continue;
-		}
-		source += escapeRegexLiteral(char);
 	}
-	source += '$';
-
-	const compiled = new RegExp(source);
+	const compiled = { test: (path: string) => testGlob(tokens, path) };
 	setGlobRegexCache(cacheKey, compiled);
 	return compiled;
 }
@@ -133,39 +199,17 @@ export function matchPath(filePath: string, pattern: string, options: MatchPathO
 }
 
 export function getCompiledRuleMatcherKey(settings: ForceReadModeSettings): string {
-	return [
-		settings.enabled ? '1' : '0',
-		settings.forceAllMarkdownReadOnly ? '1' : '0',
-		settings.useGlobPatterns ? '1' : '0',
-		settings.caseSensitive ? '1' : '0',
-		settings.includeRules.join('\u0000'),
-		settings.excludeRules.join('\u0000'),
-		settings.includeRuleEnabled.map((enabled) => enabled ? '1' : '0').join(''),
-		settings.excludeRuleEnabled.map((enabled) => enabled ? '1' : '0').join(''),
-		(settings.includeRuleEntries ?? []).map((entry) => `${entry.sourceKind}:${entry.resolvedPath ?? ''}:${entry.enabled ? '1' : '0'}`).join('\u0000'),
-		(settings.excludeRuleEntries ?? []).map((entry) => `${entry.sourceKind}:${entry.resolvedPath ?? ''}:${entry.enabled ? '1' : '0'}`).join('\u0000'),
-	].join('\u0001');
-}
-
-function getEnabledRules(rules: string[], enabledStates: boolean[]): string[] {
-	return rules.filter((_, index) => enabledStates[index] !== false);
-}
-
-function getEnabledRuleSpecs(
-	rules: string[],
-	enabledStates: boolean[],
-	entries: ForceReadModeSettings['includeRuleEntries'],
-): RuleSpec[] {
-	if (entries && entries.length > 0) {
-		return entries
-			.filter((entry): entry is typeof entry & { resolvedPath: string } => !!entry.resolvedPath && entry.enabled)
-			.map((entry) => ({
-				raw: entry.resolvedPath,
-				exact: entry.sourceKind !== 'vault-path'
-					&& !(entry.sourceKind === 'absolute-path' && entry.resolvedPath.endsWith('/')),
-			}));
-	}
-	return getEnabledRules(rules, enabledStates).map((raw) => ({ raw, exact: false }));
+	const entriesKey = (list: 'include' | 'exclude') => getRuleEntries(settings, list).map((entry) => [
+		entry.sourceKind, entry.resolvedPath, entry.enabled, isRuntimeRuleEntry(entry),
+	]);
+	return JSON.stringify([
+		settings.enabled,
+		settings.forceAllMarkdownReadOnly,
+		settings.useGlobPatterns,
+		settings.caseSensitive,
+		entriesKey('include'),
+		entriesKey('exclude'),
+	]);
 }
 
 export function createCompiledRuleMatcher(settings: ForceReadModeSettings): CompiledRuleMatcher {
@@ -173,20 +217,14 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 		useGlobPatterns: settings.useGlobPatterns,
 		caseSensitive: settings.caseSensitive,
 	};
-	const effectiveRules = buildEffectiveRules(
-		getEnabledRules(settings.includeRules, settings.includeRuleEnabled),
-		getEnabledRules(settings.excludeRules, settings.excludeRuleEnabled),
-	);
-	const includeSpecs = getEnabledRuleSpecs(
-		settings.includeRules,
-		settings.includeRuleEnabled,
-		settings.includeRuleEntries,
-	).slice(0, effectiveRules.effectiveIncludeRules.length);
-	const excludeSpecs = getEnabledRuleSpecs(
-		settings.excludeRules,
-		settings.excludeRuleEnabled,
-		settings.excludeRuleEntries,
-	).slice(0, effectiveRules.effectiveExcludeRules.length);
+	const state = buildRuleState(settings);
+	const toSpec = (entry: typeof state.include[number]): RuleSpec => ({
+		raw: entry.resolvedPath,
+		exact: entry.sourceKind !== 'vault-path'
+			&& !(entry.sourceKind === 'absolute-path' && entry.resolvedPath.endsWith('/')),
+	});
+	const includeSpecs = state.include.map(toSpec);
+	const excludeSpecs = state.exclude.map(toSpec);
 	const prepareRule = (spec: RuleSpec): PreparedRule => {
 		const rule = spec.raw;
 		const normalizedRule = normalizeForCase(normalizeVaultPath(rule), options.caseSensitive);
@@ -197,10 +235,10 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 			};
 		}
 		if (options.useGlobPatterns) {
-			const regex = compileGlobToRegex(normalizedRule, true);
+			const glob = compileGlobToRegex(normalizedRule, true);
 			return {
 				raw: rule,
-				matches: (normalizedFilePath: string) => regex.test(normalizedFilePath),
+				matches: (normalizedFilePath: string) => glob.test(normalizedFilePath),
 			};
 		}
 		const prefix = applyPrefixModeRuleNormalization(normalizedRule);
@@ -220,13 +258,15 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 		return rules.filter((rule) => rule.matches(normalizedFilePath)).map((rule) => rule.raw);
 	};
 
-	const shouldForceReadOnlyPath = (filePath: string): boolean => {
+	const isPathProtected = (path: string, kind: 'file' | 'folder'): boolean => {
 		if (!settings.enabled) {
 			return false;
 		}
 
-		const normalizedFilePath = normalizeFilePathForMatch(filePath, options.caseSensitive);
-		if (!normalizedFilePath.toLowerCase().endsWith('.md')) {
+		const normalizedPath = normalizeFilePathForMatch(path, options.caseSensitive);
+		const normalizedFilePath = kind === 'folder' && !normalizedPath.endsWith('/')
+			? `${normalizedPath}/` : normalizedPath;
+		if (!normalizedPath || (kind === 'file' && !normalizedFilePath.toLowerCase().endsWith('.md'))) {
 			return false;
 		}
 
@@ -248,11 +288,12 @@ export function createCompiledRuleMatcher(settings: ForceReadModeSettings): Comp
 	};
 
 	return {
-		effectiveIncludeRules: effectiveRules.effectiveIncludeRules,
-		effectiveExcludeRules: effectiveRules.effectiveExcludeRules,
+		effectiveIncludeRules: state.limits.effectiveIncludeRules,
+		effectiveExcludeRules: state.limits.effectiveExcludeRules,
 		matchIncludeRules: (filePath: string) => matchRules(filePath, preparedIncludeRules),
 		matchExcludeRules: (filePath: string) => matchRules(filePath, preparedExcludeRules),
-		shouldForceReadOnly: shouldForceReadOnlyPath,
+		isPathProtected,
+		shouldForceReadOnly: (path) => isPathProtected(path, 'file'),
 	};
 }
 

@@ -169,6 +169,10 @@ export class MockHTMLElement {
 		return type === MockHTMLElement || type === (globalThis as Record<string, unknown>).HTMLElement;
 	}
 
+	closest(selector: string): MockHTMLElement | null {
+		return this.matches(selector) ? this : this.parentElement?.closest(selector) ?? null;
+	}
+
 	matches(selector: string): boolean {
 		return selector
 			.split(',')
@@ -237,6 +241,8 @@ type MockMutationObserverInit = {
 };
 
 type MockMutationRecord = {
+	target?: MockHTMLElement;
+	removedNodes?: unknown[];
 	addedNodes: unknown[];
 };
 

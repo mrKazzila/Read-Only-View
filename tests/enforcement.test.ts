@@ -1,3 +1,4 @@
+import { withFakeAnimationFrames } from './helpers/test-setup.js';
 import type { WorkspaceLeaf } from 'obsidian';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -89,54 +90,6 @@ function withFakeTimeouts(callback: (tools: { flushAll: () => Promise<void> }) =
 		globalThis.setTimeout = originalSetTimeout;
 		globalThis.clearTimeout = originalClearTimeout;
 		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
-	});
-}
-
-function withFakeAnimationFrames(
-	callback: (tools: { flushNextFrame: () => Promise<void>; pendingFrameCount: () => number }) => Promise<void>
-): Promise<void> {
-	const originalWindow = (globalThis as Record<string, unknown>).window;
-	const originalActiveWindow = (globalThis as Record<string, unknown>).activeWindow;
-	const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
-	const originalCancelAnimationFrame = globalThis.cancelAnimationFrame;
-
-	let nextId = 1;
-	const queue = new Map<number, FrameRequestCallback>();
-	const frameWindow = {
-		requestAnimationFrame: (callbackHandler: FrameRequestCallback) => {
-			const id = nextId++;
-			queue.set(id, callbackHandler);
-			return id;
-		},
-		cancelAnimationFrame: (frameId: number) => {
-			queue.delete(frameId);
-		},
-	};
-
-	(globalThis as Record<string, unknown>).window = frameWindow;
-	(globalThis as Record<string, unknown>).activeWindow = frameWindow;
-	globalThis.requestAnimationFrame = frameWindow.requestAnimationFrame;
-	globalThis.cancelAnimationFrame = frameWindow.cancelAnimationFrame;
-
-	const flushNextFrame = async () => {
-		const nextEntry = queue.entries().next();
-		if (nextEntry.done) {
-			return;
-		}
-		const [frameId, callbackHandler] = nextEntry.value;
-		queue.delete(frameId);
-		callbackHandler(16);
-		await Promise.resolve();
-	};
-
-	return callback({
-		flushNextFrame,
-		pendingFrameCount: () => queue.size,
-	}).finally(() => {
-		(globalThis as Record<string, unknown>).window = originalWindow;
-		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
-		globalThis.requestAnimationFrame = originalRequestAnimationFrame;
-		globalThis.cancelAnimationFrame = originalCancelAnimationFrame;
 	});
 }
 
@@ -236,6 +189,13 @@ function withOwnedFakeAnimationFrameWindows(
 	});
 }
 
+test('service contract: disabled enforcement does not scan leaves', async () => {
+	const setup = createService({ settings: { enabled: false } });
+	await setup.service.applyAllOpenMarkdownLeaves('disabled');
+	assert.equal(setup.getMarkdownLeavesCalls(), 0);
+	assert.equal(setup.leaves[0]?.setViewStateCalls.length, 0);
+});
+
 test('service contract: queues pending reapply while enforcement is running', async () => {
 	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/file.md', mode: 'source' });
 	const setup = createService({ leaves: [leaf] });
@@ -258,7 +218,7 @@ test('service contract: queues pending reapply while enforcement is running', as
 	releaseFirstCall();
 	await activeRun;
 
-	assert.equal(setup.getMarkdownLeavesCalls(), 2);
+	assert.equal(setup.getMarkdownLeavesCalls(), 3);
 });
 
 test('service contract: per-leaf throttle preserves 120ms behavior', async () => {
@@ -294,6 +254,8 @@ test('service contract: fallback logging keeps redacted path format', async () =
 	});
 
 	await setup.service.applyAllOpenMarkdownLeaves('fallback-test');
+	assert.deepEqual(leaf.setViewStateCalls.map((call) => call.arg), [false]);
+	assert.equal(leaf.view.getMode(), 'preview');
 
 	const fallbackLog = setup.debugCalls.find((entry) => entry.message === 'ensure-preview-fallback');
 	assert.ok(fallbackLog);
@@ -599,4 +561,131 @@ test('cancelAnimationFrameSafe uses provided owner window when activeWindow chan
 		(globalThis as Record<string, unknown>).window = originalWindow;
 		(globalThis as Record<string, unknown>).activeWindow = originalActiveWindow;
 	}
+});
+
+test('service contract: navigation before the frame cancels the old transition', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/A.md', mode: 'source' });
+	const { service } = createService({ leaves: [leaf] });
+	await withFakeAnimationFrames(async ({ flushNextFrame }) => {
+		const pending = service.ensurePreview(leaf as unknown as WorkspaceLeaf, 'navigation');
+		leaf.setFilePath('docs/B.md');
+		await flushNextFrame();
+		await pending;
+		assert.equal(leaf.setViewStateCalls.length, 0);
+	});
+});
+
+test('service contract: disabling protection before the frame cancels the transition', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/A.md', mode: 'source' });
+	const { service, settings } = createService({ leaves: [leaf] });
+	await withFakeAnimationFrames(async ({ flushNextFrame }) => {
+		const pending = service.ensurePreview(leaf as unknown as WorkspaceLeaf, 'disable');
+		settings.enabled = false;
+		await flushNextFrame();
+		await pending;
+		assert.equal(leaf.setViewStateCalls.length, 0);
+	});
+});
+
+test('service contract: a closed leaf receives no deferred transition', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/A.md', mode: 'source' });
+	const leaves = [leaf];
+	const { service } = createService({ leaves });
+	await withFakeAnimationFrames(async ({ flushNextFrame }) => {
+		const pending = service.ensurePreview(leaf as unknown as WorkspaceLeaf, 'close');
+		leaves.splice(0);
+		await flushNextFrame();
+		await pending;
+		assert.equal(leaf.setViewStateCalls.length, 0);
+	});
+});
+
+test('service contract: fallback cancels when navigation occurs during the failed write', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/A.md', mode: 'source' });
+	const { service } = createService({ leaves: [leaf] });
+	const originalSetViewState = leaf.setViewState.bind(leaf);
+	leaf.setViewState = async () => {
+		leaf.setViewState = originalSetViewState;
+		leaf.setFilePath('docs/B.md');
+		throw new Error('replace failed');
+	};
+	await withFakeAnimationFrames(async ({ flushNextFrame }) => {
+		const pending = service.ensurePreview(leaf as unknown as WorkspaceLeaf, 'fallback-navigation');
+		await flushNextFrame();
+		await pending;
+		assert.equal(leaf.setViewStateCalls.length, 0);
+	});
+});
+
+
+test('service contract: each write preserves the latest state of the protected note', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/A.md', mode: 'source' });
+	const { service } = createService({ leaves: [leaf] });
+	let scroll = 1;
+	leaf.getViewState = () => ({ type: 'markdown', state: { mode: 'source', file: 'docs/A.md', scroll } });
+	const attemptedStates: unknown[] = [];
+	const attemptedArgs: unknown[] = [];
+	leaf.setViewState = async (state, arg) => {
+		attemptedStates.push(state);
+		attemptedArgs.push(arg);
+		leaf.setViewState = async (fallbackState, fallbackArg) => {
+			attemptedStates.push(fallbackState);
+			attemptedArgs.push(fallbackArg);
+		};
+		scroll = 3;
+		throw new Error('replace failed');
+	};
+	await withFakeAnimationFrames(async ({ flushNextFrame }) => {
+		const pending = service.ensurePreview(leaf as unknown as WorkspaceLeaf, 'fresh-state');
+		scroll = 2;
+		await flushNextFrame();
+		await pending;
+		assert.deepEqual(attemptedArgs, [{ replace: true }, false]);
+		assert.deepEqual(attemptedStates, [
+			{ type: 'markdown', state: { mode: 'preview', file: 'docs/A.md', scroll: 2 } },
+			{ type: 'markdown', state: { mode: 'preview', file: 'docs/A.md', scroll: 3 } },
+		]);
+	});
+});
+
+const failedWriteChanges: Array<{ name: string; change: (setup: ReturnType<typeof createService>) => void }> = [
+	{ name: 'disable', change: ({ settings }) => { settings.enabled = false; } },
+	{ name: 'stop', change: ({ service }) => service.stop() },
+	{ name: 'close', change: ({ leaves }) => { leaves.splice(0); } },
+	{ name: 'replace-view', change: ({ leaves }) => {
+		leaves[0]!.view = createMockWorkspaceLeaf({ filePath: 'docs/A.md' }).view;
+	} },
+	{ name: 'preview', change: ({ leaves }) => leaves[0]!.setMode('preview') },
+];
+
+for (const { name, change } of failedWriteChanges) {
+	test(`service contract: fallback cancels after ${name} during a failed write`, async () => {
+		const leaf = createMockWorkspaceLeaf({ filePath: 'docs/A.md', mode: 'source' });
+		const setup = createService({ leaves: [leaf] });
+		const { service } = setup;
+		const originalSetViewState = leaf.setViewState.bind(leaf);
+		leaf.setViewState = async () => {
+			leaf.setViewState = originalSetViewState;
+			change(setup);
+			throw new Error('replace failed');
+		};
+		await withFakeAnimationFrames(async ({ flushNextFrame }) => {
+			const pending = service.ensurePreview(leaf as unknown as WorkspaceLeaf, 'fallback-current-state');
+			await flushNextFrame();
+			await pending;
+			assert.equal(leaf.setViewStateCalls.length, 0);
+		});
+	});
+}
+
+test('service contract: inconsistent file and view state cannot restore another note', async () => {
+	const leaf = createMockWorkspaceLeaf({ filePath: 'docs/A.md', mode: 'source' });
+	const { service } = createService({ leaves: [leaf] });
+	await withFakeAnimationFrames(async ({ flushNextFrame }) => {
+		const pending = service.ensurePreview(leaf as unknown as WorkspaceLeaf, 'inconsistent-state');
+		leaf.getViewState = () => ({ type: 'markdown', state: { mode: 'source', file: 'docs/B.md' } });
+		await flushNextFrame();
+		await pending;
+		assert.equal(leaf.setViewStateCalls.length, 0);
+	});
 });

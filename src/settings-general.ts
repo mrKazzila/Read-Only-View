@@ -1,4 +1,5 @@
-import { ToggleComponent } from 'obsidian';
+import { changeSettings } from './settings-lifecycle';
+import { Notice, ToggleComponent } from 'obsidian';
 import type { ForceReadModeSettings, SettingsTabPlugin } from './plugin-types';
 import { setSettingsFocusKey } from './settings-focus';
 
@@ -14,6 +15,11 @@ type ToggleSettingConfig = {
 };
 
 const TOGGLE_SETTINGS: ToggleSettingConfig[] = [
+	{
+		name: 'Show protection indicators',
+		description: 'Show a lock indicator next to protected notes and folders in the File Explorer.',
+		settingKey: 'showExplorerProtectionIndicators',
+	},
 	{
 		name: 'Enabled',
 		description: 'Enable or disable read-only enforcement globally.',
@@ -100,6 +106,8 @@ export function renderBooleanSetting(
 				refresh,
 				toggleSetting.reapplyReason,
 			);
+			toggle.setValue(plugin.settings[settingKey]);
+			toggle.toggleEl.setAttr('aria-checked', plugin.settings[settingKey] ? 'true' : 'false');
 		});
 }
 
@@ -304,13 +312,11 @@ export async function updateBooleanSetting(
 	refresh: () => void,
 	reapplyReason?: string,
 ): Promise<void> {
-	plugin.settings[settingKey] = value;
-	await plugin.saveSettings();
-	if (reapplyReason) {
-		plugin.refreshEditorOptions();
+	try {
+		await changeSettings(plugin, (draft) => { draft[settingKey] = value; }, reapplyReason);
+	} catch {
+		new Notice('Could not save or apply settings. Please try again.');
+	} finally {
+		refresh();
 	}
-	if (reapplyReason && (settingKey !== 'enabled' || value)) {
-		await plugin.applyAllOpenMarkdownLeaves(reapplyReason);
-	}
-	refresh();
 }

@@ -1,0 +1,249 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { TFile, TFolder, type App, type Menu, type MenuItem, type Vault } from 'obsidian';
+import { addPathContextMenu, applyPathRuleAction } from '../src/path-context-menu.js';
+import ReadOnlyViewPlugin from '../src/main.js';
+import { mergeLoadedSettings } from '../src/plugin-settings.js';
+import type { SettingsTabPlugin } from '../src/plugin-types.js';
+import { createMainTestHarness } from './helpers/test-setup.js';
+import { createCompiledRuleMatcher } from '../src/matcher.js';
+import { RULE_LIMIT_INCLUDE_MAX } from '../src/constants.js';
+
+function note(path = 'notes/example.md', extension = 'md'): TFile {
+	return Object.assign(new TFile(), { path, extension });
+}
+
+function folder(path = 'notes', children: (TFile | TFolder)[] = [note()]): TFolder {
+	return Object.assign(new TFolder(), { path, children });
+}
+const vault = {
+	getName: () => 'test',
+	getFileByPath: (path: string) => Object.assign(new TFile(), { path, extension: 'md' }),
+	getAbstractFileByPath: () => folder(),
+	getMarkdownFiles: () => [{ path: 'notes/example.md' }],
+} as unknown as Vault;
+
+function fixture() {
+	const calls: string[] = [];
+	const notices: string[] = [];
+	const plugin: SettingsTabPlugin = {
+		settings: mergeLoadedSettings({ forceAllMarkdownReadOnly: false }),
+		saveSettings: async () => { calls.push('save'); },
+		refreshEditorOptions: () => { calls.push('refresh'); },
+		applyAllOpenMarkdownLeaves: async () => { calls.push('apply'); },
+	};
+	return { plugin, calls, notices, notify: (message: string) => { notices.push(message); } };
+}
+
+test('Markdown menu callbacks lock and unlock the note while attachments have no action', async () => {
+	const { plugin } = fixture();
+	const titles: string[] = [];
+	let click: (() => Promise<void>) | undefined;
+	const item = {
+		setTitle(title: string) { titles.push(title); return this; },
+		setIcon() { return this; },
+		onClick(callback: () => Promise<void>) { click = callback; return this; },
+	} as unknown as MenuItem;
+	const menu = { addItem: (callback: (item: MenuItem) => void) => callback(item) } as unknown as Menu;
+	addPathContextMenu(menu, Object.assign(new TFile(), { path: 'image.png', extension: 'png' }), plugin, vault, () => {});
+	assert.deepEqual(titles, []);
+	const note = Object.assign(new TFile(), { path: 'notes/example.md', extension: 'md' });
+	addPathContextMenu(menu, note, plugin, vault, () => {});
+	assert.ok(click);
+	await click();
+	assert.equal(plugin.settings.includeRuleEntries?.[0]?.enabled, true);
+	addPathContextMenu(menu, note, plugin, vault, () => {});
+	await click();
+	assert.equal(plugin.settings.includeRuleEntries?.[0]?.enabled, false);
+	assert.deepEqual(titles, ['Explain read-only status', 'Lock → Reading', 'Explain read-only status', 'Unlock']);
+});
+
+test('folder menu skips root and reflects enabled rules and mode changes', () => {
+	const { plugin } = fixture();
+	const titles: string[] = [];
+	const item = {
+		setTitle(title: string) { titles.push(title); return this; },
+		setIcon() { return this; }, onClick() { return this; },
+	} as unknown as MenuItem;
+	const menu = { addItem: (callback: (item: MenuItem) => void) => callback(item) } as unknown as Menu;
+	addPathContextMenu(menu, new TFile(), plugin, vault, () => {});
+	addPathContextMenu(menu, folder('/'), plugin, vault, () => {});
+	assert.deepEqual(titles, ['Explain read-only status']);
+	titles.length = 0;
+	addPathContextMenu(menu, folder(), plugin, vault, () => {});
+	plugin.settings = mergeLoadedSettings({ includeRules: ['notes/'] });
+	addPathContextMenu(menu, folder(), plugin, vault, () => {});
+	plugin.settings.useGlobPatterns = true;
+	addPathContextMenu(menu, folder(), plugin, vault, () => {});
+	assert.deepEqual(titles, ['Explain read-only status', 'Lock → Reading', 'Explain read-only status', 'Unlock', 'Explain read-only status', 'Lock → Reading']);
+});
+
+test('actions apply optimistically and persist; repeated actions are safe', async () => {
+	const { plugin, calls, notify } = fixture();
+	await applyPathRuleAction(plugin, vault, folder(), true, notify);
+	assert.deepEqual(calls, ['refresh', 'apply', 'save']);
+	await applyPathRuleAction(plugin, vault, folder(), true, notify);
+	assert.equal(calls.length, 3);
+	await applyPathRuleAction(plugin, vault, folder(), false, notify);
+	assert.deepEqual(calls, ['refresh', 'apply', 'save', 'refresh', 'apply', 'save']);
+	assert.deepEqual(plugin.settings.includeRuleEnabled, [false]);
+});
+
+test('folder notices inspect nested Markdown descendants without enumerating the vault', async () => {
+	const { plugin, notices, notify } = fixture();
+	const subtreeVault = {
+		...vault,
+		getMarkdownFiles: () => { throw new Error('Must not enumerate unrelated folders'); },
+	} as unknown as Vault;
+	const target = folder('notes', [
+		note('notes/image.png', 'png'),
+		folder('notes/nested', [note('notes/nested/example.MD', 'MD')]),
+	]);
+	plugin.settings = mergeLoadedSettings({ forceAllMarkdownReadOnly: false, excludeRules: ['notes/nested/'] });
+	await applyPathRuleAction(plugin, subtreeVault, target, true, notify);
+	assert.deepEqual(notices, ['An Exclude rule takes priority for some existing notes in this folder.']);
+	assert.deepEqual(plugin.settings.includeRuleEnabled, [true]);
+});
+
+test('folder unlock notices retain nested protection and global-mode precedence', async () => {
+	for (const globalMode of [false, true]) {
+		const { plugin, notices, notify } = fixture();
+		plugin.settings = mergeLoadedSettings({
+			forceAllMarkdownReadOnly: globalMode,
+			includeRules: ['notes/', 'notes/nested/'],
+		});
+		const subtreeVault = {
+			...vault,
+			getMarkdownFiles: () => { throw new Error('Must not enumerate unrelated folders'); },
+		} as unknown as Vault;
+		await applyPathRuleAction(plugin, subtreeVault, folder('notes', [
+			folder('notes/nested', [note('notes/nested/a.md'), note('notes/nested/b.md')]),
+		]), false, notify);
+		assert.deepEqual(notices, [globalMode
+			? 'Path rule saved. All Markdown files mode remains active; Exclude rules still take priority.'
+			: 'Some existing notes in this folder remain protected by another rule.']);
+		assert.deepEqual(plugin.settings.includeRuleEnabled, [false, true]);
+	}
+});
+
+for (const children of [[], [note('notes/image.png', 'png')]]) {
+	test(`folder notices ignore ${children.length ? 'attachments' : 'empty folders'} for lock and unlock`, async () => {
+		for (const lock of [true, false]) {
+			const { plugin, notices, notify } = fixture();
+			plugin.settings = mergeLoadedSettings({
+				forceAllMarkdownReadOnly: false, useGlobPatterns: true,
+				includeRules: lock ? ['**'] : ['notes/**', '**'],
+				excludeRules: lock ? ['notes/**'] : [],
+			});
+			await applyPathRuleAction(plugin, vault, folder('notes', children), lock, notify);
+			assert.deepEqual(notices, []);
+		}
+	});
+}
+
+test('path notices reuse the current matcher after saving both lock and unlock changes', async () => {
+	for (const target of [folder(), note()]) {
+		const { plugin, calls, notices, notify } = fixture();
+		plugin.settings = mergeLoadedSettings({ forceAllMarkdownReadOnly: false, excludeRules: ['notes/'] });
+		let matcher = createCompiledRuleMatcher(plugin.settings);
+		let acquisitions = 0;
+		plugin.saveSettings = async () => {
+			calls.push('save');
+			matcher = createCompiledRuleMatcher(plugin.settings);
+		};
+		plugin.getCompiledRuleMatcher = () => {
+			assert.equal(calls[calls.length - 1], 'save');
+			acquisitions++;
+			return matcher;
+		};
+		await applyPathRuleAction(plugin, vault, target, true, notify);
+		assert.equal(acquisitions, 1);
+		assert.match(notices.pop() ?? '', /Exclude rule/);
+		await applyPathRuleAction(plugin, vault, target, false, notify);
+		assert.equal(acquisitions, 2);
+		assert.deepEqual(notices, []);
+		assert.equal(matcher.shouldForceReadOnly('notes/example.md'), false);
+	}
+});
+
+test('failed save restores previous rules and republishes protection without claiming success', async () => {
+	const { plugin, calls, notices, notify } = fixture();
+	const before = structuredClone(plugin.settings);
+	plugin.saveSettings = () => Promise.reject(new Error('disk full'));
+	await applyPathRuleAction(plugin, vault, folder(), true, notify);
+	assert.deepEqual(plugin.settings, before);
+	assert.deepEqual(calls, ['refresh', 'apply', 'refresh', 'apply']);
+	assert.match(notices[0] ?? '', /Could not save/);
+});
+
+test('notices explain exclusions, inherited protection, global mode, disabled plugin and limits', async () => {
+	const { plugin, notices, notify } = fixture();
+	plugin.settings = mergeLoadedSettings({ forceAllMarkdownReadOnly: false, excludeRules: ['notes/'] });
+	await applyPathRuleAction(plugin, vault, folder(), true, notify);
+	assert.match(notices.pop() ?? '', /Exclude rule/);
+	plugin.settings = mergeLoadedSettings({ forceAllMarkdownReadOnly: false, includeRules: ['notes/', 'notes/**'], useGlobPatterns: true });
+	await applyPathRuleAction(plugin, vault, folder(), false, notify);
+	assert.equal(plugin.settings.includeRuleEnabled.every((enabled) => !enabled), true);
+	plugin.settings = mergeLoadedSettings({ forceAllMarkdownReadOnly: false, includeRules: ['notes/', '**'], useGlobPatterns: true });
+	await applyPathRuleAction(plugin, vault, folder(), false, notify);
+	assert.match(notices.pop() ?? '', /another rule/);
+	plugin.settings = mergeLoadedSettings({ forceAllMarkdownReadOnly: true });
+	await applyPathRuleAction(plugin, vault, folder(), true, notify);
+	assert.match(notices.pop() ?? '', /All Markdown files/);
+	plugin.settings.enabled = false;
+	await applyPathRuleAction(plugin, vault, folder(), false, notify);
+	assert.match(notices.pop() ?? '', /disabled/);
+	plugin.settings = mergeLoadedSettings({ forceAllMarkdownReadOnly: false, includeRules: Array.from({ length: RULE_LIMIT_INCLUDE_MAX }, (_, i) => `folder${i}/`) });
+	await applyPathRuleAction(plugin, vault, folder(), true, notify);
+	assert.match(notices.pop() ?? '', /rule limit/);
+	assert.equal(plugin.settings.includeRuleEntries?.length, RULE_LIMIT_INCLUDE_MAX + 1);
+});
+
+for (const target of [folder(), Object.assign(new TFile(), { path: 'notes/example.md', extension: 'md' })]) {
+test(`real plugin saves and enforces an open leaf for ${target.path}`, async () => {
+	const harness = createMainTestHarness();
+	const plugin = new ReadOnlyViewPlugin(harness.app as unknown as App, {
+		id: 'read-only-view', name: 'Read Only View', version: '1.1.3', minAppVersion: '1.10.3', author: 'test', description: 'test',
+	});
+	let saved: unknown;
+	plugin.saveData = async (data: unknown) => { saved = structuredClone(data); };
+	plugin.settings = mergeLoadedSettings({ forceAllMarkdownReadOnly: false });
+	try {
+		const before = plugin.getCompiledRuleMatcher();
+		await applyPathRuleAction(plugin, vault, target, true, () => undefined);
+		assert.notEqual(plugin.getCompiledRuleMatcher(), before);
+		assert.equal(harness.leaves[0]?.getViewState().state.mode, 'preview');
+		assert.equal(harness.workspace.updateOptionsCalls, 1);
+		assert.equal(mergeLoadedSettings(saved).includeRuleEntries?.[0]?.enabled, true);
+		await applyPathRuleAction(plugin, vault, target, false, () => undefined);
+		assert.equal(plugin.shouldForceReadOnlyPath('notes/example.md'), false);
+		assert.equal(mergeLoadedSettings(saved).includeRuleEntries?.[0]?.enabled, false);
+	} finally {
+		plugin.onunload();
+		harness.restore();
+	}
+});
+
+}
+
+
+test('failed real save restores matcher and settings, and a retry succeeds', async () => {
+	const harness = createMainTestHarness();
+	const plugin = new ReadOnlyViewPlugin(harness.app as unknown as App, {
+		id: 'read-only-view', name: 'Read Only View', version: '1.1.3', minAppVersion: '1.10.3', author: 'test', description: 'test',
+	});
+	plugin.loadData = async () => ({ forceAllMarkdownReadOnly: false });
+	await plugin.loadSettings();
+	plugin.saveData = async () => { throw new Error('disk full'); };
+	try {
+		const action = applyPathRuleAction(plugin, vault, folder(), true, () => undefined);
+		assert.equal(plugin.shouldForceReadOnlyPath('notes/example.md'), true);
+		assert.equal(harness.workspace.updateOptionsCalls, 1);
+		await action;
+		assert.equal(plugin.shouldForceReadOnlyPath('notes/example.md'), false);
+		assert.deepEqual(plugin.settings.includeRuleEntries, []);
+		plugin.saveData = async () => undefined;
+		await applyPathRuleAction(plugin, vault, folder(), true, () => undefined);
+		assert.equal(plugin.shouldForceReadOnlyPath('notes/example.md'), true);
+	} finally { plugin.onunload(); harness.restore(); }
+});

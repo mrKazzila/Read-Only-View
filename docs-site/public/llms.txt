@@ -11,6 +11,10 @@
 - [Prevent accidental editing](https://mrkazzila.github.io/Read-Only-View/guides/prevent-accidental-editing)
 - [Mobile Reading view](https://mrkazzila.github.io/Read-Only-View/guides/mobile-reading-view)
 
+- [Lock and Unlock](https://mrkazzila.github.io/Read-Only-View/guides/lock-notes-and-folders)
+- [Explain read-only status](https://mrkazzila.github.io/Read-Only-View/guides/why-is-my-note-read-only)
+- [Protection indicators](https://mrkazzila.github.io/Read-Only-View/guides/show-locked-notes-in-file-explorer)
+
 ## Reference
 
 - [Path rules](https://mrkazzila.github.io/Read-Only-View/docs/path-rules)
@@ -27,3 +31,5 @@
 
 Read Only View controls Obsidian's Reading/Edit view behavior.
 It does not modify operating-system file permissions or provide filesystem-level locking.
+
+Lock/Unlock, Explain read-only status, and optional File Explorer protection indicators are available in Read Only View 1.1.3 and newer.

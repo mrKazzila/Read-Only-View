@@ -1,5 +1,6 @@
 import {
 	Plugin,
+	Notice,
 	MarkdownView,
 	WorkspaceLeaf,
 	type MarkdownFileInfo,
@@ -10,7 +11,7 @@ import {
 	getCompiledRuleMatcherKey,
 	type CompiledRuleMatcher,
 } from './matcher';
-import { shouldReapplyAfterEnabledChange } from './command-controls';
+import { changeSettings } from './settings-lifecycle';
 import { formatPathForDebug } from './debug-log';
 import { createEditorReadOnlyExtension } from './editor-readonly';
 import { createEnforcementService, type EnforcementService } from './enforcement';
@@ -21,20 +22,29 @@ import { ForceReadModeSettingTab } from './settings-tab';
 import type { ForceReadModeSettings } from './plugin-types';
 import { maybeShowWelcomeModal } from './settings-welcome';
 import { WorkspaceEventController } from './workspace-events';
+import { ReadOnlyStatusModal } from './read-only-status-modal';
+import { addPathContextMenu } from './path-context-menu';
+import { ExplorerIndicatorController } from './explorer-indicators';
 
 export { formatPathForDebug } from './debug-log';
 
 export default class ReadOnlyViewPlugin extends Plugin {
 	settings: ForceReadModeSettings = { ...DEFAULT_SETTINGS };
 
+	private explorerIndicators: ExplorerIndicatorController | null = null;
 	private enforcementService: EnforcementService | null = null;
 	private popoverObserverService: PopoverObserverService | null = null;
 	private workspaceEventController: WorkspaceEventController | null = null;
 	private compiledRuleMatcher: CompiledRuleMatcher = createCompiledRuleMatcher(this.settings);
 	private compiledRuleMatcherKey = getCompiledRuleMatcherKey(this.settings);
+	private rulesRevision = 0;
+	private compiledRulesRevision = 0;
 
 	async onload(): Promise<void> {
 		const isFreshInstall = await this.loadSettings();
+		this.explorerIndicators = new ExplorerIndicatorController(this.app, () => this.getCompiledRuleMatcher());
+		this.syncExplorerIndicators();
+		this.app.workspace.onLayoutReady(() => this.explorerIndicators?.refresh());
 		this.registerEditorExtension(createEditorReadOnlyExtension({
 			shouldForceReadOnlyPath: (path) => this.shouldForceReadOnlyPath(path),
 			onReadOnlyInteraction: (info, reason) => {
@@ -48,6 +58,12 @@ export default class ReadOnlyViewPlugin extends Plugin {
 			setPluginEnabled: (enabled, reason) => this.setPluginEnabled(enabled, reason),
 			applyAllOpenMarkdownLeaves: (reason) => this.applyAllOpenMarkdownLeaves(reason),
 		});
+
+		this.registerEvent(this.app.workspace.on('file-menu', (menu, file) => {
+			addPathContextMenu(menu, file, this, this.app.vault, (explanation) => {
+				new ReadOnlyStatusModal(this.app, explanation).open();
+			});
+		}));
 
 		this.registerEvent(this.app.workspace.on('file-open', () => {
 			this.reconcileMutationObservers();
@@ -95,6 +111,8 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	}
 
 	onunload(): void {
+		this.explorerIndicators?.stop();
+		this.explorerIndicators = null;
 		if (this.workspaceEventController) {
 			this.workspaceEventController.stop();
 			this.workspaceEventController = null;
@@ -117,9 +135,26 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		return loaded === null || loaded === undefined;
 	}
 
-	async saveSettings(): Promise<void> {
-		this.rebuildCompiledRuleMatcher();
-		await this.saveData(this.settings);
+	async saveSettings(snapshot: ForceReadModeSettings = this.settings): Promise<void> {
+		await this.saveData(snapshot);
+	}
+
+	settingsChanged(): void {
+		const key = getCompiledRuleMatcherKey(this.settings);
+		if (key !== this.compiledRuleMatcherKey) {
+			this.compiledRuleMatcherKey = key;
+			this.rulesRevision++;
+		}
+		this.syncExplorerIndicators();
+	}
+
+	private syncExplorerIndicators(): void {
+		if (this.settings.showExplorerProtectionIndicators && this.settings.enabled) {
+			this.explorerIndicators?.start();
+			this.explorerIndicators?.refresh();
+		} else {
+			this.explorerIndicators?.stop();
+		}
 	}
 
 	private async setPluginEnabled(enabled: boolean, reason: string): Promise<void> {
@@ -127,12 +162,11 @@ export default class ReadOnlyViewPlugin extends Plugin {
 		if (previousEnabled === enabled) {
 			return;
 		}
-		this.settings.enabled = enabled;
-		await this.saveSettings();
-		this.refreshEditorOptions();
-		this.logDebug('set-enabled', { enabled: this.settings.enabled, reason });
-		if (shouldReapplyAfterEnabledChange(previousEnabled, enabled)) {
-			await this.applyAllOpenMarkdownLeaves(reason);
+		try {
+			await changeSettings(this, (draft) => { draft.enabled = enabled; }, reason);
+			this.logDebug('set-enabled', { enabled: this.settings.enabled, reason });
+		} catch {
+			new Notice('Could not save or apply settings. Please try again.');
 		}
 	}
 
@@ -193,8 +227,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	}
 
 	getCompiledRuleMatcher(): CompiledRuleMatcher {
-		const nextKey = getCompiledRuleMatcherKey(this.settings);
-		if (nextKey !== this.compiledRuleMatcherKey) {
+		if (this.compiledRulesRevision !== this.rulesRevision) {
 			this.rebuildCompiledRuleMatcher();
 		}
 		return this.compiledRuleMatcher;
@@ -203,6 +236,7 @@ export default class ReadOnlyViewPlugin extends Plugin {
 	private rebuildCompiledRuleMatcher(): void {
 		this.compiledRuleMatcher = createCompiledRuleMatcher(this.settings);
 		this.compiledRuleMatcherKey = getCompiledRuleMatcherKey(this.settings);
+		this.compiledRulesRevision = this.rulesRevision;
 	}
 
 	private invalidateLeafContainerCache(): void {
@@ -215,10 +249,6 @@ export default class ReadOnlyViewPlugin extends Plugin {
 
 	private reconcileMutationObservers(): void {
 		this.getPopoverObserverService().reconcileDocuments();
-	}
-
-	private findLeafByNode(node: HTMLElement): WorkspaceLeaf | null {
-		return this.getPopoverObserverService().findLeafByNode(node);
 	}
 
 	private async handleProtectedEditorInput(

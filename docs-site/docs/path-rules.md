@@ -1,12 +1,12 @@
 ---
-title: Path Rules for Read Only View
+title: Obsidian Read-Only Path Rules — Includes and Excludes
 description: Learn how Include and Exclude rules, folder prefixes, exact imported notes, glob patterns, and matching precedence work in Read Only View.
 ---
 
 <script setup>
-import settingsScreenshot from "../../docs/images/community-images/Read-Only-View-path-rules-1200x800.png";
+import settingsScreenshot from "../../docs/images/documentation/Read-Only-View-path-rules-1200x800.png";
 </script>
-# Path rules
+# Obsidian Read-Only Path Rules {#path-rules}
 
 **Path rules** select which Markdown notes stay in Reading view. Open **Settings → Read Only View** to add, disable, or remove a rule.
 
@@ -22,7 +22,7 @@ New installations start in **All Markdown files** mode. Include rules are retain
 
 Each row has an **Enabled** checkbox, an **Include** or **Exclude** type, a **Value** field, and a Delete button. Disable a row to keep it for later without applying it. Disabled and unresolved rules do not participate in matching or active-rule counts.
 
-<img :src="settingsScreenshot" alt="Path rules showing vault paths, Obsidian URLs, and system paths" />
+<img :src="settingsScreenshot" alt="Path rules showing vault paths, Obsidian URLs, and system paths" width="1200" height="800" loading="lazy" decoding="async" />
 
 ## Ordinary vault paths
 
@@ -110,6 +110,24 @@ Yes. Add an enabled **Include** under **Path rules** in **Only matched paths**, 
 Obsidian URLs may omit `.md`. Heading and block locators do not change which note is selected. A URL must name the current vault. Absolute system-path imports are available only on desktop, but the saved vault-relative path remains portable to mobile. The full system path is not persisted after successful import.
 
 If a source cannot be resolved, its value remains visible with an explanation, but it does not match anything. Imported sources require existing targets and do not automatically follow later renames.
+
+## Lock and Unlock
+
+Follow the [File Explorer Lock and Unlock guide](../guides/lock-notes-and-folders.md) for steps and an editable-drafts example. The details below explain how the shortcut represents paths.
+
+Right-click a Markdown note or folder in the file explorer and choose **Lock → Reading** to create or enable an Include rule. The rule appears under **Path rules** and applies immediately to open notes. Existing rules for the same target are reused.
+
+Choose **Unlock** to disable all exact Include rules for that target without deleting them. It does not disable parent folder rules, change Exclude rules, turn off the plugin, or leave **All Markdown files** mode. A note can therefore remain protected after unlocking; check [Path tester](./path-tester.md) to see why.
+
+### Notes
+
+New note locks use an exact Obsidian URL Include rule that works in both prefix and glob modes. Unlocking a note does not override a folder lock. Note paths containing `#`, `*`, or `?` cannot currently be represented by the exact-rule resolver; the action shows a notice without changing rules.
+
+### Folders
+
+Folder locks use `Folder/` in prefix mode and `Folder/**` in glob mode. Switching matching modes does not rewrite saved rules: choose **Lock → Reading** again to adapt the existing folder rule without adding a duplicate.
+
+Renaming or deleting a folder leaves its rules unchanged. The vault root does not offer the lock shortcut, and folder names containing `*` or `?` cannot be locked this way in glob mode. Existing rule limits still apply.
 
 ## Verify the result
 

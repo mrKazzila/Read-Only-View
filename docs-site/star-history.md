@@ -22,4 +22,4 @@ The reconstructed curve sums the API's daily counts from the first available wee
 
 An event's three-day window covers its previous day, event day and following day. Its change compares observed totals on event day −2 and event day +1. It is unavailable without both snapshots. Calendar alignment with API history is approximate.
 
-Maintain events and run the collector using the [repository Star History instructions](https://github.com/mrKazzila/Read-Only-View#star-history).
+Maintain events and run the collector using the [repository Star History instructions](https://github.com/mrKazzila/Read-Only-View/blob/master/CONTRIBUTING.md#star-history-maintenance).

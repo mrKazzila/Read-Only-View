@@ -37,7 +37,13 @@ export class App {
     this.setting = undefined;
   }
 }
+export function setIcon(element, icon) { element.setAttr("data-icon", icon); }
 export class WorkspaceLeaf {}
+export class Notice {
+  constructor(message) {
+    this.message = message;
+  }
+}
 export class MarkdownView {}
 export class TFile {
   constructor(path = '') {
@@ -103,6 +109,9 @@ export class Modal {
         createEl() { return this; },
         createDiv() { return this; },
       };
+    this.containerEl = this.contentEl;
+    this.modalEl = this.containerEl.createDiv();
+    this.contentEl = this.modalEl.createDiv();
     this.opened = false;
   }
   onOpen() {}
