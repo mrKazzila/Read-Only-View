@@ -61,7 +61,7 @@ npm run docs:preview
 
 With `just`, run `just docs-dev` from the repository root to start the local site (equivalent to `npm run docs:dev`). It generates offline analytics before starting VitePress. Stop the server with `Ctrl+C`.
 
-The root `package.json` overrides VitePress's Vite dependency to `^6.4.3`: VitePress 1.6.4 otherwise requires the vulnerable Vite 5 line and its older esbuild. The nested Vite override also uses `$esbuild` to reuse the root esbuild pin (currently 0.28.1), meeting the minimum fixed version reported by Dependabot. These overrides cross the declared Vite and esbuild version ranges, so validate `docs:dev`, `docs:build`, and `docs:preview` when updating these dependencies. The website explicitly targets Safari 14.1+ (instead of Vite 6's Safari 14 default) because esbuild 0.28 cannot lower destructuring for that older target; the other Vite 6 browser targets are retained. This affects the website only, not the Obsidian plugin runtime. Remove the overrides when a stable VitePress release natively uses a patched Vite version.
+The root `package.json` overrides VitePress's Vite dependency to `^6.4.5`: VitePress 1.6.4 otherwise requires the vulnerable Vite 5 line and its older esbuild. The nested Vite override also uses `$esbuild` to reuse the root esbuild pin (currently 0.28.1), meeting the minimum fixed version reported by Dependabot. These overrides cross the declared Vite and esbuild version ranges, so validate `docs:dev`, `docs:build`, and `docs:preview` when updating these dependencies. The website explicitly targets Safari 14.1+ (instead of Vite 6's Safari 14 default) because esbuild 0.28 cannot lower destructuring for that older target; the other Vite 6 browser targets are retained. This affects the website only, not the Obsidian plugin runtime. Remove the overrides when a stable VitePress release natively uses a patched Vite version.
 
 Open the URL printed by VitePress, including `/Read-Only-View/`. The build checks Markdown links and writes `docs-site/.vitepress/dist/`. Preview that production build to check images and navigation under the repository base path. VitePress configuration and theme files are separate from the Obsidian runtime lint configuration; validate them with the site build.
 
@@ -72,6 +72,10 @@ Use images from `docs/images/documentation/` for both the repository README and 
 The build also runs `npm run docs:validate` against generated HTML. It checks sitemap coverage and duplicate URLs, unique titles/descriptions, canonical/social metadata, H1 counts, indexing restrictions, local links and fragments, image assets/alt text, and reachability from the homepage. Preserve existing routes and explicit heading anchors. Before documenting a feature as available, compare the latest published release with the source; remove pre-release qualifications when it ships and retain minimum-version guidance where useful.
 
 The site emits `sitemap.xml` and `robots.txt`. Because this is a project site, its robots file lives at `/Read-Only-View/robots.txt`; crawlers only use robots directives at the origin root. If you maintain `mrkazzila.github.io`, add the sitemap URL to its root robots file, or submit the sitemap directly in your search-engine webmaster tools.
+
+The Moment override (`^2.31.0`) patches the development dependency pinned by Obsidian API packages. It does not replace the Moment version provided by the Obsidian host at runtime.
+
+Generate dependency lockfile changes with Node 22 and npm 10, matching CI, and verify them with `npm ci`. Some Dependabot updates remove optional peer dependency entries that npm 10 requires. If installation reports missing lockfile entries, run `npm install --package-lock-only --ignore-scripts` with npm 10, review the diff, and rerun `npm ci` before merging.
 
 ## Star History maintenance
 

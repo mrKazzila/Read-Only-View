@@ -302,7 +302,7 @@ Screenshots shared by README and the site live in `docs/images/documentation/`.
 Community listing assets live separately in `docs/images/community-images/`;
 originals live in `docs/images/sources/`. Follow [image rules](images/README.md).
 
-VitePress currently has scoped Vite/esbuild overrides in `package.json`.
+VitePress currently has scoped Vite `^6.4.5` and esbuild overrides in `package.json`.
 Their rationale and upgrade checks live in CONTRIBUTING.
 The site's Safari 14.1 target is separate from plugin runtime compatibility.
 
