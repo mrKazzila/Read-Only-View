@@ -222,7 +222,6 @@ The controller observes Explorer containers and indexes rows by path/ancestors.
 Create/delete/rename, DOM changes and matcher revisions update affected rows
 without a full-vault traversal. Disable/unload removes icons and listeners.
 Undocumented Explorer selectors are isolated here; unsupported markup is skipped.
-See [Explorer invalidation profile](EXPLORER_INVALIDATION_PROFILE.md).
 
 ## Build and validation
 
@@ -259,9 +258,8 @@ These are historical results, not validation of every later change.
 
 Mocks and narrow desktop captures do not establish real mobile/popout behavior.
 Legacy Settings, keyboard/focus, welcome flows, and broader editor interactions
-still need applicable host checks. See [Release QA](RELEASE_QA.md),
-[compatibility matrix](compatibility-matrix.md), and
-[test coverage audit](TEST_COVERAGE_AUDIT.md); check their dates when using them.
+still need applicable host checks. See [Release QA](RELEASE_QA.md) and
+[compatibility matrix](compatibility-matrix.md); check their dates when using them.
 
 ## Local development
 
