@@ -186,7 +186,7 @@ If the issue persists, [report it](https://github.com/mrKazzila/Read-Only-View/i
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for source builds, local development, desktop/mobile testing, and documentation maintenance. Project activity is available in the [Star History dashboard](https://mrkazzila.github.io/Read-Only-View/star-history).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for source builds, local development, desktop/mobile testing, and documentation maintenance. Project activity is available in the [Star History dashboard](https://mrkazzila.github.io/Read-Only-View/star-history) and [Download History dashboard](https://mrkazzila.github.io/Read-Only-View/download-history).
 
 ## License
 

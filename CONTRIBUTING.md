@@ -102,7 +102,7 @@ Use the build and preview commands in [Documentation website](#documentation-web
 
 Public API requests need no token. Optionally provide `GITHUB_TOKEN` through your environment; never commit it. The collector retrieves up to 100 pages of 30 weeks each and fails rather than save a potentially truncated import. HTTP/rate-limit, network or validation failures return a nonzero exit status and preserve the previous file. Retry after resolving the error or rate limit. Writes use an atomic replace; an identical result preserves the file and `updated_at`.
 
-The **Update star history** workflow runs daily at **03:17 UTC** (06:17 Minsk time), subject to GitHub scheduling delays, and supports manual dispatch on `master`. It uses `contents: write` only in its update job and the automatic `GITHUB_TOKEN` to commit changed history as `chore: update star history`. No PAT or additional secret is required. Repository rules must permit the bot to push to `master`; a rejected push fails without bypassing protections. A successful run triggers the existing Pages workflow through `workflow_run`, because token-authenticated pushes do not trigger ordinary push workflows. Forks do not collect or publish through this trigger.
+The **Update project history** workflow runs daily at **03:17 UTC** (06:17 Minsk time), subject to GitHub scheduling delays, and supports manual dispatch on `master`. It uses `contents: write` only in its update job and the automatic `GITHUB_TOKEN` to commit changed history as `chore: update project history`. No PAT or additional secret is required. Repository rules must permit the bot to push to `master`; a rejected push fails without bypassing protections. A successful run triggers the existing Pages workflow through `workflow_run`, because token-authenticated pushes do not trigger ordinary push workflows. Forks do not collect or publish through this trigger.
 
 ### Adding project events
 
@@ -262,3 +262,24 @@ This plugin is intended to evaluate rules locally and does not require network a
 ## License
 
 By contributing, you agree that your contributions will be licensed under the repository’s license (see `LICENSE`).
+
+## Download History maintenance
+
+The [Download History dashboard](https://mrkazzila.github.io/Read-Only-View/download-history) reads aggregate `read-only-view` statistics from `obsidianmd/obsidian-releases/community-plugin-stats.json`. These are download counts, not unique users or active installations. No user identities are collected.
+
+Committed data lives in `docs-site/public/data/download-history.json`. Each observation preserves its UTC date, publication timestamp, source commit SHA, download total and original `updated` timestamp (Unix milliseconds). The last publication per UTC day wins. Missing plugin entries are omitted, not zeroed. The cursor advances even when the plugin is absent, so repeated runs do not invent observations. Source publication and actual download times can differ.
+
+```bash
+# Initial import only, performed separately from the scheduled workflow
+python3 scripts/update_download_history.py --bootstrap
+# Incremental collection, including missed upstream publications
+python3 scripts/update_download_history.py
+# Targeted collector and calculation tests
+uv run pytest tests/download_history
+```
+
+The first import starts at the first public release, 1.0.1 (2026-02-23T16:04:36Z), paginates the official file's commit history, and downloads the last file revision for each UTC date. It may transfer hundreds of historical files. `--bootstrap` permits creation of a missing dataset; an existing dataset always resumes from its cursor. A deliberate full reimport requires moving the saved file aside first. Optionally provide `GITHUB_TOKEN` for GitHub API requests; it is never sent to raw file downloads or saved in the dataset.
+
+The **Update project history** workflow updates stars and downloads daily at 03:17 UTC with the automatic `GITHUB_TOKEN`, commits both datasets, and triggers Pages. The existing workflow filename remains `update-star-history.yml`. HTTP, rate-limit, malformed-data and missing-cursor errors fail without replacing the saved download history. Resolve the error before retrying; do not reset the cursor to bypass an incomplete import.
+
+`npm run docs:dev` and `docs:build` generate ignored `download-analytics.json` offline. The browser never queries upstream APIs. Changes compare adjacent observations and retain negative source corrections; multi-day intervals are labelled. Cards require exact 7/30-day boundaries relative to the latest observation. Missing dates are not interpolated. The graph, table and JSON preserve these distinctions.

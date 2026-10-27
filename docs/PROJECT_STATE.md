@@ -1,6 +1,6 @@
 # PROJECT_STATE
 
-Last updated: 2026-10-20
+Last updated: 2026-10-27
 
 Current system map for the `read-only-view` Obsidian plugin.
 This document describes implementation and constraints; development procedures
@@ -282,7 +282,7 @@ output are not source files.
 
 `docs-site/` is the VitePress site; `docs/` holds internal project documentation.
 The site includes workflow guides, rule documentation, Path tester,
-troubleshooting, FAQ, and Star History.
+troubleshooting, FAQ, Star History, and Download History.
 
 `docs-site/.vitepress/config.ts` owns navigation, `/Read-Only-View/` base,
 sitemap, canonical/social metadata and homepage structured data.
@@ -307,7 +307,7 @@ Their rationale and upgrade checks live in CONTRIBUTING.
 The site's Safari 14.1 target is separate from plugin runtime compatibility.
 
 Pages builds pull requests and deploys `master`; it also rebuilds after successful
-upstream Star History updates. Plugin releases use a separate workflow with
+upstream project history updates. Plugin releases use a separate workflow with
 lint/preflight/tests/build, tag/manifest/version-entry checks, artifact attestations,
 and publication of `main.js`, `manifest.json`, and optional `styles.css`.
 
@@ -359,3 +359,17 @@ When behavior changes, update this map, README, and affected public guides.
 Keep workflow instructions in CONTRIBUTING and scenario results in the relevant
 QA documents. Record the actual app/platform and checks performed; do not treat
 mock coverage or historical runs as current host verification.
+
+## Download History tooling
+
+Official Obsidian plugin stats commit history → `scripts/update_download_history.py` →
+committed `docs-site/public/data/download-history.json` → offline
+`scripts/build_download_analytics.py` → ignored generated analytics → `/download-history`.
+
+`scripts/download_history/` contains collection, provenance validation and calculations.
+The first import starts at release 1.0.1; subsequent runs resume from the saved source SHA.
+Each UTC date uses its last published file snapshot. Missing entries are omitted, missing
+dates remain gaps, and source corrections can produce negative changes. Totals describe
+downloads, not people. Exact boundary observations are required for 7/30-day cards.
+The shared **Update project history** workflow updates both datasets before Pages deploys.
+This tooling is separate from plugin runtime and uses only Python's standard library.

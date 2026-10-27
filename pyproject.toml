@@ -7,13 +7,13 @@ requires-python = ">=3.11"
 dev = ["pytest==9.0.3", "ruff==0.13.3"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests/star_history"]
+testpaths = ["tests/star_history", "tests/download_history"]
 pythonpath = ["scripts"]
 
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-include = ["scripts/star_history/**/*.py", "scripts/update_star_history.py", "scripts/build_star_analytics.py", "tests/star_history/**/*.py"]
+include = ["scripts/star_history/**/*.py", "scripts/update_star_history.py", "scripts/build_star_analytics.py", "tests/star_history/**/*.py", "scripts/download_history/**/*.py", "scripts/update_download_history.py", "scripts/build_download_analytics.py", "tests/download_history/**/*.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]

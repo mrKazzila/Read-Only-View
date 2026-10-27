@@ -19,7 +19,7 @@
 		"docs:build": "npm run docs:analytics && vitepress build docs-site && npm run docs:validate",
 		"docs:validate": "node scripts/validate-docs-sitemap.mjs",
 		"docs:preview": "vitepress preview docs-site",
-		"docs:analytics": "python3 scripts/build_star_analytics.py"
+		"docs:analytics": "python3 scripts/build_star_analytics.py && python3 scripts/build_download_analytics.py"
 	},
 	"keywords": [],
 	"license": "0BSD",

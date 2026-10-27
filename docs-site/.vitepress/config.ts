@@ -35,6 +35,7 @@ export default defineConfig({
 			{ text: 'Path rules', link: '/docs/path-rules' },
 			{ text: 'FAQ', link: '/faq' },
 			{ text: 'Star history', link: '/star-history' },
+			{ text: 'Download history', link: '/download-history' },
 		],
 		sidebar: [
 			{ text: 'Guides', items: guides },

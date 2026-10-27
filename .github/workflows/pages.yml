@@ -7,7 +7,7 @@ on:
     branches: [master]
   workflow_dispatch:
   workflow_run:
-    workflows: [Update star history]
+    workflows: [Update project history]
     types: [completed]
     branches: [master]
 

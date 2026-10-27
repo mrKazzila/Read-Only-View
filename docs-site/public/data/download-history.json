@@ -1,0 +1,1185 @@
+{
+  "schema_version": 1,
+  "source": "obsidianmd/obsidian-releases",
+  "plugin": "read-only-view",
+  "since": "2026-02-23T16:04:36Z",
+  "cursor": "cfd715d20cddf20e8610170f0c7c72f049b7992a",
+  "snapshots": [
+    {
+      "sha": "7e78777896864a225cb6757c8eac8391ba386937",
+      "published_at": "2026-05-13T01:01:46Z",
+      "date": "2026-05-13",
+      "downloads": 56,
+      "updated": 1772182301000
+    },
+    {
+      "sha": "80c2ba8b37149a1bb1b73179ec22df02b9571f26",
+      "published_at": "2026-05-14T00:59:05Z",
+      "date": "2026-05-14",
+      "downloads": 59,
+      "updated": 1772182301000
+    },
+    {
+      "sha": "0877b646a224c343d6403a83c6fc48c7af74d92b",
+      "published_at": "2026-05-15T00:59:33Z",
+      "date": "2026-05-15",
+      "downloads": 64,
+      "updated": 1772182301000
+    },
+    {
+      "sha": "632f6edecf4934c500c6db6af1e44648639e21b0",
+      "published_at": "2026-05-16T00:54:54Z",
+      "date": "2026-05-16",
+      "downloads": 65,
+      "updated": 1772182301000
+    },
+    {
+      "sha": "5a1a8f0ffe9137f59f38047a29510acf99ff18b9",
+      "published_at": "2026-05-17T01:02:04Z",
+      "date": "2026-05-17",
+      "downloads": 72,
+      "updated": 1772182301000
+    },
+    {
+      "sha": "e61488b7a8f8ec5703097915c44880e4f508a811",
+      "published_at": "2026-05-18T00:59:45Z",
+      "date": "2026-05-18",
+      "downloads": 75,
+      "updated": 1772182301000
+    },
+    {
+      "sha": "ed6333f2c2e08307bd75b17aaea5fed3f16369db",
+      "published_at": "2026-05-19T01:02:35Z",
+      "date": "2026-05-19",
+      "downloads": 85,
+      "updated": 1779139375000
+    },
+    {
+      "sha": "2407919e48c2385eba8d81a37071bb21b36c83c3",
+      "published_at": "2026-05-20T01:04:49Z",
+      "date": "2026-05-20",
+      "downloads": 89,
+      "updated": 1779139375000
+    },
+    {
+      "sha": "0a03176dd4af741d1efb29428fcd0867457441e5",
+      "published_at": "2026-05-21T01:10:55Z",
+      "date": "2026-05-21",
+      "downloads": 95,
+      "updated": 1779139375000
+    },
+    {
+      "sha": "d0350ae13f7bc9ed48796eb920a592e7dab23c5a",
+      "published_at": "2026-05-22T01:04:23Z",
+      "date": "2026-05-22",
+      "downloads": 100,
+      "updated": 1779139375000
+    },
+    {
+      "sha": "eaf0383d605f6d9fc224830ac0cc905fe15f933d",
+      "published_at": "2026-05-23T01:04:13Z",
+      "date": "2026-05-23",
+      "downloads": 106,
+      "updated": 1779428614000
+    },
+    {
+      "sha": "0eb201c7fc1d79e10c19fa80676c3d00cf5d8d17",
+      "published_at": "2026-05-24T01:05:11Z",
+      "date": "2026-05-24",
+      "downloads": 116,
+      "updated": 1779428614000
+    },
+    {
+      "sha": "5352e3f63b53a36ada2ca587afb0c68019a230f9",
+      "published_at": "2026-05-25T00:59:09Z",
+      "date": "2026-05-25",
+      "downloads": 123,
+      "updated": 1779428614000
+    },
+    {
+      "sha": "281f50e63ac384fe2bea05dd2b3d7ce150d1d312",
+      "published_at": "2026-05-26T01:06:04Z",
+      "date": "2026-05-26",
+      "downloads": 130,
+      "updated": 1779428614000
+    },
+    {
+      "sha": "6823ae2c186619cdff456787b811e999506d51db",
+      "published_at": "2026-05-27T01:09:58Z",
+      "date": "2026-05-27",
+      "downloads": 133,
+      "updated": 1779428614000
+    },
+    {
+      "sha": "f67c4d3ccdb803f80e916cdfe7d2783e1dc35ac2",
+      "published_at": "2026-05-28T01:01:48Z",
+      "date": "2026-05-28",
+      "downloads": 139,
+      "updated": 1779428614000
+    },
+    {
+      "sha": "51dda6421f5f94556ab41b0b35e3b27fe7ab798a",
+      "published_at": "2026-05-29T01:10:47Z",
+      "date": "2026-05-29",
+      "downloads": 147,
+      "updated": 1779428614000
+    },
+    {
+      "sha": "0e3ce4ef955b4d7c3a515972d543ba4c02a51075",
+      "published_at": "2026-05-30T01:04:14Z",
+      "date": "2026-05-30",
+      "downloads": 151,
+      "updated": 1779428614000
+    },
+    {
+      "sha": "b283fcdf269ac3ec8c891f72bf2184d196acd6e7",
+      "published_at": "2026-05-31T01:07:19Z",
+      "date": "2026-05-31",
+      "downloads": 157,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "4f34e931f2628284ff8dc72eee4955b40aa43443",
+      "published_at": "2026-06-01T01:04:24Z",
+      "date": "2026-06-01",
+      "downloads": 169,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "385ad41e813f39585170f627b3742eb84c626449",
+      "published_at": "2026-06-02T01:10:25Z",
+      "date": "2026-06-02",
+      "downloads": 177,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "84ce25f65b545fa533abf70b25a82ba9ab6e2955",
+      "published_at": "2026-06-03T01:16:17Z",
+      "date": "2026-06-03",
+      "downloads": 196,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "380eb02fcb4c1b7ea79c29f9446a28c2fab0cb6e",
+      "published_at": "2026-06-04T01:16:44Z",
+      "date": "2026-06-04",
+      "downloads": 207,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "367afaa4c7dee5f97632ebc8a18ba971c7a4830f",
+      "published_at": "2026-06-05T01:12:14Z",
+      "date": "2026-06-05",
+      "downloads": 211,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "8bca353f1848566f757dc2f95c2f03e8f056cd51",
+      "published_at": "2026-06-06T01:05:45Z",
+      "date": "2026-06-06",
+      "downloads": 218,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "665bf47eb452dd05f36bc384a09bbfc85ba4d207",
+      "published_at": "2026-06-07T01:02:04Z",
+      "date": "2026-06-07",
+      "downloads": 218,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "03e82d12671aad3a727a748c6f5c3fc4ff54ac15",
+      "published_at": "2026-06-08T01:06:48Z",
+      "date": "2026-06-08",
+      "downloads": 218,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "f5bb2a3731fca408ab1ca1606ce373513fecc4f4",
+      "published_at": "2026-06-09T00:59:25Z",
+      "date": "2026-06-09",
+      "downloads": 248,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "3eaf1307ac1cbe6a27fc11802f8720dbf57ab005",
+      "published_at": "2026-06-10T01:11:47Z",
+      "date": "2026-06-10",
+      "downloads": 252,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "6e66cdabbff612b5868110ae87ee21ebaf6f9090",
+      "published_at": "2026-06-11T01:19:02Z",
+      "date": "2026-06-11",
+      "downloads": 258,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "99817eea116e6443424b241faf20b433a2dde6ea",
+      "published_at": "2026-06-12T01:14:01Z",
+      "date": "2026-06-12",
+      "downloads": 264,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "53b22701b1a438457f3a3cd2dc4d768a6249b3c8",
+      "published_at": "2026-06-13T01:07:26Z",
+      "date": "2026-06-13",
+      "downloads": 269,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "1ffbf6fdcc0ae203c78d4b3db40eec73d2e48b93",
+      "published_at": "2026-06-14T01:07:54Z",
+      "date": "2026-06-14",
+      "downloads": 273,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "f50c90ab84050192e615b5b75b39cabc37b997ba",
+      "published_at": "2026-06-15T01:13:54Z",
+      "date": "2026-06-15",
+      "downloads": 280,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "21c9fec2da0d8ff91eeba7f48b02bf0fd99f1b97",
+      "published_at": "2026-06-16T00:56:20Z",
+      "date": "2026-06-16",
+      "downloads": 281,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "ca21eac462e93c2d4472c51e70741cc96fe82920",
+      "published_at": "2026-06-17T00:51:06Z",
+      "date": "2026-06-17",
+      "downloads": 281,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "450e4699ee21b7865e62572f6422a2e2f30bf322",
+      "published_at": "2026-06-18T00:50:49Z",
+      "date": "2026-06-18",
+      "downloads": 282,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "f0e8c14341070fb4607c199c8a04b4564e6bb6dd",
+      "published_at": "2026-06-19T00:55:18Z",
+      "date": "2026-06-19",
+      "downloads": 287,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "d25efd719b1ce90b13625b26c2522f9a5abaa7cb",
+      "published_at": "2026-06-20T00:45:54Z",
+      "date": "2026-06-20",
+      "downloads": 287,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "367fee1f6b59bf4dbc372fe1f25e667dc250adeb",
+      "published_at": "2026-06-21T00:50:35Z",
+      "date": "2026-06-21",
+      "downloads": 295,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "3d36fcfd761fbd124f632571df3421366fb136c0",
+      "published_at": "2026-06-22T00:50:20Z",
+      "date": "2026-06-22",
+      "downloads": 295,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "98496c7b6ee7fa19da8d5f6da730416d2149e4db",
+      "published_at": "2026-06-23T00:44:43Z",
+      "date": "2026-06-23",
+      "downloads": 304,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "6be4b08b2914806b6fdcc09f875fe51c02bec1ef",
+      "published_at": "2026-06-24T00:40:39Z",
+      "date": "2026-06-24",
+      "downloads": 304,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "f4f755352425c1d44b9dcbd6c79c7fd21ab31a70",
+      "published_at": "2026-06-25T00:45:15Z",
+      "date": "2026-06-25",
+      "downloads": 309,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "858db3dfe5464a809b076260d8782e129e9a81b1",
+      "published_at": "2026-06-26T00:46:52Z",
+      "date": "2026-06-26",
+      "downloads": 309,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "222029bd4643ff92e4f66daf383d367769dbb061",
+      "published_at": "2026-06-27T00:43:52Z",
+      "date": "2026-06-27",
+      "downloads": 324,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "b904ddf35f5506aa6550946986a569452388530d",
+      "published_at": "2026-06-28T00:45:31Z",
+      "date": "2026-06-28",
+      "downloads": 324,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "1dfad33e69690875da7ccd334bd4508e41212440",
+      "published_at": "2026-06-29T00:46:48Z",
+      "date": "2026-06-29",
+      "downloads": 332,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "bdde839cac6e81bc2b88c8282ac4d65ec4d19566",
+      "published_at": "2026-06-30T00:44:30Z",
+      "date": "2026-06-30",
+      "downloads": 340,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "f379e000db1fd34325c6c750abbdc9c5ede71047",
+      "published_at": "2026-07-01T00:47:03Z",
+      "date": "2026-07-01",
+      "downloads": 340,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "a74dc753fc545f6752a41f2ed20a8766c085fa35",
+      "published_at": "2026-07-02T00:44:18Z",
+      "date": "2026-07-02",
+      "downloads": 344,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "6e8b74314cbdf3fbdbc4a75e9bc8630933c48fcc",
+      "published_at": "2026-07-03T00:36:56Z",
+      "date": "2026-07-03",
+      "downloads": 353,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "0fb99e7cd3408a7fb079e85c4515441d704cdf19",
+      "published_at": "2026-07-04T00:35:26Z",
+      "date": "2026-07-04",
+      "downloads": 363,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "cb908defea420b1ced92725405ea6b79da1d8641",
+      "published_at": "2026-07-05T00:38:12Z",
+      "date": "2026-07-05",
+      "downloads": 380,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "c885847789464dd30e8fd0bf80bd9f4653cc397f",
+      "published_at": "2026-07-06T00:38:11Z",
+      "date": "2026-07-06",
+      "downloads": 380,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "0a4ac269847704b30c6447e90cb7d430cff38030",
+      "published_at": "2026-07-07T00:38:31Z",
+      "date": "2026-07-07",
+      "downloads": 441,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "0aba514347f9a0f6d383e970f46f9cc64538b367",
+      "published_at": "2026-07-08T00:31:48Z",
+      "date": "2026-07-08",
+      "downloads": 441,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "b73fe4b4bdb7f53952846031dde720cb018f1b85",
+      "published_at": "2026-07-09T00:35:39Z",
+      "date": "2026-07-09",
+      "downloads": 449,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "8bce74169fef8b16cea5ba423bca9f012962e1c7",
+      "published_at": "2026-07-10T00:37:25Z",
+      "date": "2026-07-10",
+      "downloads": 456,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "f4e4b8819bd6ccc8641e0c7fc008d3fa67a972c8",
+      "published_at": "2026-07-11T00:30:26Z",
+      "date": "2026-07-11",
+      "downloads": 456,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "216a5c90b9c136d685388746d6c70c6dd6d15c77",
+      "published_at": "2026-07-12T00:32:31Z",
+      "date": "2026-07-12",
+      "downloads": 464,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "02c443cb85be04f2bccaf03eb2c85973dc6219e1",
+      "published_at": "2026-07-13T00:32:23Z",
+      "date": "2026-07-13",
+      "downloads": 487,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "39742ded90b58edfdb67c7b8c97765681b1f0bec",
+      "published_at": "2026-07-14T00:28:42Z",
+      "date": "2026-07-14",
+      "downloads": 492,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "0e5a6cb8192fc18579365f56b62f3f72be788685",
+      "published_at": "2026-07-15T00:26:14Z",
+      "date": "2026-07-15",
+      "downloads": 504,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "4e0d7be8b3858fc266dbe5f10dc06a3fa0930082",
+      "published_at": "2026-07-16T00:29:53Z",
+      "date": "2026-07-16",
+      "downloads": 504,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "d35f62a6db13193b109086d630d2edaf59d648d5",
+      "published_at": "2026-07-17T00:31:41Z",
+      "date": "2026-07-17",
+      "downloads": 518,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "33db7e31a790c89e26ac16baf3969763579c96d6",
+      "published_at": "2026-07-18T00:28:50Z",
+      "date": "2026-07-18",
+      "downloads": 518,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "141d3cfa1d5579947455661e029bfdf205ecbb9c",
+      "published_at": "2026-07-19T00:31:47Z",
+      "date": "2026-07-19",
+      "downloads": 525,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "82bc6efda6fcf5f3e6d0e729f34a6e9b35a25e67",
+      "published_at": "2026-07-20T00:33:02Z",
+      "date": "2026-07-20",
+      "downloads": 543,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "54ea8f2e49564768adfa15ed27537c0262bd7638",
+      "published_at": "2026-07-21T00:31:35Z",
+      "date": "2026-07-21",
+      "downloads": 547,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "75328b32addcce7b82219173937835e982249874",
+      "published_at": "2026-07-22T00:30:11Z",
+      "date": "2026-07-22",
+      "downloads": 555,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "3e5fa34dc6b27165ab109d0a8607b9c03239192e",
+      "published_at": "2026-07-23T00:32:07Z",
+      "date": "2026-07-23",
+      "downloads": 573,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "29526f05dda02a302c6a7499eed648cf2d9bae75",
+      "published_at": "2026-07-24T00:29:01Z",
+      "date": "2026-07-24",
+      "downloads": 582,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "97dd3bcd373fdc1508343835f5d175258e425ea6",
+      "published_at": "2026-07-25T00:33:12Z",
+      "date": "2026-07-25",
+      "downloads": 596,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "b8b8f0092e936bdd8a0d0f7c552b3f02d8c7dfdb",
+      "published_at": "2026-07-26T00:34:53Z",
+      "date": "2026-07-26",
+      "downloads": 604,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "7b4081f06011274161b1e8310b3fb08cf812c9b4",
+      "published_at": "2026-07-27T00:34:27Z",
+      "date": "2026-07-27",
+      "downloads": 612,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "73cc971b5acca6fd78031f160865c7f62698531e",
+      "published_at": "2026-07-28T00:30:58Z",
+      "date": "2026-07-28",
+      "downloads": 612,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "4263ebad74734ef9a700b0a423bec068d80c86be",
+      "published_at": "2026-07-29T00:29:23Z",
+      "date": "2026-07-29",
+      "downloads": 622,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "ab13e28d0660831d519ce0b54f31b6d28f98a476",
+      "published_at": "2026-07-30T00:29:47Z",
+      "date": "2026-07-30",
+      "downloads": 630,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "cdc43fa46612aba1136804c69b1002157535aaf0",
+      "published_at": "2026-07-31T00:33:15Z",
+      "date": "2026-07-31",
+      "downloads": 643,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "427af463b4594da26f4e39fa995826f1058a025d",
+      "published_at": "2026-08-01T00:32:27Z",
+      "date": "2026-08-01",
+      "downloads": 646,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "b734a7f6fd4f96697a4b09196cc683df474b6194",
+      "published_at": "2026-08-02T00:33:43Z",
+      "date": "2026-08-02",
+      "downloads": 658,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "1ebcdb6f4f70ea4fbdd446069a20f46b644da136",
+      "published_at": "2026-08-03T00:33:27Z",
+      "date": "2026-08-03",
+      "downloads": 658,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "e3a128435fec32735cb7bd3d87c8730e5655c15e",
+      "published_at": "2026-08-04T00:32:29Z",
+      "date": "2026-08-04",
+      "downloads": 687,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "0be9c86dc0e9319edbb60478a6cf099538be3aa7",
+      "published_at": "2026-08-05T00:31:04Z",
+      "date": "2026-08-05",
+      "downloads": 708,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "5c34f2f308f9132a6e8bc67a268e15581e4b7c7b",
+      "published_at": "2026-08-06T00:27:52Z",
+      "date": "2026-08-06",
+      "downloads": 708,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "4bbde8a29a305b8f3949418eb495ae38f0f49d47",
+      "published_at": "2026-08-07T01:13:05Z",
+      "date": "2026-08-07",
+      "downloads": 740,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "09a47c3706080ef4a8b6fb387577fd4e70ff425a",
+      "published_at": "2026-08-08T00:15:45Z",
+      "date": "2026-08-08",
+      "downloads": 740,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "9f2c79bc1958d99c7fc2dd34799d478782b48b1f",
+      "published_at": "2026-08-09T00:16:21Z",
+      "date": "2026-08-09",
+      "downloads": 775,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "dba7c06f6d5cac1efa230c042b484963836123b7",
+      "published_at": "2026-08-10T00:17:34Z",
+      "date": "2026-08-10",
+      "downloads": 775,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "6960e0082cf5b8ff12a3239d0f4cba0c46bc9cfc",
+      "published_at": "2026-08-11T00:16:44Z",
+      "date": "2026-08-11",
+      "downloads": 787,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "461d8a188a739d4107c90b8e086544b390f8039c",
+      "published_at": "2026-08-12T00:20:45Z",
+      "date": "2026-08-12",
+      "downloads": 813,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "b1a22e7894d0a5da9877ce2e0f60923551c261b6",
+      "published_at": "2026-08-13T00:21:39Z",
+      "date": "2026-08-13",
+      "downloads": 841,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "42959ce8cb12e9b0eae752bcaa30abd5fcfa03ae",
+      "published_at": "2026-08-14T00:22:25Z",
+      "date": "2026-08-14",
+      "downloads": 841,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "aec9f1e6c84f6a32a4ac187756aff48af42debdc",
+      "published_at": "2026-08-15T00:10:54Z",
+      "date": "2026-08-15",
+      "downloads": 864,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "6a4da6e478bbe8cc2154277c19e771067de04460",
+      "published_at": "2026-08-16T00:11:01Z",
+      "date": "2026-08-16",
+      "downloads": 886,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "26a7c2dd526cb9f035e74acc4c3be1128d7f80bd",
+      "published_at": "2026-08-17T00:10:48Z",
+      "date": "2026-08-17",
+      "downloads": 886,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "ea03ca9f3db17517859287f2de4d4685ddd678c9",
+      "published_at": "2026-08-18T00:10:45Z",
+      "date": "2026-08-18",
+      "downloads": 905,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "da580048cbec4ca7140850806267b2d21df51e7b",
+      "published_at": "2026-08-19T00:10:42Z",
+      "date": "2026-08-19",
+      "downloads": 919,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "1e417d42dbfdb36bb60e8d2a899c245cef293d23",
+      "published_at": "2026-08-20T00:11:21Z",
+      "date": "2026-08-20",
+      "downloads": 957,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "5efdaf768e1c5125885daa125dd53f57fb986bea",
+      "published_at": "2026-08-21T00:11:49Z",
+      "date": "2026-08-21",
+      "downloads": 957,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "517ebf582d8c760e147a02227d812573dee38258",
+      "published_at": "2026-08-22T00:11:06Z",
+      "date": "2026-08-22",
+      "downloads": 974,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "d9d7fb19eda261fc86fc1015a03bf51d52e1e50c",
+      "published_at": "2026-08-23T00:11:36Z",
+      "date": "2026-08-23",
+      "downloads": 988,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "20a3741c03b90d9bf17d6d907d69e5452a7fef02",
+      "published_at": "2026-08-24T00:11:02Z",
+      "date": "2026-08-24",
+      "downloads": 1000,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "7c5bb593e2c7105df359f8ea7b2ab593ad85bc82",
+      "published_at": "2026-08-25T00:11:26Z",
+      "date": "2026-08-25",
+      "downloads": 1034,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "5f52de9a7a375931fb2040a84a6f1d776230533f",
+      "published_at": "2026-08-26T00:11:44Z",
+      "date": "2026-08-26",
+      "downloads": 1034,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "a01c6f179a713b0db1f11866d51aaa411bff10bd",
+      "published_at": "2026-08-27T01:29:48Z",
+      "date": "2026-08-27",
+      "downloads": 1060,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "fd3e8b9cad974106ed58e066dd043e53cd302500",
+      "published_at": "2026-08-28T02:51:24Z",
+      "date": "2026-08-28",
+      "downloads": 1087,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "7a9050dffefd41705c0feb9ef179eed3e5a519bc",
+      "published_at": "2026-08-29T00:22:02Z",
+      "date": "2026-08-29",
+      "downloads": 1110,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "2a8aadabd625c7ba33625487ffafd0faca9cfa94",
+      "published_at": "2026-08-30T00:27:19Z",
+      "date": "2026-08-30",
+      "downloads": 1134,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "85f3a077577762a4216c180c9724ed9b7ccc127f",
+      "published_at": "2026-08-31T00:27:44Z",
+      "date": "2026-08-31",
+      "downloads": 1134,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "424d7be3381d57d0d7ef245624e8b280c1274d46",
+      "published_at": "2026-09-01T00:29:29Z",
+      "date": "2026-09-01",
+      "downloads": 1146,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "45f35f0f82cbd5f5ad9ecd99624bfed2f511c983",
+      "published_at": "2026-09-02T00:25:28Z",
+      "date": "2026-09-02",
+      "downloads": 1168,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "bbf89b282988e742a441c467bdeff7f3407c3c23",
+      "published_at": "2026-09-03T00:25:53Z",
+      "date": "2026-09-03",
+      "downloads": 1200,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "d153e0d5af5225df96e4f58d9b7d7684f6416599",
+      "published_at": "2026-09-04T00:25:56Z",
+      "date": "2026-09-04",
+      "downloads": 1245,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "a86ae7093cd346c8ee54571ff68596b9f513b986",
+      "published_at": "2026-09-05T00:23:42Z",
+      "date": "2026-09-05",
+      "downloads": 1260,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "7e75a7eec4a23f772d344ae9a1554713d73a6a0e",
+      "published_at": "2026-09-06T00:27:38Z",
+      "date": "2026-09-06",
+      "downloads": 1310,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "fd39ac2293bee8016e19597b0634b3364920482f",
+      "published_at": "2026-09-07T00:27:05Z",
+      "date": "2026-09-07",
+      "downloads": 1321,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "d637f8596f3490df9d92b7493eb696726da27988",
+      "published_at": "2026-09-08T00:25:03Z",
+      "date": "2026-09-08",
+      "downloads": 1331,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "d9aab21e0459e429ef26f41e0962ebb9567f6268",
+      "published_at": "2026-09-09T00:25:07Z",
+      "date": "2026-09-09",
+      "downloads": 1350,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "cf5da820e6f9acdb0b4c278b272d299f96ffef95",
+      "published_at": "2026-09-10T00:23:24Z",
+      "date": "2026-09-10",
+      "downloads": 1361,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "5cd1866e63a1d4da0e86b42d92f54229a9875598",
+      "published_at": "2026-09-11T00:25:01Z",
+      "date": "2026-09-11",
+      "downloads": 1391,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "1857735c717c4d29cc6c450cb33457bacaf9a522",
+      "published_at": "2026-09-12T00:23:34Z",
+      "date": "2026-09-12",
+      "downloads": 1412,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "39baaf8fd86aaa41a63b20e8a45c792f0c94e27f",
+      "published_at": "2026-09-13T00:27:45Z",
+      "date": "2026-09-13",
+      "downloads": 1429,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "2ce8448db5acf9be1cc5e392949dde5788fd46f1",
+      "published_at": "2026-09-14T00:27:10Z",
+      "date": "2026-09-14",
+      "downloads": 1455,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "2487c38637d12ec94db167f4fbc96bcaeb33487c",
+      "published_at": "2026-09-15T00:25:34Z",
+      "date": "2026-09-15",
+      "downloads": 1493,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "241474641606a674e601b14dc47a2a65b1427b2a",
+      "published_at": "2026-09-16T00:24:02Z",
+      "date": "2026-09-16",
+      "downloads": 1521,
+      "updated": 1780131513000
+    },
+    {
+      "sha": "68aac2b61cd8266dd243966292cb39f546a4d814",
+      "published_at": "2026-09-17T00:23:53Z",
+      "date": "2026-09-17",
+      "downloads": 1546,
+      "updated": 1789582132000
+    },
+    {
+      "sha": "088048220316bcc0ae1e05d83a24e105ddc78bb0",
+      "published_at": "2026-09-18T00:24:15Z",
+      "date": "2026-09-18",
+      "downloads": 1610,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "e6fdf64023232253bcf92972a8d4a181028a0e28",
+      "published_at": "2026-09-19T00:23:54Z",
+      "date": "2026-09-19",
+      "downloads": 1656,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "2530ce009891956617dfb0c9fdbd67f3cbc6de17",
+      "published_at": "2026-09-20T00:27:33Z",
+      "date": "2026-09-20",
+      "downloads": 1688,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "85dc96dd474923a3b103bac11bc6fdf9deb25df5",
+      "published_at": "2026-09-21T00:26:53Z",
+      "date": "2026-09-21",
+      "downloads": 1722,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "769543f7255e23c4bb9499474779e2665048e96d",
+      "published_at": "2026-09-22T00:24:48Z",
+      "date": "2026-09-22",
+      "downloads": 1739,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "b4238d43bd3d26f9a16a0d875d7ecbc57c55597f",
+      "published_at": "2026-09-23T00:23:13Z",
+      "date": "2026-09-23",
+      "downloads": 1780,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "47c924829cd6387e397c1621c91c71d715fc58b3",
+      "published_at": "2026-09-24T00:23:51Z",
+      "date": "2026-09-24",
+      "downloads": 1833,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "4e54ea85d430c29709ea804abb48dea305c99ff1",
+      "published_at": "2026-09-25T00:25:27Z",
+      "date": "2026-09-25",
+      "downloads": 1875,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "27e225d9741aa3e2b7339653b759cfbb29cf8801",
+      "published_at": "2026-09-26T00:24:12Z",
+      "date": "2026-09-26",
+      "downloads": 1892,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "810e19f6b16ee41af169ee7a27af9f59de40363f",
+      "published_at": "2026-09-27T00:28:47Z",
+      "date": "2026-09-27",
+      "downloads": 1920,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "636f3ff39bab027756b69266dfc07acddee94022",
+      "published_at": "2026-09-28T00:28:44Z",
+      "date": "2026-09-28",
+      "downloads": 1951,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "3527887aa933879e51056a800cebe47197152bfb",
+      "published_at": "2026-09-29T00:26:33Z",
+      "date": "2026-09-29",
+      "downloads": 1997,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "a59743a4cc31d933a071a308273b839df42accb0",
+      "published_at": "2026-09-30T00:27:41Z",
+      "date": "2026-09-30",
+      "downloads": 2055,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "72296e18e1e85f873aff7248ab5478e53a3ce2b8",
+      "published_at": "2026-10-01T00:31:32Z",
+      "date": "2026-10-01",
+      "downloads": 2117,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "049ed640fecaf38d94acff170260725754db3e77",
+      "published_at": "2026-10-02T00:27:07Z",
+      "date": "2026-10-02",
+      "downloads": 2117,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "b46e8ffa3e1db7a96d7dc6cafa2f88ad7408a38e",
+      "published_at": "2026-10-03T00:24:33Z",
+      "date": "2026-10-03",
+      "downloads": 2274,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "5ec2e54705a62035983fde257727fd3e69c1d799",
+      "published_at": "2026-10-04T01:07:04Z",
+      "date": "2026-10-04",
+      "downloads": 2319,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "a7ef9bc6fbd1b6e6e3d360feaecb9fbf6bd8f393",
+      "published_at": "2026-10-05T00:28:54Z",
+      "date": "2026-10-05",
+      "downloads": 2319,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "2517097e07f5edf94859f826fcedf68d57431309",
+      "published_at": "2026-10-06T00:26:46Z",
+      "date": "2026-10-06",
+      "downloads": 2395,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "54a34c180fa5571af38499afe28951a209bcf7b9",
+      "published_at": "2026-10-07T00:27:27Z",
+      "date": "2026-10-07",
+      "downloads": 2511,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "f452ce4a23cfdbd2ad0bf662da56cf8df5a915f3",
+      "published_at": "2026-10-08T00:26:20Z",
+      "date": "2026-10-08",
+      "downloads": 2630,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "11a271e393d8c96396ecc20dd034bbc9a070100a",
+      "published_at": "2026-10-09T00:28:00Z",
+      "date": "2026-10-09",
+      "downloads": 2630,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "3aa09376b8f83ddce4924318ad605bf9d77cdded",
+      "published_at": "2026-10-10T00:27:36Z",
+      "date": "2026-10-10",
+      "downloads": 2717,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "f7eb55f8a01103052f1a8e43fe84c95c3f677e50",
+      "published_at": "2026-10-11T00:29:53Z",
+      "date": "2026-10-11",
+      "downloads": 2848,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "1ca42086a1cd1c58fa68e76a5134a2656fc8f0e4",
+      "published_at": "2026-10-12T00:30:54Z",
+      "date": "2026-10-12",
+      "downloads": 3044,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "bc28aeb2081cb18b20d938d9c9b9dfcc330bc804",
+      "published_at": "2026-10-13T00:28:50Z",
+      "date": "2026-10-13",
+      "downloads": 3044,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "fab644b3ab538e1c0ef3f0b5f49b3b1727e973ae",
+      "published_at": "2026-10-14T00:22:24Z",
+      "date": "2026-10-14",
+      "downloads": 3115,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "cfb243b3c3b61bb22015da5a347b4d1ad9977872",
+      "published_at": "2026-10-15T00:22:12Z",
+      "date": "2026-10-15",
+      "downloads": 3233,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "580f5cb15184f019068027a3370f96e1a35d5662",
+      "published_at": "2026-10-16T00:21:37Z",
+      "date": "2026-10-16",
+      "downloads": 3364,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "3fa0f5af688226879ef1f9995e6a1304841d9c9f",
+      "published_at": "2026-10-17T00:22:46Z",
+      "date": "2026-10-17",
+      "downloads": 3434,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "66c7de620ba4be791a1dc893ca623470afe25545",
+      "published_at": "2026-10-18T00:25:32Z",
+      "date": "2026-10-18",
+      "downloads": 3517,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "3f15b9ce36dfd4338789f9340a40bcc3662e926e",
+      "published_at": "2026-10-19T00:25:19Z",
+      "date": "2026-10-19",
+      "downloads": 3633,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "572939b07b32fa9bd621325fc52829377c908402",
+      "published_at": "2026-10-20T00:23:20Z",
+      "date": "2026-10-20",
+      "downloads": 3712,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "0ebb9ae1366fe4f45ba5d39bec42a87fb8e4bfdb",
+      "published_at": "2026-10-21T00:22:13Z",
+      "date": "2026-10-21",
+      "downloads": 3809,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "737db1c825f90441cbd285a0fbb461a977319a65",
+      "published_at": "2026-10-22T00:22:31Z",
+      "date": "2026-10-22",
+      "downloads": 3930,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "c6cdbbd269c2e47fa3f3e1b73eca3cd7c2287a6f",
+      "published_at": "2026-10-23T00:23:29Z",
+      "date": "2026-10-23",
+      "downloads": 3982,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "56ea5a505625b319d9ed44263a7dd130b05af237",
+      "published_at": "2026-10-24T00:22:51Z",
+      "date": "2026-10-24",
+      "downloads": 4143,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "65cd2473b8db7ac001c030b3eebfc9e6e1b889c2",
+      "published_at": "2026-10-25T00:25:26Z",
+      "date": "2026-10-25",
+      "downloads": 4143,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "96b81a68f910dd626dc1cf5bb10f334c14d463fb",
+      "published_at": "2026-10-26T00:24:28Z",
+      "date": "2026-10-26",
+      "downloads": 4215,
+      "updated": 1789672898000
+    },
+    {
+      "sha": "cfd715d20cddf20e8610170f0c7c72f049b7992a",
+      "published_at": "2026-10-27T00:23:08Z",
+      "date": "2026-10-27",
+      "downloads": 4365,
+      "updated": 1793016022000
+    }
+  ]
+}

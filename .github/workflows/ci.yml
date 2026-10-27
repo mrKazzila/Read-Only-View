@@ -57,4 +57,6 @@ jobs:
       - name: Test aggregate analytics
         run: python -m pytest
       - name: Validate committed data and generate dashboard input
-        run: python scripts/build_star_analytics.py
+        run: |
+          python scripts/build_star_analytics.py
+          python scripts/build_download_analytics.py
