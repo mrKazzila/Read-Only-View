@@ -3,7 +3,7 @@
   "source": "obsidianmd/obsidian-releases",
   "plugin": "read-only-view",
   "since": "2026-02-23T16:04:36Z",
-  "cursor": "183c51bbc63f137ae9a3c8560d97a537c3b061a4",
+  "cursor": "f5c1c281c1ba26db4eb83548df8fcc0ec8f1f0f9",
   "snapshots": [
     {
       "sha": "7e78777896864a225cb6757c8eac8391ba386937",
@@ -1368,6 +1368,13 @@
       "published_at": "2026-11-23T00:16:18Z",
       "date": "2026-11-23",
       "downloads": 5080,
+      "updated": 1793016022000
+    },
+    {
+      "sha": "f5c1c281c1ba26db4eb83548df8fcc0ec8f1f0f9",
+      "published_at": "2026-11-24T00:14:14Z",
+      "date": "2026-11-24",
+      "downloads": 5092,
       "updated": 1793016022000
     }
   ]
